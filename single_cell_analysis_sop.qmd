@@ -1,0 +1,112 @@
+---
+title: "Single Cell PNA Analysis SOP"
+format: html
+---
+
+# Setup
+
+## Packages
+
+```{r}
+# | 
+```
+
+
+## Read data
+
+```{r}
+
+```
+
+# Merge data
+
+# Quality Control
+
+Investigate levels and/or distribution of:
+
+## Read depth (n_reads)
+
+## Sequencing saturation
+
+## Antibody molecule counts (n_umi)
+
+## Isotype controls
+
+## Connectivity (average kcore and dangling nodes)
+
+## Select cells
+
+Remove cells that:
+
+Are small, using the molecule rank plot
+
+Are noisy, using isotype background level 
+
+Have an abnormal marker distribution, using the tau score
+
+## Select markers (optional)
+
+Select markers for dimensionality and clustering (optional) 
+
+Remove markers that: 
+
+Are not positive in any cell population
+
+Colocalize with isotypes
+
+# Data processing
+
+## Normalize and scale data
+
+Normalize using CLR, margin 2
+
+Z-score scale normalized data
+
+## Dimensionality reduction
+
+PCA (optionally using a pre-selected subset of markers)
+
+Selection of dimensions 
+
+UMAP 
+
+Check sample distribution
+
+## Data harmonization (optional) 
+
+Harmonize data using Harmony
+
+Inspect the result compared to the non-harmonized data and decide whether it is necessary
+
+## Clustering
+
+Cluster using the Leiden algorithm
+
+## Annotation
+
+Annotate cells by: 
+
+Manual annotation from differential abundance between clusters or average abundance across clusters.
+
+Automatic annotation using label transfer from a reference dataset. 
+
+
+# Statistical testing
+
+## Marker selection
+
+Select markers to evaluate per cell type, based on: 
+
+Abundance level and variance (e.g. mean vs standard deviation)
+
+Deviation from background levels (isotypes or ambient negative levels)
+
+Colocalization to isotypes
+
+## Differential abundance analysis
+
+Statistical test (typically Wilcoxon) between conditions
+
+## Differential proximity analysis
+
+Statistical test (typically Wilcoxon) between conditions
