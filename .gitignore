@@ -1,4 +1,8 @@
+# R files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+
+# Result files
+results/

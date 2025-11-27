@@ -1,6 +1,21 @@
 ---
 title: "Single Cell PNA Analysis SOP"
+subtitle: "v0.1.0" 
 format: html
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: console
+execute:
+  dev: ragg_png
+  execute-dir: dir
+  echo: false
+  warning: false
+  message: false
+params: 
+  
+  sample_sheet: "../../../ES_test_data/test_samplesheet.csv"
+  data_folder: "../../../ES_test_data/"
+  control_markers: ["mIgG1", "mIgG2a", "mIgG2b"]
 ---
 
 # Setup
@@ -8,17 +23,119 @@ format: html
 ## Packages
 
 ```{r}
-# | 
-```
+#| label: setup_packages
 
+library(tidyverse)
+library(Seurat)
+library(pixelatorR)
+
+```
 
 ## Read data
 
 ```{r}
+#| label: setup_read_data
+
+data_files <- 
+  c(S1 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S04_Activated_CD4_cells.layout.pxl",
+    S2 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S05_Raji.layout.pxl",
+    S3 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S07_Raji_CD4_with_SEE.layout.pxl")
+
+conditions <- 
+  c(S1 = "ctrl", 
+    S2 = "stim1", 
+    S3 = "stim2")
+
+pg_data <-
+  data_files |> 
+  lapply(ReadPNA_Seurat,
+         load_proximity_scores = FALSE
+  )
 
 ```
 
-# Merge data
+## Merge data
+
+```{r}
+#| label: setup_merge_data
+
+pg_data <-
+  merge(
+    pg_data[[1]],
+    y = pg_data[-1],
+    add.cell.ids = names(pg_data)
+  ) |> 
+  JoinLayers()
+
+
+pg_data <-
+  pg_data |> 
+  AddMetaData(colnames(pg_data) |> 
+                enframe("i", "comp_id") |> 
+                mutate(
+                  sample_alias = str_extract(comp_id, ".*_") |> 
+                    str_remove("_$"),
+                  condition = conditions[sample_alias]
+                ) |> 
+                column_to_rownames("comp_id"))
+
+```
+
+
+## Theme
+
+```{r}
+#| label: setup_theme
+
+cluster_palette <-
+  c(
+    pixelatorR::PixelgenAccentColors(
+      level = 7,
+      hue = c(
+        "blues", "reds",
+        "cyans", "oranges",
+        "pinks", "greens",
+        "purples", "yellows",
+        "greys", "beiges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 9,
+      hue = c(
+        "blues", "pinks",
+        "reds", "yellows",
+        "greys", "beiges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 5,
+      hue = c(
+        "purples", "blues",
+        "cyans", "greens",
+        "reds", "oranges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 3,
+      hue = c("blues", "reds")
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 12,
+      hue = c("blues", "reds")
+    )
+  ) %>%
+  unname() %>%
+  rep(10)
+
+
+condition_palette <- 
+  set_names(
+    pixelatorES::create_sample_palette(
+      unique(conditions)
+      )[seq_len(n_distinct(conditions))], 
+    unique(conditions))
+
+```
 
 # Quality Control
 
@@ -26,13 +143,61 @@ Investigate levels and/or distribution of:
 
 ## Read depth (n_reads)
 
+```{r}
+#| label: quality_control_read_depth
+
+FetchData(pg_data, 
+          c("sample_alias", "condition", "reads_in_component")) |> 
+  ggplot(aes(sample_alias, reads_in_component, fill = condition)) +
+  geom_violin(draw_quantiles = 0.5, scale = "width") +
+  geom_text(data = function(x) x |> 
+              group_by(sample_alias) |>  
+              summarise(median = median(reads_in_component)),
+            aes(sample_alias, median, label = round(median)),
+            vjust = -0.5,
+            inherit.aes = FALSE)+
+  scale_y_log10() +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  labs(
+    title = "Read depth per cell",
+    x = "Sample",
+    y = "Reads per cell (log10 scale)"
+  )
+ggsave(
+  filename = file.path("results", "quality_control_read_depth.png"),
+  width = 6,
+  height = 4
+)
+
+```
+
 ## Sequencing saturation
+
+```{r}
+#| label: quality_control_sequencing_saturation
+
+
+
+```
 
 ## Antibody molecule counts (n_umi)
 
+```{r}
+#| label: quality_control_antibody_molecule_counts
+```
+
 ## Isotype controls
 
+```{r}
+#| label: quality_control_isotype_controls
+```
+
 ## Connectivity (average kcore and dangling nodes)
+
+```{r}
+#| label: quality_control_connectivity
+```
 
 ## Select cells
 
@@ -44,6 +209,11 @@ Are noisy, using isotype background level 
 
 Have an abnormal marker distribution, using the tau score
 
+```{r}
+#| label: quality_control_select_cells
+```
+
+
 ## Select markers (optional)
 
 Select markers for dimensionality and clustering (optional) 
@@ -54,6 +224,10 @@ Are not positive in any cell population
 
 Colocalize with isotypes
 
+```{r}
+#| label: quality_control_select_markers
+```
+
 # Data processing
 
 ## Normalize and scale data
@@ -61,6 +235,10 @@ Colocalize with isotypes
 Normalize using CLR, margin 2
 
 Z-score scale normalized data
+
+```{r}
+#| label: data_processing_normalize_scale
+```
 
 ## Dimensionality reduction
 
@@ -72,15 +250,27 @@ UMAP 
 
 Check sample distribution
 
+```{r}
+#| label: data_processing_dimensionality_reduction
+```
+
 ## Data harmonization (optional) 
 
 Harmonize data using Harmony
 
 Inspect the result compared to the non-harmonized data and decide whether it is necessary
 
+```{r}
+#| label: data_processing_data_harmonization
+```
+
 ## Clustering
 
 Cluster using the Leiden algorithm
+
+```{r}
+#| label: data_processing_clustering
+```
 
 ## Annotation
 
@@ -90,6 +280,9 @@ Manual annotation from differential abundance between clusters or average abunda
 
 Automatic annotation using label transfer from a reference dataset. 
 
+```{r}
+#| label: data_processing_annotation
+```
 
 # Statistical testing
 
@@ -103,10 +296,23 @@ Deviation from background levels (isotypes or ambient negative levels)
 
 Colocalization to isotypes
 
+```{r}
+#| label: statistical_testing_marker_selection
+```
+
 ## Differential abundance analysis
 
 Statistical test (typically Wilcoxon) between conditions
 
+```{r}
+#| label: statistical_testing_differential_abundance
+```
+
 ## Differential proximity analysis
 
 Statistical test (typically Wilcoxon) between conditions
+
+```{r}
+#| label: statistical_testing_differential_proximity
+```
+
