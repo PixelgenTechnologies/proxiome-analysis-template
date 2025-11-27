@@ -11,12 +11,6 @@ execute:
   echo: false
   warning: false
   message: false
-params: 
-  
-  sample_sheet: "../../../ES_test_data/test_samplesheet.csv"
-  data_folder: "../../../ES_test_data/"
-  control_markers: ["mIgG1", "mIgG2a", "mIgG2b"]
-  mc_cores: 1
 ---
 
 This SOP describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is meant to be interactive and modular, allowing users to adapt it to their specific experimental designs and analysis needs.
@@ -31,6 +25,35 @@ This SOP describes a standard workflow for analyzing single cell PNA data using 
 library(tidyverse)
 library(Seurat)
 library(pixelatorR)
+library(harmony)
+library(ComplexHeatmap)
+library(ggplotify)
+
+```
+
+## Functions
+
+```{r}
+#| label: setup_functions
+
+save_plot <- 
+  function(
+    filename, 
+    plot = last_plot(),
+    width = 6, 
+    height = 4, 
+    file_formats = c("png", "pdf")
+  ) {
+    for (format in file_formats) {
+      ggsave(
+        filename = file.path("results", 
+                             paste0(filename, ".", format)),
+        plot = plot,
+        width = width,
+        height = height
+      )
+    }
+  }
 
 ```
 
@@ -182,8 +205,8 @@ FetchData(pg_data,
     x = "Sample",
     y = "Reads per cell (log10 scale)"
   )
-ggsave(
-  filename = file.path("results", "quality_control_read_depth.png"),
+save_plot(
+  filename = "quality_control_read_depth",
   width = 6,
   height = 4
 )
@@ -225,7 +248,7 @@ seqsat_curve_data <-
     
     el |>
       SequenceSaturationCurve(n_comps = n_comps)
-  }, mc.cores = mc_cores) |>
+  }, mc.cores = 1) |>
   bind_rows(.id = "sample_alias") |>
   left_join(
     object_meta,
@@ -266,8 +289,8 @@ seqsat_curve_data |>
     title = "Sequencing saturation curve",
     color = "Sample ID"
   )
-ggsave(
-  filename = file.path("results", "quality_control_sequencing_saturation.png"),
+save_plot(
+  filename = "quality_control_sequencing_saturation",
   width = 6,
   height = 4
 )
@@ -281,10 +304,10 @@ TODO: Add text here
 #| label: quality_control_connectivity
 
 plot_data <- 
-FetchData(pg_data, 
-c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")) |> 
-mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
-  
+  FetchData(pg_data, 
+            c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")) |> 
+  mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
+
 plot_data |> 
   ggplot(aes(sample_alias, average_k_core, fill = condition)) +
   geom_violin(draw_quantiles = 0.5, scale = "width") +
@@ -302,8 +325,8 @@ plot_data |>
     y = "Average k-core"
   )
 
-ggsave(
-  filename = file.path("results", "quality_control_average_k_core.png"),
+save_plot(
+  filename = "quality_control_average_k_core",
   width = 6,
   height = 4
 )
@@ -325,8 +348,8 @@ plot_data |>
     y = "Dangling nodes [%]"
   )
 
-ggsave(
-  filename = file.path("results", "quality_control_dangling_nodes.png"),
+save_plot(
+  filename = "quality_control_dangling_nodes",
   width = 6,
   height = 4
 )
@@ -369,8 +392,8 @@ MoleculeRankPlot(pg_data, group_by = "sample_alias") +
     linetype = "dashed",
     color = "red"
   )
-ggsave(
-  filename = file.path("results", "quality_control_molecule_rank_plot.png"),
+save_plot(
+  filename = "quality_control_molecule_rank_plot",
   width = 6,
   height = 4
 )
@@ -399,8 +422,8 @@ FetchData(pg_data,
     x = "Sample",
     y = "Molecule counts per cell (log10 scale)"
   )
-ggsave(
-  filename = file.path("results", "quality_control_antibody_molecule_counts.png"),
+save_plot(
+  filename = "quality_control_antibody_molecule_counts",
   width = 6,
   height = 4
 )
@@ -437,9 +460,9 @@ FetchData(pg_data,
     x = "Sample",
     y = "Isotype control fraction per cell [%]"
   )
-      
-ggsave(
-  filename = file.path("results", "quality_control_isotype_controls.png"),
+
+save_plot(
+  filename = "quality_control_isotype_controls",
   width = 6,
   height = 4
 )
@@ -453,8 +476,8 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 #| label: quality_control_tau_score
 
 TauPlot(pg_data)  
-ggsave(
-  filename = file.path("results", "quality_control_tau_score.png"),
+save_plot(
+  filename = "quality_control_tau_score",
   width = 6,
   height = 4
 )
@@ -463,16 +486,77 @@ ggsave(
 
 ## Select markers (optional)
 
-Select markers for dimensionality and clustering (optional) 
+In this step we select markers that we believe are positive in at least one cell population in the dataset. There is not a single correct way to do this, and the selection criteria will depend on the dataset and experimental design. 
 
-Remove markers that: 
+Here we provide one example approach based on counts per million (CPM) thresholds. We calculate the 50th percentile (the median) and 95th percentile of CPM per marker across all cells, and select markers that have a 95th percentile above a certain threshold. The threshold can be adjusted according to the background levels of the dataset, and according to expectations of which markers should be present in the data.
 
-Are not positive in any cell population
+In this example, we set the threshold to 1000 CPM at the 95th percentile. This means, in effect, that we let cell populations composing at least 5% of the sample dictate which markers we use in later analysis steps. Comparing the 95th percentile to the 50th percentile also gives us an idea of how much the marker expression varies across cells.
 
-Colocalize with isotypes
 
 ```{r}
 #| label: quality_control_select_markers
+
+marker_cpm_p95_threshold <- 1000
+
+count_data <- 
+  LayerData(pg_data, "counts")
+cpm_data <- 
+  count_data |> 
+  sweep(1, colSums(count_data), "/") 
+
+cpm_data <- cpm_data * 1e6
+
+cpm_quantiles <- 
+  cpm_data |> 
+  apply(1, function(x) quantile(x, c(0.5, 0.95))) |> 
+  t() |> 
+  as_tibble(rownames = "marker") |> 
+  mutate(kept = `95%` > marker_cpm_p95_threshold)
+
+cpm_quantiles|> 
+  ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker),
+            vjust = -0.5, 
+            size = 2) +
+  scale_x_log10(expand = expansion(0.2)) +
+  scale_y_log10() +
+  theme_bw() +
+  labs(
+    title = "Marker selection based on CPM",
+    x = "50th percentile of CPM (log10 scale)",
+    y = "95th / 50th percentile of CPM (log10 scale)"
+  )
+save_plot(
+  filename = "quality_control_marker_selection_cpm",
+  width = 6,
+  height = 4
+)
+
+
+cpm_quantiles |> 
+  arrange(`95%`) |>
+  mutate(marker = factor(marker, levels = marker)) |>
+  ggplot(aes(x = marker, y = `95%`, fill = kept)) +
+  geom_col() +
+  scale_y_log10() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(
+    title = "95th percentile of CPM per marker",
+    x = "Marker",
+    y = "95th percentile of CPM (log10 scale)"
+  )
+save_plot(
+  filename = "quality_control_marker_selection_cpm_barplot",
+  width = 6,
+  height = 4
+)
+
+selected_markers <- 
+  cpm_quantiles |> 
+  filter(kept) |> 
+  pull(marker)
 
 
 ```
@@ -481,63 +565,280 @@ Colocalize with isotypes
 
 ## Normalize and scale data
 
-Normalize using CLR, margin 2
+We typically normalize PNA data using CLR over margin 2, which means that we normalize the counts per cell by the geometric mean across all markers. This normalization method accounts for differences in sequencing depth between cells, while preserving relative differences in marker abundance within each cell.
 
-Z-score scale normalized data
+Next, we perform Z-score scaling of the normalized data per marker, which centers the data around zero and scales it to unit variance. This step is important for downstream dimensionality reduction and clustering, as it ensures that all markers contribute equally to the analysis, regardless of their absolute abundance levels.
 
 ```{r}
 #| label: data_processing_normalize_scale
+
+pg_data <-
+  pg_data |>
+  # Data normalization
+  NormalizeData(normalization.method = "CLR", margin = 2) |>
+  # Z score scaling
+  ScaleData() 
+
 ```
 
 ## Dimensionality reduction
 
-PCA (optionally using a pre-selected subset of markers)
+Next, we perform a Principal Component Analysis (PCA) to extract the main axes of variation in the data. We typically use the first 10-20 principal components (PCs) for downstream analysis, but this number can be adjusted based on the dataset and experimental design. A rule of thumb is that the selected PCs should explain a substantial portion of the total variance in the data, while avoiding overfitting or noise. Oftentimes PCs correspond to technical effects, cell states, or experiment effects in the data, and so this number can be adjusted e.g. according to expectations on the number of cell states one expects.
 
-Selection of dimensions 
+Here we use the marker selection we previously performed to select markers for PCA. This step is optional, but can help to reduce noise and improve the interpretability of the results.
 
-UMAP 
-
-Check sample distribution
+After PCA, we perform Uniform Manifold Approximation and Projection (UMAP) to visualize the data in a low-dimensional space. UMAP is a non-linear dimensionality reduction technique that preserves both local and global structure in the data, making it well-suited for visualizing complex datasets such as single-cell PNA data.
 
 ```{r}
 #| label: data_processing_dimensionality_reduction
+
+npcs <- 20
+n_neighbors <- 30
+pg_data <- 
+  pg_data |> 
+  RunPCA(npcs = npcs, features = selected_markers) |>
+  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
+
+pca_red <- 
+  Reductions(pg_data, "pca")
+
+pca_red@stdev |> 
+  as_tibble(rownames = "PC") |> 
+  mutate(PC = PC |> str_remove("PC_") |> as.integer()) |> 
+  ggplot(aes(PC, value)) +
+  geom_line() +
+  geom_point() +
+  theme_bw() +
+  labs(
+    title = "PCA Elbow Plot",
+    x = "Principal Component",
+    y = "Standard Deviation"
+  )
+
+ggsave(
+  filename = "results/data_processing_pca_elbow_plot.png",
+  width = 6,
+  height = 4
+)
+
+cell_metadata <- 
+  FetchData(pg_data, c("sample_alias", "condition")) |> 
+  as_tibble(rownames = "cell_id")
+
+Embeddings(pg_data, "pca") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(PC_1, PC_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
+
+save_plot(
+  filename = "data_processing_pca",
+  width = 6,
+  height = 4
+)
+
+Embeddings(pg_data, "umap") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(umap_1, umap_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
+
+save_plot(
+  filename = "data_processing_umap",
+  width = 6,
+  height = 4
+)
 ```
 
-## Data harmonization (optional) 
+## Data harmonization (optional)
 
-Harmonize data using Harmony
+If your experiment contains multiple samples with similar cell types, but these cell types for one reason or other do not cluster together well, it can be beneficial to harmonize the data. Data harmonization aims to align similar cell types across samples such that they cluster together, which can help to understand which cell types are shared between samples, even if they have somewhat different protein profile. This is particularly useful in experiments with batch effects or technical variability, or biological effects such as donor variability or stimulation perturbations. 
 
-Inspect the result compared to the non-harmonized data and decide whether it is necessary
+Here we use the Harmony algorithm to harmonize the data based on the sample ID, but any sample metadata can be used. 
+
+We recommend inspecting the harmonized data carefully to ensure that the harmonization has not removed important biological variation, and that similar cell types are indeed clustering together across samples. In many cases it is not necessary to harmonize the data, especially if the samples are already well-mixed and similar cell types cluster together without harmonization.
+
+The harmonization we perform here results in a harmonized dimensional reduction called "harmony", which we use for UMAP visualization and clustering. However, the original data remains unchanged, so we really only use the harmonization to find common cell identities between samples.
 
 ```{r}
 #| label: data_processing_data_harmonization
+pg_data <-
+pg_data |>
+RunHarmony(
+group.by.vars = "sample_alias",
+plot_convergence = FALSE,
+) |>
+RunUMAP(
+reduction = "harmony", dims = 1:20,
+reduction.name = "harmony_umap",
+n.neighbors = n_neighbors
+) 
+
+cell_metadata <- 
+  FetchData(pg_data, c("sample_alias", "condition")) |> 
+  as_tibble(rownames = "cell_id")
+
+Embeddings(pg_data, "harmony") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
+
+save_plot(
+  filename = "data_processing_harmony",
+  width = 6,
+  height = 4
+)
+
+Embeddings(pg_data, "harmony_umap") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
+
+save_plot(
+  filename = "data_processing_harmonyumap",
+  width = 6,
+  height = 4
+)
+
 ```
 
 ## Clustering
 
-Cluster using the Leiden algorithm
+After dimensionality reduction, we perform clustering. We essentially group cells that are similar in their protein profiles into clusters, which we can later annotate as cell types or cell states. We will perform Leiden clustering on a nearest neighbor graph constructed from the PCA or Harmony reduction. The resolution parameter controls the granularity of the clustering, with higher values resulting in more clusters. The optimal resolution depends on the dataset and experimental design, and can be determined by inspecting the clustering results at different resolutions.
 
 ```{r}
 #| label: data_processing_clustering
+
+pg_data <- 
+pg_data |>
+    FindNeighbors(reduction = "harmony", dims = 1:10) |>
+    FindClusters(random.seed = 1, resolution = 0.5)
+
+cell_metadata <- 
+  FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |> 
+  as_tibble(rownames = "cell_id")
+
+Embeddings(pg_data, "harmony") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = cluster_palette) +
+  theme_bw()
+
+save_plot(
+  filename = "data_processing_harmony_clusters",
+  width = 6,
+  height = 4
+)
+
+Embeddings(pg_data, "harmony_umap") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = cluster_palette) +
+  theme_bw()
+
+save_plot(
+  filename = "data_processing_harmonyumap_clusters",
+  width = 6,
+  height = 4
+)
+
 ```
 
 ## Annotation
 
-Annotate cells by: 
+### Automatic annotation
+
+TODO: Fill this text out 
+Annotate cells by:
 
 Manual annotation from differential abundance between clusters or average abundance across clusters.
 
-Automatic annotation using label transfer from a reference dataset. 
+Automatic annotation using label transfer from a reference dataset.
 
 ```{r}
 #| label: data_processing_annotation
+
+# Automatic annotation
+# reference <- pixelatorES::read_annotation_reference()
+# reference$l1_annotation <- reference$celltype.l1
+# reference$l2_annotation <- reference$celltype.l2
+# object <-
+# object |>
+# AnnotateCells(
+# reference = reference,
+# reference_groups = c("l1_annotation", "l2_annotation"),
+# reference_assay = "PNA",
+# query_assay = "PNA",
+# summarize_by_column = "seurat_clusters",
+# normalization_method = ifelse(params$annotation_method == "Seurat", "LogNormalize", "CLR"),
+# method = params$annotation_method
+# )
+
+
+```
+
+### Manual annotation
+
+```{r}
+#| label: data_processing_manual_annotation
+
+diff_abundant_markers_cluster <- 
+FindAllMarkers(
+pg_data, 
+ logfc.threshold = 0,
+min_pct = 0, 
+return.thresh = 1
+) |> 
+as_tibble() |> 
+rename(marker = gene)
+
+diff_abundant_markers_cluster |> 
+group_by(marker) |> 
+filter(any(p_val_adj < 0.05 & avg_log2FC > 1)) |> 
+select(marker, avg_log2FC, cluster) |> 
+pivot_wider(names_from = cluster, values_from = avg_log2FC, values_fill = 0) |>
+column_to_rownames("marker") |>
+pheatmap(
+cellwidth = 8, 
+cellheight = 8,
+heatmap_legend_param = list(title = "Avg. log2 FC"),
+) |> 
+as.ggplot()
+
+
 ```
 
 # Statistical testing
 
 ## Marker selection
 
-Select markers to evaluate per cell type, based on: 
+Select markers to evaluate per cell type, based on:
 
 Abundance level and variance (e.g. mean vs standard deviation)
 
@@ -545,8 +846,11 @@ Deviation from background levels (isotypes or ambient negative levels)
 
 Colocalization to isotypes
 
+Colocalize with isotypes
+
 ```{r}
 #| label: statistical_testing_marker_selection
+
 ```
 
 ## Differential abundance analysis
@@ -555,6 +859,7 @@ Statistical test (typically Wilcoxon) between conditions
 
 ```{r}
 #| label: statistical_testing_differential_abundance
+
 ```
 
 ## Differential proximity analysis
@@ -563,5 +868,6 @@ Statistical test (typically Wilcoxon) between conditions
 
 ```{r}
 #| label: statistical_testing_differential_proximity
+
 ```
 
