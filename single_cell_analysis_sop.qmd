@@ -16,7 +16,10 @@ params:
   sample_sheet: "../../../ES_test_data/test_samplesheet.csv"
   data_folder: "../../../ES_test_data/"
   control_markers: ["mIgG1", "mIgG2a", "mIgG2b"]
+  mc_cores: 1
 ---
+
+This SOP describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is meant to be interactive and modular, allowing users to adapt it to their specific experimental designs and analysis needs.
 
 # Setup
 
@@ -32,6 +35,8 @@ library(pixelatorR)
 ```
 
 ## Read data
+
+We will begin with reading data. Specify the data file IDs, paths, and conditions below.
 
 ```{r}
 #| label: setup_read_data
@@ -56,9 +61,12 @@ pg_data <-
 
 ## Merge data
 
+We merge all data into a single Seurat object, adding metadata for sample alias and condition.
+
 ```{r}
 #| label: setup_merge_data
 
+# Merge data
 pg_data <-
   merge(
     pg_data[[1]],
@@ -67,7 +75,7 @@ pg_data <-
   ) |> 
   JoinLayers()
 
-
+# Add metadata
 pg_data <-
   pg_data |> 
   AddMetaData(colnames(pg_data) |> 
@@ -83,6 +91,8 @@ pg_data <-
 
 
 ## Theme
+
+Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  
 
 ```{r}
 #| label: setup_theme
@@ -123,8 +133,8 @@ cluster_palette <-
       level = 12,
       hue = c("blues", "reds")
     )
-  ) %>%
-  unname() %>%
+  ) |>
+  unname() |>
   rep(10)
 
 
@@ -132,14 +142,22 @@ condition_palette <-
   set_names(
     pixelatorES::create_sample_palette(
       unique(conditions)
-      )[seq_len(n_distinct(conditions))], 
+    )[seq_len(n_distinct(conditions))], 
     unique(conditions))
+
+
+sample_palette <- 
+  set_names(
+    pixelatorES::create_sample_palette(
+      names(data_files)
+    )[seq_len(length(data_files))], 
+    names(data_files))
 
 ```
 
 # Quality Control
 
-Investigate levels and/or distribution of:
+In Quality Control we inspect certain metrics that are indicative of the quality of the data per sample and/or per cell. Based on these metrics we can decide whether to remove cells from the dataset before proceeding with data processing.
 
 ## Read depth (n_reads)
 
@@ -174,45 +192,274 @@ ggsave(
 
 ## Sequencing saturation
 
+Here we run simulations of 6 cells to estimate the sequencing saturation curves per sample.
+
 ```{r}
 #| label: quality_control_sequencing_saturation
 
+object_meta <-
+  FetchData(pg_data, c("sample_alias", "reads_in_component")) |>
+  group_by(sample_alias) |>
+  summarise(
+    n_comps = n(),
+    reads_per_component = mean(reads_in_component)
+  )
 
+seqsat_curve_data <-
+  data_files |>
+  names() |> 
+  set_names() |>
+  parallel::mclapply(function(sampl) {
+    n_comps <-
+      object_meta$n_comps[which(object_meta$sample_alias == sampl)]
+    n_comps <- pmin(n_comps, 6)
+    sampled_comps <- sample(
+      pg_data[[]] |>
+        filter(sample_alias == sampl) |>
+        rownames() |>
+        sample(n_comps)
+    )
+    el <- pg_data |>
+      subset(cells = sampled_comps) |>
+      Edgelists(lazy = FALSE)
+    
+    el |>
+      SequenceSaturationCurve(n_comps = n_comps)
+  }, mc.cores = mc_cores) |>
+  bind_rows(.id = "sample_alias") |>
+  left_join(
+    object_meta,
+    by = join_by(sample_alias)
+  ) |>
+  mutate(
+    reads_per_component = reads_per_component * sample_frac
+  ) |>
+  select(
+    sample_alias, reads_per_component, graph_node_saturation,
+    graph_edge_saturation
+  ) |>
+  pivot_longer(
+    cols = c("graph_node_saturation", "graph_edge_saturation"),
+    names_to = "type", values_to = "saturation"
+  ) |>
+  mutate(type = str_remove(type, "graph_") |>
+           str_remove("_saturation") |>
+           str_to_sentence())
 
-```
-
-## Antibody molecule counts (n_umi)
-
-```{r}
-#| label: quality_control_antibody_molecule_counts
-```
-
-## Isotype controls
-
-```{r}
-#| label: quality_control_isotype_controls
+seqsat_curve_data |>
+  ggplot(aes(reads_per_component, saturation, color = sample_alias)) +
+  geom_line(
+    data = seqsat_curve_data |>
+      group_by(sample_alias, type, reads_per_component) |>
+      summarise(saturation = mean(saturation)) |>
+      ungroup(),
+    aes(group = sample_alias)
+  ) +
+  geom_point(size = 0.1) +
+  facet_wrap(~type) +
+  scale_y_continuous(limits = c(0, 100)) +
+  scale_color_manual(values = sample_palette) +
+  theme_bw() +
+  labs(
+    x = "Reads per component",
+    y = "Sequencing saturation [%]",
+    title = "Sequencing saturation curve",
+    color = "Sample ID"
+  )
+ggsave(
+  filename = file.path("results", "quality_control_sequencing_saturation.png"),
+  width = 6,
+  height = 4
+)
 ```
 
 ## Connectivity (average kcore and dangling nodes)
 
+TODO: Add text here
+
 ```{r}
 #| label: quality_control_connectivity
+
+plot_data <- 
+FetchData(pg_data, 
+c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")) |> 
+mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
+  
+plot_data |> 
+  ggplot(aes(sample_alias, average_k_core, fill = condition)) +
+  geom_violin(draw_quantiles = 0.5, scale = "width") +
+  geom_text(data = function(x) x |> 
+              group_by(sample_alias) |>  
+              summarise(median = median(average_k_core)),
+            aes(sample_alias, median, label = round(median, 2)),
+            vjust = -0.5,
+            inherit.aes = FALSE)+
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  labs(
+    title = "Average k-core per cell",
+    x = "Sample",
+    y = "Average k-core"
+  )
+
+ggsave(
+  filename = file.path("results", "quality_control_average_k_core.png"),
+  width = 6,
+  height = 4
+)
+
+plot_data |> 
+  ggplot(aes(sample_alias, prc_dangling_nodes, fill = condition)) +
+  geom_violin(draw_quantiles = 0.5, scale = "width") +
+  geom_text(data = function(x) x |> 
+              group_by(sample_alias) |>  
+              summarise(median = median(prc_dangling_nodes)),
+            aes(sample_alias, median, label = paste(round(median, 1), "%")),
+            vjust = -0.5,
+            inherit.aes = FALSE)+
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  labs(
+    title = "Dangling nodes per cell",
+    x = "Sample",
+    y = "Dangling nodes [%]"
+  )
+
+ggsave(
+  filename = file.path("results", "quality_control_dangling_nodes.png"),
+  width = 6,
+  height = 4
+)
+
 ```
+
+
 
 ## Select cells
 
-Remove cells that:
+Next, we will select cells to keep for downstream analysis. We want to remove cells that:
+- Are too small, possibly representing cell fragments
+- Are noisy, using isotype marker background level
+- Have an abnormal marker distribution, using the tau score
 
-Are small, using the molecule rank plot
+We will begin with inspecting the data, and later remove cells in Data Processing that do not meet our quality criteria.
 
-Are noisy, using isotype background level 
+### Define thresholds
 
-Have an abnormal marker distribution, using the tau score
+Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples.
+
+```{r}
+#| label: quality_control_define_thresholds
+
+# Define threshold for minimum molecule counts per cell
+
+n_umi_threshold <- 10000
+isotype_fraction_threshold <- 0.005
+
+```
+
+### Cell size / Antibody molecule counts (n_umi)
 
 ```{r}
 #| label: quality_control_select_cells
+
+MoleculeRankPlot(pg_data, group_by = "sample_alias") +
+  geom_hline(
+    yintercept = n_umi_threshold,
+    linetype = "dashed",
+    color = "red"
+  )
+ggsave(
+  filename = file.path("results", "quality_control_molecule_rank_plot.png"),
+  width = 6,
+  height = 4
+)
+
+
+FetchData(pg_data, 
+          c("sample_alias", "condition", "n_umi")) |> 
+  ggplot(aes(sample_alias, n_umi, fill = condition)) +
+  geom_violin(draw_quantiles = 0.5, scale = "width") +
+  geom_text(data = function(x) x |> 
+              group_by(sample_alias) |>  
+              summarise(median = median(n_umi)),
+            aes(sample_alias, median, label = round(median)),
+            vjust = -0.5,
+            inherit.aes = FALSE)+
+  geom_hline(
+    yintercept = n_umi_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  scale_y_log10() +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  labs(
+    title = "Antibody molecule counts per cell",
+    x = "Sample",
+    y = "Molecule counts per cell (log10 scale)"
+  )
+ggsave(
+  filename = file.path("results", "quality_control_antibody_molecule_counts.png"),
+  width = 6,
+  height = 4
+)
+
 ```
 
+### Isotype controls
+
+TODO: Add text here
+
+```{r}
+#| label: quality_control_isotype_controls
+
+
+FetchData(pg_data, 
+          c("sample_alias", "condition", "isotype_fraction")) |> 
+  ggplot(aes(sample_alias, isotype_fraction * 100, fill = condition)) +
+  geom_violin(draw_quantiles = 0.5, scale = "width") +
+  geom_text(data = function(x) x |> 
+              group_by(sample_alias) |>  
+              summarise(median = median(isotype_fraction * 100)),
+            aes(sample_alias, median, label = paste(round(median, 2), "%")),
+            vjust = -0.5,
+            inherit.aes = FALSE)+
+  geom_hline(
+    yintercept = isotype_fraction_threshold * 100,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  labs(
+    title = "Isotype control fraction per cell",
+    x = "Sample",
+    y = "Isotype control fraction per cell [%]"
+  )
+      
+ggsave(
+  filename = file.path("results", "quality_control_isotype_controls.png"),
+  width = 6,
+  height = 4
+)
+```
+
+### Tau score
+
+The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
+
+```{r}
+#| label: quality_control_tau_score
+
+TauPlot(pg_data)  
+ggsave(
+  filename = file.path("results", "quality_control_tau_score.png"),
+  width = 6,
+  height = 4
+)
+
+```
 
 ## Select markers (optional)
 
@@ -226,6 +473,8 @@ Colocalize with isotypes
 
 ```{r}
 #| label: quality_control_select_markers
+
+
 ```
 
 # Data processing
