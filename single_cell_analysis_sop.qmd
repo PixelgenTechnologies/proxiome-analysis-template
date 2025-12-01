@@ -671,16 +671,16 @@ The harmonization we perform here results in a harmonized dimensional reduction 
 ```{r}
 #| label: data_processing_data_harmonization
 pg_data <-
-pg_data |>
-RunHarmony(
-group.by.vars = "sample_alias",
-plot_convergence = FALSE,
-) |>
-RunUMAP(
-reduction = "harmony", dims = 1:20,
-reduction.name = "harmony_umap",
-n.neighbors = n_neighbors
-) 
+  pg_data |>
+  RunHarmony(
+    group.by.vars = "sample_alias",
+    plot_convergence = FALSE,
+  ) |>
+  RunUMAP(
+    reduction = "harmony", dims = 1:20,
+    reduction.name = "harmony_umap",
+    n.neighbors = n_neighbors
+  ) 
 
 cell_metadata <- 
   FetchData(pg_data, c("sample_alias", "condition")) |> 
@@ -728,9 +728,9 @@ After dimensionality reduction, we perform clustering. We essentially group cell
 #| label: data_processing_clustering
 
 pg_data <- 
-pg_data |>
-    FindNeighbors(reduction = "harmony", dims = 1:10) |>
-    FindClusters(random.seed = 1, resolution = 0.5)
+  pg_data |>
+  FindNeighbors(reduction = "harmony", dims = 1:10) |>
+  FindClusters(random.seed = 1, resolution = 0.5)
 
 cell_metadata <- 
   FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |> 
@@ -809,27 +809,27 @@ Automatic annotation using label transfer from a reference dataset.
 #| label: data_processing_manual_annotation
 
 diff_abundant_markers_cluster <- 
-FindAllMarkers(
-pg_data, 
- logfc.threshold = 0,
-min_pct = 0, 
-return.thresh = 1
-) |> 
-as_tibble() |> 
-rename(marker = gene)
+  FindAllMarkers(
+    pg_data, 
+    logfc.threshold = 0,
+    min_pct = 0, 
+    return.thresh = 1
+  ) |> 
+  as_tibble() |> 
+  rename(marker = gene)
 
 diff_abundant_markers_cluster |> 
-group_by(marker) |> 
-filter(any(p_val_adj < 0.05 & avg_log2FC > 1)) |> 
-select(marker, avg_log2FC, cluster) |> 
-pivot_wider(names_from = cluster, values_from = avg_log2FC, values_fill = 0) |>
-column_to_rownames("marker") |>
-pheatmap(
-cellwidth = 8, 
-cellheight = 8,
-heatmap_legend_param = list(title = "Avg. log2 FC"),
-) |> 
-as.ggplot()
+  group_by(marker) |> 
+  filter(any(p_val_adj < 0.05 & avg_log2FC > 1)) |> 
+  select(marker, avg_log2FC, cluster) |> 
+  pivot_wider(names_from = cluster, values_from = avg_log2FC, values_fill = 0) |>
+  column_to_rownames("marker") |>
+  pheatmap(
+    cellwidth = 8, 
+    cellheight = 8,
+    heatmap_legend_param = list(title = "Avg. log2 FC"),
+  ) |> 
+  as.ggplot()
 
 
 ```
