@@ -65,14 +65,14 @@ We will begin with reading data. Specify the data file IDs, paths, and condition
 #| label: setup_read_data
 
 data_files <- 
-  c(S1 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S04_Activated_CD4_cells.layout.pxl",
-    S2 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S05_Raji.layout.pxl",
-    S3 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S07_Raji_CD4_with_SEE.layout.pxl")
+  c(S1 = "C:/Users/max/data/sop_dev_data/PNA056_Maud_PBMCs_PHA_sample02_S2.layout.dataset.pxl",
+    S2 = "C:/Users/max/data/sop_dev_data/PNA056_Maud_PBMCs_unstimulated_sample01_S1.layout.dataset.pxl",
+    S3 = "C:/Users/max/data/sop_dev_data/PNA056_Maud_PBMCs_unstimulated_sample06_S6.layout.dataset.pxl")
 
 conditions <- 
-  c(S1 = "ctrl", 
-    S2 = "stim1", 
-    S3 = "stim2")
+  c(S1 = "PHA", 
+    S2 = "PBMC", 
+    S3 = "PBMC")
 
 pg_data <-
   data_files |> 
@@ -176,6 +176,67 @@ sample_palette <-
     )[seq_len(length(data_files))], 
     names(data_files))
 
+
+#' Cell palette
+#'
+#' @export
+#'
+cell_palette <-
+  c(
+    "CD4 T" = "#6D92D1",
+    "CD4 Naive" = "#B9CDED",
+    "Naive CD4 T" = "#B9CDED",
+    "CD4 TSCM" = "#92B0E0",
+    "CD4 TCM" = "#6D92D1",
+    "CD4 TEM" = "#4A73C0",
+    "CD4 TEFF" = "#224792",
+    "CD4 TEMRA" = "#1C3A76",
+    "Treg" = "#2955AE",
+    "CD4 CTL" = "#2955AE",
+    "CD8 T" = "#75C5B5",
+    "CD8 Naive" = "#D0EDE6",
+    "Naive CD8 T" = "#D0EDE6",
+    "CD8 TSCM" = "#A2DACE",
+    "CD8 TCM" = "#75C5B5",
+    "CD8 TEM" = "#4AAF9D",
+    "CD8 TEFF" = "#209785",
+    "CD8 TEMRA" = "#1B7E6F",
+    "other T" = "#1B7E9F",
+    "Other T" = "#1B7E9F",
+    "MAIT" = "#0D6D5E",
+    "DPT" = "#1B7E9F",
+    "DNT" = "#7B787F",
+    "dnT" = "#7B787F",
+    "NK" = "#A28EDB",
+    "CD56dim NK" = "#A28EDB",
+    "CD56bright NK" = "#866CCD",
+    "NK_CD56bright" = "#866CCD",
+    "NKT" = "#6C4ABD",
+    "B" = "#C7A989", # "#917557",
+    "B naive" = "#F0DAC4",
+    "Naive B" = "#F0DAC4",
+    "B intermediate" = "#F0DAC4",
+    "Memory B" = "#C7A989",
+    "B memory" = "#C7A989",
+    "Plasma cells" = "#DE9982",
+    "Plasmablast" = "#DE9982",
+    "DC" = "#DA94C1",
+    "cDC1" = "#DA94C1",
+    "cDC2" = "#BB5391",
+    "pDC" = "#9C4579",
+    "Mono" = "#F7DFA0",
+    "Classical Mono" = "#F7DFA0",
+    "CD14 Mono" = "#F7DFA0",
+    "Intermediate Mono" = "#E6BE4A",
+    "CD16 Mono" = "#BD9315",
+    "Non-classical Mono" = "#BD9315",
+    "other" = "#797979",
+    "Neutrophils" = "#CDCDCD",
+    "Basophils" = "#797979",
+    "Platelet" = "#DB6365",
+    "Platelets" = "#DB6365",
+    "gdT" = "#5A3E9E"
+  )
 ```
 
 # Quality Control
@@ -774,36 +835,151 @@ save_plot(
 
 ### Automatic annotation
 
-TODO: Fill this text out 
-Annotate cells by:
 
-Manual annotation from differential abundance between clusters or average abundance across clusters.
+Here we perform an automatic cell annotation by matching each cell’s protein profile to annotated 
+cells in a reference PBMC dataset. These automated labels should be interpreted with caution, particularly when the 
+sample composition differs substantially from the PBMC reference. In such cases, for example in certain stimulated 
+samples or cell lines, the annotations may be unreliable. We therefore recommend performing cell annotation as part of 
+downstream analysis to ensure accurate and context-appropriate results.
 
-Automatic annotation using label transfer from a reference dataset.
+Automated annotation can be a great head start in annotation, but all annotations should at least be inspected and verified, and adjusted when necessary. 
 
 ```{r}
 #| label: data_processing_annotation
 
-# Automatic annotation
-# reference <- pixelatorES::read_annotation_reference()
-# reference$l1_annotation <- reference$celltype.l1
-# reference$l2_annotation <- reference$celltype.l2
-# object <-
-# object |>
-# AnnotateCells(
-# reference = reference,
-# reference_groups = c("l1_annotation", "l2_annotation"),
-# reference_assay = "PNA",
-# query_assay = "PNA",
-# summarize_by_column = "seurat_clusters",
-# normalization_method = ifelse(params$annotation_method == "Seurat", "LogNormalize", "CLR"),
-# method = params$annotation_method
-# )
+# Load reference dataset
+reference <- pixelatorES::read_annotation_reference()
+
+# Set names of annotation columns in reference
+reference$l1_annotation <- reference$celltype.l1
+reference$l2_annotation <- reference$celltype.l2
+
+# Annotation by label transfer
+pg_data <-
+  pg_data |>
+  AnnotateCells(
+    reference = reference,
+    reference_groups = c("l1_annotation", "l2_annotation"),
+    reference_assay = "PNA",
+    query_assay = "PNA",
+    # Summarise annotations by cluster, adding an extra column with majority vote
+    summarize_by_column = "seurat_clusters",
+    normalization_method = "CLR",
+    method = "nmf"
+  )
 
 
+cell_metadata <- 
+  FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters", 
+                       "l1_annotation_summary", "l2_annotation_summary", 
+                       "l1_annotation", "l2_annotation")) |> 
+  as_tibble(rownames = "cell_id")
+
+
+Embeddings(pg_data, "harmony_umap") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
+  geom_point() +
+  geom_text(data = . %>% 
+              group_by(l1_annotation_summary) %>% 
+              summarise(harmonyumap_1 = median(harmonyumap_1),
+                        harmonyumap_2 = median(harmonyumap_2)),
+            aes(label = l1_annotation_summary),
+            size = 3,
+            color = "black") +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+save_plot(
+  filename = "data_processing_harmonyumap_l1_annotation_summary",
+  width = 6,
+  height = 4
+)
+
+
+Embeddings(pg_data, "harmony_umap") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
+  geom_point() +
+  geom_text(data = . %>% 
+              group_by(l1_annotation) %>% 
+              summarise(harmonyumap_1 = median(harmonyumap_1),
+                        harmonyumap_2 = median(harmonyumap_2)),
+            aes(label = l1_annotation),
+            size = 3,
+            color = "black") +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+save_plot(
+  filename = "data_processing_harmonyumap_l1_annotation",
+  width = 6,
+  height = 4
+)
+
+
+
+Embeddings(pg_data, "harmony_umap") |> 
+  as_tibble(rownames = "cell_id") |> 
+  left_join(cell_metadata, 
+            by = "cell_id") |> 
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
+  geom_point() +
+  geom_text(data = . %>% 
+              group_by(l2_annotation) %>% 
+              summarise(harmonyumap_1 = median(harmonyumap_1),
+                        harmonyumap_2 = median(harmonyumap_2)),
+            aes(label = l2_annotation),
+            size = 3,
+            color = "black") +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+save_plot(
+  filename = "data_processing_harmonyumap_l2_annotation",
+  width = 6,
+  height = 4
+)
+
+
+FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |> 
+  group_by(sample_alias, l1_annotation_summary) |> 
+  count(name = "n_cells") |> 
+  group_by(sample_alias) |> 
+  mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
+  ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
+  geom_col(position = "fill") +
+  geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
+            position = position_fill(vjust = 0.5),
+            size = 3) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = cell_palette) +
+  theme_bw() +
+  labs(
+    title = "Cell type composition per sample",
+    x = "Sample",
+    y = "Cell type fraction"
+  )
+save_plot(
+  filename = "data_processing_cell_type_composition_per_sample",
+  width = 6,
+  height = 4
+)
+  
+  
 ```
 
 ### Manual annotation
+
+Manual annotation from differential abundance between clusters or average abundance across clusters.
+
 
 ```{r}
 #| label: data_processing_manual_annotation
@@ -824,14 +1000,55 @@ diff_abundant_markers_cluster |>
   select(marker, avg_log2FC, cluster) |> 
   pivot_wider(names_from = cluster, values_from = avg_log2FC, values_fill = 0) |>
   column_to_rownames("marker") |>
+  t() |> 
   pheatmap(
+    color = PixelgenGradient(100, "BluesCherry"),
+    breaks = seq(-3, 3, length.out = 101),
     cellwidth = 8, 
     cellheight = 8,
     heatmap_legend_param = list(title = "Avg. log2 FC"),
   ) |> 
   as.ggplot()
 
+save_plot(
+  filename = "data_processing_differential_abundance_markers_per_cluster",
+  width = 6,
+  height = 4
+)
 
+markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
+plot_data <- 
+  FetchData(
+    pg_data,
+    c("harmonyumap_1", "harmonyumap_2",
+      markers_of_interest),
+    slot = "data"
+  ) |> 
+  pivot_longer(
+    cols = all_of(markers_of_interest),
+    names_to = "marker",
+    values_to = "CLR"
+  )
+
+plot_data |> 
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
+  geom_point(size = 0.1) +
+  facet_wrap(~marker) +
+  scale_color_gradient(low = "lightgrey", high = "darkblue") +
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(
+    title = "Marker expression on Harmony UMAP",
+    x = "Harmony UMAP 1",
+    y = "Harmony UMAP 2",
+    color = "CLR"
+  )
+save_plot(
+  filename = "data_processing_marker_expression_harmonyumap",
+  width = 6,
+  height = 4
+)
 ```
 
 # Statistical testing
@@ -846,10 +1063,159 @@ Deviation from background levels (isotypes or ambient negative levels)
 
 Colocalization to isotypes
 
-Colocalize with isotypes
+### Colocalization with isotypes
+
+All filters can be used together or separately, but it's recommended to only use the background_threshold_pct filter. This filter is applied to the fraction of UMI counts which does not depend on the cell size (total number of molecules).
+
+The filters are applied in the following order:
+
+Remove protein pairs with a minimum UMI count fraction below background_threshold_pct
+
+Remove protein pairs with a minimum UMI count below background_threshold_count
+
+Remove protein pairs detected in fewer than min_cells_count cells
 
 ```{r}
 #| label: statistical_testing_marker_selection
+
+isotype_markers <- 
+  c("mIgG1", "mIgG2a", "mIgG2b")
+
+abundance_data <- 
+  LayerData(pg_data, "data") |> 
+  as_tibble(rownames = "marker") |> 
+  pivot_longer(-marker, 
+               names_to = "component", 
+               values_to = "CLR") |> 
+  left_join(
+    FetchData(pg_data, c("sample_alias", "seurat_clusters")) |> 
+      as_tibble(rownames = "component"),
+    by = "component"
+  ) 
+
+marker_isotype_coloc <- 
+  ProximityScores(pg_data, lazy = TRUE, 
+                  add_marker_proportions = TRUE,
+                  meta_data_columns = c("sample_alias", "seurat_clusters")) |> 
+  filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |> 
+  mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |> 
+  group_by(sample_alias, seurat_clusters, component, marker) |>
+  summarise(join_count = sum(join_count), 
+            join_count_expected_mean = sum(join_count_expected_mean)) |> 
+  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
+  collect()
+
+
+marker_isotype_coloc |> 
+  left_join(abundance_data) |> 
+  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+  geom_point(size = 0.1) +
+  geom_hline(yintercept = 0) +
+  facet_wrap(~sample_alias) +
+  theme_bw() +
+  scale_color_manual(values = c("black", "orangered")) +
+  labs(
+    title = "Marker colocalization with isotypes",
+    x = "CLR abundance",
+    y = "Log2 ratio of observed vs expected colocalization"
+  )
+save_plot(
+  filename = "statistical_testing_marker_selection_marker_isotype_coloc",
+  width = 6,
+  height = 4
+)
+
+marker_isotype_coloc |> 
+  group_by(sample_alias, marker) |> 
+  summarise(join_count = sum(join_count), 
+            join_count_expected_mean = sum(join_count_expected_mean)) |> 
+  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
+  ungroup() |>
+  left_join(abundance_data |> 
+              group_by(marker, sample_alias) |> 
+              summarise(CLR = mean(CLR)),
+            by = c("marker", "sample_alias")) |>
+  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+  geom_hline(yintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker),
+            vjust = -0.5,
+            size = 2) +
+  facet_wrap(~sample_alias) +
+  scale_color_manual(values = c("black", "orangered")) +
+  theme_bw() +
+  labs(
+    title = "Marker colocalization with isotypes per sample",
+    x = "Mean CLR abundance",
+    y = "Sample-wide log2 ratio of observed vs expected colocalization"
+  ) 
+save_plot(
+  filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
+  width = 8,
+  height = 6
+)
+
+
+
+plot_data <- 
+  marker_isotype_coloc |> 
+  group_by(sample_alias, seurat_clusters, marker) |> 
+  summarise(join_count = sum(join_count), 
+            join_count_expected_mean = sum(join_count_expected_mean)) |> 
+  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
+  ungroup() |>
+  left_join(abundance_data |> 
+              group_by(marker, sample_alias, seurat_clusters) |> 
+              summarise(CLR = mean(CLR)),
+            by = c("marker", "sample_alias", "seurat_clusters"))
+
+plot_data |>
+  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+  geom_hline(yintercept = 0) +
+  geom_point(size = 0.1) +
+  
+  geom_text(aes(label = marker),
+            vjust = -0.5,
+            size = 2) +
+  facet_grid(seurat_clusters~sample_alias) +
+  scale_color_manual(values = c("black", "orangered")) +
+  theme_bw() +
+  labs(
+    title = "Marker colocalization with isotypes per cluster",
+    x = "Mean CLR abundance",
+    y = "Cluster-wide log2 ratio of observed vs expected colocalization"
+  ) 
+save_plot(
+  filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
+  width = 8,
+  height = 6
+)
+
+plot_data |> 
+  group_by(marker) |> 
+  filter(any(log2_ratio > log2(1.5))) |>
+  mutate(total_log2_ratio = sum(log2_ratio)) |>
+  arrange(desc(total_log2_ratio)) |>
+  ungroup() |> 
+  mutate(marker = factor(marker, 
+                         levels = unique(marker))) |>
+  ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  coord_fixed() +
+  facet_grid(sample_alias ~ .) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(
+    title = "Marker colocalization with isotypes per cluster",
+    x = "Marker",
+    y = "Cluster"
+  )
+save_plot(
+  filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
+  width = 12,
+  height = 6
+)
 
 ```
 
@@ -860,6 +1226,8 @@ Statistical test (typically Wilcoxon) between conditions
 ```{r}
 #| label: statistical_testing_differential_abundance
 
+print(1)
+
 ```
 
 ## Differential proximity analysis
@@ -868,6 +1236,8 @@ Statistical test (typically Wilcoxon) between conditions
 
 ```{r}
 #| label: statistical_testing_differential_proximity
+
+print(1)
 
 ```
 
