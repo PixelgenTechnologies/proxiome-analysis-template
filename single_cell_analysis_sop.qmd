@@ -42,6 +42,7 @@ save_plot <-
     plot = last_plot(),
     width = 6, 
     height = 4, 
+    create_dir = FALSE,
     file_formats = c("png", "pdf")
   ) {
     for (format in file_formats) {
@@ -50,7 +51,8 @@ save_plot <-
                              paste0(filename, ".", format)),
         plot = plot,
         width = width,
-        height = height
+        height = height,
+        create.dir = create_dir
       )
     }
   }
