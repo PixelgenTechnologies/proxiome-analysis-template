@@ -187,28 +187,18 @@ In Quality Control we inspect certain metrics that are indicative of the quality
 ```{r}
 #| label: quality_control_read_depth
 
-FetchData(pg_data, 
-          c("sample_alias", "condition", "reads_in_component")) |> 
-  ggplot(aes(sample_alias, reads_in_component, fill = condition)) +
-  geom_violin(draw_quantiles = 0.5, scale = "width") +
-  geom_text(data = function(x) x |> 
-              group_by(sample_alias) |>  
-              summarise(median = median(reads_in_component)),
-            aes(sample_alias, median, label = round(median)),
-            vjust = -0.5,
-            inherit.aes = FALSE)+
-  scale_y_log10() +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  labs(
-    title = "Read depth per cell",
-    x = "Sample",
-    y = "Reads per cell (log10 scale)"
-  )
+read_depth_plot <- create_violin_plot(data = pg_data, 
+                    var_x = "sample_alias", 
+                    var_y = "reads_in_component", 
+                    palette = sample_palette, 
+                    data_cutoff = 0.99)
+
 save_plot(
-  filename = "quality_control_read_depth",
-  width = 6,
-  height = 4
+  filename = here::here("results", "quality_control", "violin_plots", "quality_control_read_depth.png"),
+  plot = read_depth_plot,
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
 
 ```
