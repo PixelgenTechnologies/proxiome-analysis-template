@@ -28,6 +28,7 @@ library(pixelatorR)
 library(harmony)
 library(ComplexHeatmap)
 library(ggplotify)
+library(here)
 
 ```
 
@@ -47,8 +48,7 @@ save_plot <-
   ) {
     for (format in file_formats) {
       ggsave(
-        filename = file.path("results", 
-                             paste0(filename, ".", format)),
+        filename = file.path("results", paste0(filename, ".", format)),
         plot = plot,
         width = width,
         height = height,
@@ -61,35 +61,44 @@ save_plot <-
 
 ## Read data
 
-We will begin with reading data. Specify the data file IDs, paths, and conditions below.
+### Set up data files and metadata
 
 ```{r}
 #| label: setup_read_data
 
-data_files <- 
-  c(S1 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S04_Activated_CD4_cells.layout.pxl",
-    S2 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S05_Raji.layout.pxl",
-    S3 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S07_Raji_CD4_with_SEE.layout.pxl")
+# Get the data files from the data folder
+data_files <- list.files(
+  here::here("data"),
+  pattern = "*.pxl",
+  full.names = TRUE
+)
+data_files <- set_names(data_files, paste0("S", seq_along(data_files)))
 
-conditions <- 
-  c(S1 = "ctrl", 
-    S2 = "stim1", 
-    S3 = "stim2")
+# Print the data files
+cat("Data files:\n")
+print(data_files)
 
-pg_data <-
-  data_files |> 
-  lapply(ReadPNA_Seurat,
-         load_proximity_scores = FALSE
+# Create a metadata dataframe with sample alias and condition - add addtional metadata as needed here. Later joining of the metadata will be done on the sample_alias column.
+metadata <-
+  tibble(
+    sample_alias = names(data_files),
+    condition = rep(c("untreated", "PHA"), 3),
+    donor = rep(c("donor1", "donor2", "donor3"), each = 2)
   )
 
+# Print the metadata
+cat("Metadata:\n")
+print(metadata)
 ```
 
-## Merge data
-
-We merge all data into a single Seurat object, adding metadata for sample alias and condition.
+### Load and Merge data
 
 ```{r}
 #| label: setup_merge_data
+
+pg_data <-
+  data_files |>
+  lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 # Merge data
 pg_data <-
@@ -99,19 +108,34 @@ pg_data <-
     add.cell.ids = names(pg_data)
   ) |> 
   JoinLayers()
+```
 
-# Add metadata
+### Add metadata
+
+```{r}
+#| label: setup_add_metadata
+
 pg_data <-
   pg_data |> 
-  AddMetaData(colnames(pg_data) |> 
-                enframe("i", "comp_id") |> 
-                mutate(
-                  sample_alias = str_extract(comp_id, ".*_") |> 
-                    str_remove("_$"),
-                  condition = conditions[sample_alias]
-                ) |> 
-                column_to_rownames("comp_id"))
+  AddMetaData(
+    tibble(cell_id = colnames(pg_data)) |>
+      separate(col = cell_id, sep = "_", into = c("sample_alias", "cell_id")) |>
+      left_join(metadata, by = "sample_alias") |>
+      select(-cell_id)
+  )
 
+# Sanity check the metadata
+tmp_meta <- pg_data[[]] |>
+  tibble::rownames_to_column("cell_id") |>
+  tidyr::separate(
+    col = cell_id,
+    sep = "_",
+    into = c("sample_alias", "cell_hash")
+  )
+for (col in colnames(metadata)) {
+  print(col)
+  print(table(pg_data$sample_alias, pg_data[[col]][, 1]))
+}
 ```
 
 
