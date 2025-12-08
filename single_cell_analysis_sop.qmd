@@ -134,7 +134,7 @@ tmp_meta <- pg_data[[]] |>
   )
 for (col in colnames(metadata)) {
   print(col)
-  print(table(pg_data$sample_alias, pg_data[[col]][, 1]))
+  print(table(tmp_meta$sample_alias, tmp_meta[, col]))
 }
 ```
 
