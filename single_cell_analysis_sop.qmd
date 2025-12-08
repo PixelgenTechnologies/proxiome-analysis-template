@@ -127,7 +127,7 @@ pg_data <-
 # Sanity check the metadata
 tmp_meta <- pg_data[[]] |>
     as_tibble(rownames = "cell_id") |>
-    tidyr::separate(
+   separate(
         col = cell_id,
         sep = "_",
         into = c("sample_alias", "cell_hash")
