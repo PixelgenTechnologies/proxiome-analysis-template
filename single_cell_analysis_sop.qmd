@@ -38,24 +38,24 @@ library(here)
 #| label: setup_functions
 
 save_plot <-
-  function(
-    filename,
-    plot = last_plot(),
-    width = 6,
-    height = 4,
-    create_dir = TRUE,
-    file_formats = c("png", "pdf")
-  ) {
-    for (format in file_formats) {
-      ggsave(
-        filename = file.path("results", paste0(filename, ".", format)),
-        plot = plot,
-        width = width,
-        height = height,
-        create.dir = create_dir
-      )
+    function(
+      filename,
+      plot = last_plot(),
+      width = 10,
+      height = 10,
+      create_dir = TRUE,
+      file_formats = c("png", "pdf")
+    ) {
+        for (format in file_formats) {
+            ggsave(
+                filename = file.path("results", paste0(filename, ".", format)),
+                plot = plot,
+                width = width,
+                height = height,
+                create.dir = create_dir
+            )
+        }
     }
-  }
 
 ```
 
@@ -81,17 +81,17 @@ print(metadata)
 #| label: setup_merge_data
 
 pg_data <-
-  metadata$file_path |>
-  lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
+    metadata$file_path |>
+    lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 # Merge data, adding the sample_id to the cell names
 pg_data <-
-  merge(
-    pg_data[[1]],
-    y = pg_data[-1],
-    add.cell.ids = metadata$sample_id
-  ) |>
-  JoinLayers()
+    merge(
+        pg_data[[1]],
+        y = pg_data[-1],
+        add.cell.ids = metadata$sample_id
+    ) |>
+    JoinLayers()
 ```
 
 ### Add metadata
@@ -101,16 +101,16 @@ pg_data <-
 
 # Add metadata to the PNA object
 pg_data[[]] <-
-  pg_data[[]] |>
-  as_tibble(rownames = "cell_id") |>
-  mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 17 characters
-  left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
-  column_to_rownames("cell_id")
+    pg_data[[]] |>
+    as_tibble(rownames = "cell_id") |>
+    mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 17 characters
+    left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
+    column_to_rownames("cell_id")
 
 # Sanity check the metadata
 for (col in colnames(metadata |> select(-file_path))) {
-  print(col)
-  print(table(pg_data[[]]$sample_alias, pg_data[[]][, col]))
+    print(col)
+    print(table(pg_data[[]]$sample_alias, pg_data[[]][, col]))
 }
 ```
 
@@ -123,73 +123,73 @@ Here we specify the color palettes for clusters and conditions. These can be adj
 #| label: setup_theme
 
 cluster_palette <-
-  c(
-    pixelatorR::PixelgenAccentColors(
-      level = 7,
-      hue = c(
-        "blues",
-        "reds",
-        "cyans",
-        "oranges",
-        "pinks",
-        "greens",
-        "purples",
-        "yellows",
-        "greys",
-        "beiges"
-      )
-    ),
-    pixelatorR::PixelgenAccentColors(
-      level = 9,
-      hue = c(
-        "blues",
-        "pinks",
-        "reds",
-        "yellows",
-        "greys",
-        "beiges"
-      )
-    ),
-    pixelatorR::PixelgenAccentColors(
-      level = 5,
-      hue = c(
-        "purples",
-        "blues",
-        "cyans",
-        "greens",
-        "reds",
-        "oranges"
-      )
-    ),
-    pixelatorR::PixelgenAccentColors(
-      level = 3,
-      hue = c("blues", "reds")
-    ),
-    pixelatorR::PixelgenAccentColors(
-      level = 12,
-      hue = c("blues", "reds")
-    )
-  ) |>
-  unname() |>
-  rep(10)
+    c(
+        pixelatorR::PixelgenAccentColors(
+            level = 7,
+            hue = c(
+                "blues",
+                "reds",
+                "cyans",
+                "oranges",
+                "pinks",
+                "greens",
+                "purples",
+                "yellows",
+                "greys",
+                "beiges"
+            )
+        ),
+        pixelatorR::PixelgenAccentColors(
+            level = 9,
+            hue = c(
+                "blues",
+                "pinks",
+                "reds",
+                "yellows",
+                "greys",
+                "beiges"
+            )
+        ),
+        pixelatorR::PixelgenAccentColors(
+            level = 5,
+            hue = c(
+                "purples",
+                "blues",
+                "cyans",
+                "greens",
+                "reds",
+                "oranges"
+            )
+        ),
+        pixelatorR::PixelgenAccentColors(
+            level = 3,
+            hue = c("blues", "reds")
+        ),
+        pixelatorR::PixelgenAccentColors(
+            level = 12,
+            hue = c("blues", "reds")
+        )
+    ) |>
+    unname() |>
+    rep(10)
 
 
 condition_palette <-
-  set_names(
-    pixelatorES::create_sample_palette(
-      unique(conditions)
-    )[seq_len(n_distinct(conditions))],
-    unique(conditions)
-  )
+    set_names(
+        pixelatorES::create_sample_palette(
+            unique(conditions)
+        )[seq_len(n_distinct(conditions))],
+        unique(conditions)
+    )
 
 
 sample_palette <-
-  set_names(
-    pixelatorES::create_sample_palette(
-      names(data_files)
-    )[seq_len(length(data_files))],
-    names(data_files)
-  )
+    set_names(
+        pixelatorES::create_sample_palette(
+            names(data_files)
+        )[seq_len(length(data_files))],
+        names(data_files)
+    )
 
 ```
 
@@ -203,30 +203,30 @@ In Quality Control we inspect certain metrics that are indicative of the quality
 #| label: quality_control_read_depth
 
 FetchData(pg_data, c("sample_alias", "condition", "reads_in_component")) |>
-  ggplot(aes(sample_alias, reads_in_component, fill = condition)) +
-  geom_violin(draw_quantiles = 0.5, scale = "width") +
-  geom_text(
-    data = function(x) {
-      x |>
-        group_by(sample_alias) |>
-        summarise(median = median(reads_in_component))
-    },
-    aes(sample_alias, median, label = round(median)),
-    vjust = -0.5,
-    inherit.aes = FALSE
-  ) +
-  scale_y_log10() +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  labs(
-    title = "Read depth per cell",
-    x = "Sample",
-    y = "Reads per cell (log10 scale)"
-  )
+    ggplot(aes(sample_alias, reads_in_component, fill = condition)) +
+    geom_violin(draw_quantiles = 0.5, scale = "width") +
+    geom_text(
+        data = function(x) {
+            x |>
+                group_by(sample_alias) |>
+                summarise(median = median(reads_in_component))
+        },
+        aes(sample_alias, median, label = round(median)),
+        vjust = -0.5,
+        inherit.aes = FALSE
+    ) +
+    scale_y_log10() +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    labs(
+        title = "Read depth per cell",
+        x = "Sample",
+        y = "Reads per cell (log10 scale)"
+    )
 save_plot(
-  filename = "quality_control_read_depth",
-  width = 6,
-  height = 4
+    filename = "quality_control_read_depth",
+    width = 6,
+    height = 4
 )
 
 ```
@@ -239,86 +239,86 @@ Here we run simulations of 6 cells to estimate the sequencing saturation curves 
 #| label: quality_control_sequencing_saturation
 
 object_meta <-
-  FetchData(pg_data, c("sample_alias", "reads_in_component")) |>
-  group_by(sample_alias) |>
-  summarise(
-    n_comps = n(),
-    reads_per_component = mean(reads_in_component)
-  )
+    FetchData(pg_data, c("sample_alias", "reads_in_component")) |>
+    group_by(sample_alias) |>
+    summarise(
+        n_comps = n(),
+        reads_per_component = mean(reads_in_component)
+    )
 
 seqsat_curve_data <-
-  data_files |>
-  names() |>
-  set_names() |>
-  parallel::mclapply(
-    function(sampl) {
-      n_comps <-
-        object_meta$n_comps[which(object_meta$sample_alias == sampl)]
-      n_comps <- pmin(n_comps, 6)
-      sampled_comps <- sample(
-        pg_data[[]] |>
-          filter(sample_alias == sampl) |>
-          rownames() |>
-          sample(n_comps)
-      )
-      el <- pg_data |>
-        subset(cells = sampled_comps) |>
-        Edgelists(lazy = FALSE)
+    data_files |>
+    names() |>
+    set_names() |>
+    parallel::mclapply(
+        function(sampl) {
+            n_comps <-
+                object_meta$n_comps[which(object_meta$sample_alias == sampl)]
+            n_comps <- pmin(n_comps, 6)
+            sampled_comps <- sample(
+                pg_data[[]] |>
+                    filter(sample_alias == sampl) |>
+                    rownames() |>
+                    sample(n_comps)
+            )
+            el <- pg_data |>
+                subset(cells = sampled_comps) |>
+                Edgelists(lazy = FALSE)
 
-      el |>
-        SequenceSaturationCurve(n_comps = n_comps)
-    },
-    mc.cores = 1
-  ) |>
-  bind_rows(.id = "sample_alias") |>
-  left_join(
-    object_meta,
-    by = join_by(sample_alias)
-  ) |>
-  mutate(
-    reads_per_component = reads_per_component * sample_frac
-  ) |>
-  select(
-    sample_alias,
-    reads_per_component,
-    graph_node_saturation,
-    graph_edge_saturation
-  ) |>
-  pivot_longer(
-    cols = c("graph_node_saturation", "graph_edge_saturation"),
-    names_to = "type",
-    values_to = "saturation"
-  ) |>
-  mutate(
-    type = str_remove(type, "graph_") |>
-      str_remove("_saturation") |>
-      str_to_sentence()
-  )
+            el |>
+                SequenceSaturationCurve(n_comps = n_comps)
+        },
+        mc.cores = 1
+    ) |>
+    bind_rows(.id = "sample_alias") |>
+    left_join(
+        object_meta,
+        by = join_by(sample_alias)
+    ) |>
+    mutate(
+        reads_per_component = reads_per_component * sample_frac
+    ) |>
+    select(
+        sample_alias,
+        reads_per_component,
+        graph_node_saturation,
+        graph_edge_saturation
+    ) |>
+    pivot_longer(
+        cols = c("graph_node_saturation", "graph_edge_saturation"),
+        names_to = "type",
+        values_to = "saturation"
+    ) |>
+    mutate(
+        type = str_remove(type, "graph_") |>
+            str_remove("_saturation") |>
+            str_to_sentence()
+    )
 
 seqsat_curve_data |>
-  ggplot(aes(reads_per_component, saturation, color = sample_alias)) +
-  geom_line(
-    data = seqsat_curve_data |>
-      group_by(sample_alias, type, reads_per_component) |>
-      summarise(saturation = mean(saturation)) |>
-      ungroup(),
-    aes(group = sample_alias)
-  ) +
-  geom_point(size = 0.1) +
-  facet_wrap(~type) +
-  scale_y_continuous(limits = c(0, 100)) +
-  scale_color_manual(values = sample_palette) +
-  theme_bw() +
-  labs(
-    x = "Reads per component",
-    y = "Sequencing saturation [%]",
-    title = "Sequencing saturation curve",
-    color = "Sample ID"
-  )
+    ggplot(aes(reads_per_component, saturation, color = sample_alias)) +
+    geom_line(
+        data = seqsat_curve_data |>
+            group_by(sample_alias, type, reads_per_component) |>
+            summarise(saturation = mean(saturation)) |>
+            ungroup(),
+        aes(group = sample_alias)
+    ) +
+    geom_point(size = 0.1) +
+    facet_wrap(~type) +
+    scale_y_continuous(limits = c(0, 100)) +
+    scale_color_manual(values = sample_palette) +
+    theme_bw() +
+    labs(
+        x = "Reads per component",
+        y = "Sequencing saturation [%]",
+        title = "Sequencing saturation curve",
+        color = "Sample ID"
+    )
 save_plot(
-  filename = "quality_control_sequencing_saturation",
-  width = 6,
-  height = 4
+    filename = "quality_control_sequencing_saturation",
+    width = 6,
+    height = 4
 )
 ```
 
@@ -330,64 +330,64 @@ TODO: Add text here
 #| label: quality_control_connectivity
 
 plot_data <-
-  FetchData(
-    pg_data,
-    c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")
-  ) |>
-  mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
+    FetchData(
+        pg_data,
+        c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")
+    ) |>
+    mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
 
 plot_data |>
-  ggplot(aes(sample_alias, average_k_core, fill = condition)) +
-  geom_violin(draw_quantiles = 0.5, scale = "width") +
-  geom_text(
-    data = function(x) {
-      x |>
-        group_by(sample_alias) |>
-        summarise(median = median(average_k_core))
-    },
-    aes(sample_alias, median, label = round(median, 2)),
-    vjust = -0.5,
-    inherit.aes = FALSE
-  ) +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  labs(
-    title = "Average k-core per cell",
-    x = "Sample",
-    y = "Average k-core"
-  )
+    ggplot(aes(sample_alias, average_k_core, fill = condition)) +
+    geom_violin(draw_quantiles = 0.5, scale = "width") +
+    geom_text(
+        data = function(x) {
+            x |>
+                group_by(sample_alias) |>
+                summarise(median = median(average_k_core))
+        },
+        aes(sample_alias, median, label = round(median, 2)),
+        vjust = -0.5,
+        inherit.aes = FALSE
+    ) +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    labs(
+        title = "Average k-core per cell",
+        x = "Sample",
+        y = "Average k-core"
+    )
 
 save_plot(
-  filename = "quality_control_average_k_core",
-  width = 6,
-  height = 4
+    filename = "quality_control_average_k_core",
+    width = 6,
+    height = 4
 )
 
 plot_data |>
-  ggplot(aes(sample_alias, prc_dangling_nodes, fill = condition)) +
-  geom_violin(draw_quantiles = 0.5, scale = "width") +
-  geom_text(
-    data = function(x) {
-      x |>
-        group_by(sample_alias) |>
-        summarise(median = median(prc_dangling_nodes))
-    },
-    aes(sample_alias, median, label = paste(round(median, 1), "%")),
-    vjust = -0.5,
-    inherit.aes = FALSE
-  ) +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  labs(
-    title = "Dangling nodes per cell",
-    x = "Sample",
-    y = "Dangling nodes [%]"
-  )
+    ggplot(aes(sample_alias, prc_dangling_nodes, fill = condition)) +
+    geom_violin(draw_quantiles = 0.5, scale = "width") +
+    geom_text(
+        data = function(x) {
+            x |>
+                group_by(sample_alias) |>
+                summarise(median = median(prc_dangling_nodes))
+        },
+        aes(sample_alias, median, label = paste(round(median, 1), "%")),
+        vjust = -0.5,
+        inherit.aes = FALSE
+    ) +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    labs(
+        title = "Dangling nodes per cell",
+        x = "Sample",
+        y = "Dangling nodes [%]"
+    )
 
 save_plot(
-  filename = "quality_control_dangling_nodes",
-  width = 6,
-  height = 4
+    filename = "quality_control_dangling_nodes",
+    width = 6,
+    height = 4
 )
 
 ```
@@ -423,48 +423,48 @@ isotype_fraction_threshold <- 0.005
 #| label: quality_control_select_cells
 
 MoleculeRankPlot(pg_data, group_by = "sample_alias") +
-  geom_hline(
-    yintercept = n_umi_threshold,
-    linetype = "dashed",
-    color = "red"
-  )
+    geom_hline(
+        yintercept = n_umi_threshold,
+        linetype = "dashed",
+        color = "red"
+    )
 save_plot(
-  filename = "quality_control_molecule_rank_plot",
-  width = 6,
-  height = 4
+    filename = "quality_control_molecule_rank_plot",
+    width = 6,
+    height = 4
 )
 
 
 FetchData(pg_data, c("sample_alias", "condition", "n_umi")) |>
-  ggplot(aes(sample_alias, n_umi, fill = condition)) +
-  geom_violin(draw_quantiles = 0.5, scale = "width") +
-  geom_text(
-    data = function(x) {
-      x |>
-        group_by(sample_alias) |>
-        summarise(median = median(n_umi))
-    },
-    aes(sample_alias, median, label = round(median)),
-    vjust = -0.5,
-    inherit.aes = FALSE
-  ) +
-  geom_hline(
-    yintercept = n_umi_threshold,
-    linetype = "dashed",
-    color = "red"
-  ) +
-  scale_y_log10() +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  labs(
-    title = "Antibody molecule counts per cell",
-    x = "Sample",
-    y = "Molecule counts per cell (log10 scale)"
-  )
+    ggplot(aes(sample_alias, n_umi, fill = condition)) +
+    geom_violin(draw_quantiles = 0.5, scale = "width") +
+    geom_text(
+        data = function(x) {
+            x |>
+                group_by(sample_alias) |>
+                summarise(median = median(n_umi))
+        },
+        aes(sample_alias, median, label = round(median)),
+        vjust = -0.5,
+        inherit.aes = FALSE
+    ) +
+    geom_hline(
+        yintercept = n_umi_threshold,
+        linetype = "dashed",
+        color = "red"
+    ) +
+    scale_y_log10() +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    labs(
+        title = "Antibody molecule counts per cell",
+        x = "Sample",
+        y = "Molecule counts per cell (log10 scale)"
+    )
 save_plot(
-  filename = "quality_control_antibody_molecule_counts",
-  width = 6,
-  height = 4
+    filename = "quality_control_antibody_molecule_counts",
+    width = 6,
+    height = 4
 )
 
 ```
@@ -477,35 +477,35 @@ TODO: Add text here
 #| label: quality_control_isotype_controls
 
 FetchData(pg_data, c("sample_alias", "condition", "isotype_fraction")) |>
-  ggplot(aes(sample_alias, isotype_fraction * 100, fill = condition)) +
-  geom_violin(draw_quantiles = 0.5, scale = "width") +
-  geom_text(
-    data = function(x) {
-      x |>
-        group_by(sample_alias) |>
-        summarise(median = median(isotype_fraction * 100))
-    },
-    aes(sample_alias, median, label = paste(round(median, 2), "%")),
-    vjust = -0.5,
-    inherit.aes = FALSE
-  ) +
-  geom_hline(
-    yintercept = isotype_fraction_threshold * 100,
-    linetype = "dashed",
-    color = "red"
-  ) +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  labs(
-    title = "Isotype control fraction per cell",
-    x = "Sample",
-    y = "Isotype control fraction per cell [%]"
-  )
+    ggplot(aes(sample_alias, isotype_fraction * 100, fill = condition)) +
+    geom_violin(draw_quantiles = 0.5, scale = "width") +
+    geom_text(
+        data = function(x) {
+            x |>
+                group_by(sample_alias) |>
+                summarise(median = median(isotype_fraction * 100))
+        },
+        aes(sample_alias, median, label = paste(round(median, 2), "%")),
+        vjust = -0.5,
+        inherit.aes = FALSE
+    ) +
+    geom_hline(
+        yintercept = isotype_fraction_threshold * 100,
+        linetype = "dashed",
+        color = "red"
+    ) +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    labs(
+        title = "Isotype control fraction per cell",
+        x = "Sample",
+        y = "Isotype control fraction per cell [%]"
+    )
 
 save_plot(
-  filename = "quality_control_isotype_controls",
-  width = 6,
-  height = 4
+    filename = "quality_control_isotype_controls",
+    width = 6,
+    height = 4
 )
 ```
 
@@ -518,9 +518,9 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 
 TauPlot(pg_data)
 save_plot(
-  filename = "quality_control_tau_score",
-  width = 6,
-  height = 4
+    filename = "quality_control_tau_score",
+    width = 6,
+    height = 4
 )
 
 ```
@@ -540,62 +540,62 @@ In this example, we set the threshold to 1000 CPM at the 95th percentile. This m
 marker_cpm_p95_threshold <- 1000
 
 count_data <-
-  LayerData(pg_data, "counts")
+    LayerData(pg_data, "counts")
 cpm_data <-
-  count_data |>
-  sweep(1, colSums(count_data), "/")
+    count_data |>
+    sweep(1, colSums(count_data), "/")
 
 cpm_data <- cpm_data * 1e6
 
 cpm_quantiles <-
-  cpm_data |>
-  apply(1, function(x) quantile(x, c(0.5, 0.95))) |>
-  t() |>
-  as_tibble(rownames = "marker") |>
-  mutate(kept = `95%` > marker_cpm_p95_threshold)
+    cpm_data |>
+    apply(1, function(x) quantile(x, c(0.5, 0.95))) |>
+    t() |>
+    as_tibble(rownames = "marker") |>
+    mutate(kept = `95%` > marker_cpm_p95_threshold)
 
 cpm_quantiles |>
-  ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
-  geom_point(size = 0.1) +
-  geom_text(aes(label = marker), vjust = -0.5, size = 2) +
-  scale_x_log10(expand = expansion(0.2)) +
-  scale_y_log10() +
-  theme_bw() +
-  labs(
-    title = "Marker selection based on CPM",
-    x = "50th percentile of CPM (log10 scale)",
-    y = "95th / 50th percentile of CPM (log10 scale)"
-  )
+    ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
+    geom_point(size = 0.1) +
+    geom_text(aes(label = marker), vjust = -0.5, size = 2) +
+    scale_x_log10(expand = expansion(0.2)) +
+    scale_y_log10() +
+    theme_bw() +
+    labs(
+        title = "Marker selection based on CPM",
+        x = "50th percentile of CPM (log10 scale)",
+        y = "95th / 50th percentile of CPM (log10 scale)"
+    )
 save_plot(
-  filename = "quality_control_marker_selection_cpm",
-  width = 6,
-  height = 4
+    filename = "quality_control_marker_selection_cpm",
+    width = 6,
+    height = 4
 )
 
 
 cpm_quantiles |>
-  arrange(`95%`) |>
-  mutate(marker = factor(marker, levels = marker)) |>
-  ggplot(aes(x = marker, y = `95%`, fill = kept)) +
-  geom_col() +
-  scale_y_log10() +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  labs(
-    title = "95th percentile of CPM per marker",
-    x = "Marker",
-    y = "95th percentile of CPM (log10 scale)"
-  )
+    arrange(`95%`) |>
+    mutate(marker = factor(marker, levels = marker)) |>
+    ggplot(aes(x = marker, y = `95%`, fill = kept)) +
+    geom_col() +
+    scale_y_log10() +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(
+        title = "95th percentile of CPM per marker",
+        x = "Marker",
+        y = "95th percentile of CPM (log10 scale)"
+    )
 save_plot(
-  filename = "quality_control_marker_selection_cpm_barplot",
-  width = 6,
-  height = 4
+    filename = "quality_control_marker_selection_cpm_barplot",
+    width = 6,
+    height = 4
 )
 
 selected_markers <-
-  cpm_quantiles |>
-  filter(kept) |>
-  pull(marker)
+    cpm_quantiles |>
+    filter(kept) |>
+    pull(marker)
 
 
 ```
@@ -612,11 +612,11 @@ Next, we perform Z-score scaling of the normalized data per marker, which center
 #| label: data_processing_normalize_scale
 
 pg_data <-
-  pg_data |>
-  # Data normalization
-  NormalizeData(normalization.method = "CLR", margin = 2) |>
-  # Z score scaling
-  ScaleData()
+    pg_data |>
+    # Data normalization
+    NormalizeData(normalization.method = "CLR", margin = 2) |>
+    # Z score scaling
+    ScaleData()
 
 ```
 
@@ -634,64 +634,64 @@ After PCA, we perform Uniform Manifold Approximation and Projection (UMAP) to vi
 npcs <- 20
 n_neighbors <- 30
 pg_data <-
-  pg_data |>
-  RunPCA(npcs = npcs, features = selected_markers) |>
-  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
+    pg_data |>
+    RunPCA(npcs = npcs, features = selected_markers) |>
+    RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
 
 pca_red <-
-  Reductions(pg_data, "pca")
+    Reductions(pg_data, "pca")
 
 pca_red@stdev |>
-  as_tibble(rownames = "PC") |>
-  mutate(PC = PC |> str_remove("PC_") |> as.integer()) |>
-  ggplot(aes(PC, value)) +
-  geom_line() +
-  geom_point() +
-  theme_bw() +
-  labs(
-    title = "PCA Elbow Plot",
-    x = "Principal Component",
-    y = "Standard Deviation"
-  )
+    as_tibble(rownames = "PC") |>
+    mutate(PC = PC |> str_remove("PC_") |> as.integer()) |>
+    ggplot(aes(PC, value)) +
+    geom_line() +
+    geom_point() +
+    theme_bw() +
+    labs(
+        title = "PCA Elbow Plot",
+        x = "Principal Component",
+        y = "Standard Deviation"
+    )
 
 ggsave(
-  filename = "results/data_processing_pca_elbow_plot.png",
-  width = 6,
-  height = 4
+    filename = "results/data_processing_pca_elbow_plot.png",
+    width = 6,
+    height = 4
 )
 
 cell_metadata <-
-  FetchData(pg_data, c("sample_alias", "condition")) |>
-  as_tibble(rownames = "cell_id")
+    FetchData(pg_data, c("sample_alias", "condition")) |>
+    as_tibble(rownames = "cell_id")
 
 Embeddings(pg_data, "pca") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata, by = "cell_id") |>
-  ggplot(aes(PC_1, PC_2, color = sample_alias)) +
-  geom_point() +
-  coord_fixed() +
-  scale_color_manual(values = sample_palette) +
-  theme_bw()
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata, by = "cell_id") |>
+    ggplot(aes(PC_1, PC_2, color = sample_alias)) +
+    geom_point() +
+    coord_fixed() +
+    scale_color_manual(values = sample_palette) +
+    theme_bw()
 
 save_plot(
-  filename = "data_processing_pca",
-  width = 6,
-  height = 4
+    filename = "data_processing_pca",
+    width = 6,
+    height = 4
 )
 
 Embeddings(pg_data, "umap") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata, by = "cell_id") |>
-  ggplot(aes(umap_1, umap_2, color = sample_alias)) +
-  geom_point() +
-  coord_fixed() +
-  scale_color_manual(values = sample_palette) +
-  theme_bw()
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata, by = "cell_id") |>
+    ggplot(aes(umap_1, umap_2, color = sample_alias)) +
+    geom_point() +
+    coord_fixed() +
+    scale_color_manual(values = sample_palette) +
+    theme_bw()
 
 save_plot(
-  filename = "data_processing_umap",
-  width = 6,
-  height = 4
+    filename = "data_processing_umap",
+    width = 6,
+    height = 4
 )
 ```
 
@@ -708,50 +708,50 @@ The harmonization we perform here results in a harmonized dimensional reduction 
 ```{r}
 #| label: data_processing_data_harmonization
 pg_data <-
-  pg_data |>
-  RunHarmony(
-    group.by.vars = "sample_alias",
-    plot_convergence = FALSE,
-  ) |>
-  RunUMAP(
-    reduction = "harmony",
-    dims = 1:20,
-    reduction.name = "harmony_umap",
-    n.neighbors = n_neighbors
-  )
+    pg_data |>
+    RunHarmony(
+        group.by.vars = "sample_alias",
+        plot_convergence = FALSE,
+    ) |>
+    RunUMAP(
+        reduction = "harmony",
+        dims = 1:20,
+        reduction.name = "harmony_umap",
+        n.neighbors = n_neighbors
+    )
 
 cell_metadata <-
-  FetchData(pg_data, c("sample_alias", "condition")) |>
-  as_tibble(rownames = "cell_id")
+    FetchData(pg_data, c("sample_alias", "condition")) |>
+    as_tibble(rownames = "cell_id")
 
 Embeddings(pg_data, "harmony") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata, by = "cell_id") |>
-  ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
-  geom_point() +
-  coord_fixed() +
-  scale_color_manual(values = sample_palette) +
-  theme_bw()
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata, by = "cell_id") |>
+    ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
+    geom_point() +
+    coord_fixed() +
+    scale_color_manual(values = sample_palette) +
+    theme_bw()
 
 save_plot(
-  filename = "data_processing_harmony",
-  width = 6,
-  height = 4
+    filename = "data_processing_harmony",
+    width = 6,
+    height = 4
 )
 
 Embeddings(pg_data, "harmony_umap") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata, by = "cell_id") |>
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
-  geom_point() +
-  coord_fixed() +
-  scale_color_manual(values = sample_palette) +
-  theme_bw()
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata, by = "cell_id") |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
+    geom_point() +
+    coord_fixed() +
+    scale_color_manual(values = sample_palette) +
+    theme_bw()
 
 save_plot(
-  filename = "data_processing_harmonyumap",
-  width = 6,
-  height = 4
+    filename = "data_processing_harmonyumap",
+    width = 6,
+    height = 4
 )
 
 ```
@@ -764,42 +764,42 @@ After dimensionality reduction, we perform clustering. We essentially group cell
 #| label: data_processing_clustering
 
 pg_data <-
-  pg_data |>
-  FindNeighbors(reduction = "harmony", dims = 1:10) |>
-  FindClusters(random.seed = 1, resolution = 0.5)
+    pg_data |>
+    FindNeighbors(reduction = "harmony", dims = 1:10) |>
+    FindClusters(random.seed = 1, resolution = 0.5)
 
 cell_metadata <-
-  FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
-  as_tibble(rownames = "cell_id")
+    FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
+    as_tibble(rownames = "cell_id")
 
 Embeddings(pg_data, "harmony") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata, by = "cell_id") |>
-  ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
-  geom_point() +
-  coord_fixed() +
-  scale_color_manual(values = cluster_palette) +
-  theme_bw()
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata, by = "cell_id") |>
+    ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
+    geom_point() +
+    coord_fixed() +
+    scale_color_manual(values = cluster_palette) +
+    theme_bw()
 
 save_plot(
-  filename = "data_processing_harmony_clusters",
-  width = 6,
-  height = 4
+    filename = "data_processing_harmony_clusters",
+    width = 6,
+    height = 4
 )
 
 Embeddings(pg_data, "harmony_umap") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata, by = "cell_id") |>
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
-  geom_point() +
-  coord_fixed() +
-  scale_color_manual(values = cluster_palette) +
-  theme_bw()
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata, by = "cell_id") |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
+    geom_point() +
+    coord_fixed() +
+    scale_color_manual(values = cluster_palette) +
+    theme_bw()
 
 save_plot(
-  filename = "data_processing_harmonyumap_clusters",
-  width = 6,
-  height = 4
+    filename = "data_processing_harmonyumap_clusters",
+    width = 6,
+    height = 4
 )
 
 ```
@@ -842,31 +842,31 @@ Automatic annotation using label transfer from a reference dataset.
 #| label: data_processing_manual_annotation
 
 diff_abundant_markers_cluster <-
-  FindAllMarkers(
-    pg_data,
-    logfc.threshold = 0,
-    min_pct = 0,
-    return.thresh = 1
-  ) |>
-  as_tibble() |>
-  rename(marker = gene)
+    FindAllMarkers(
+        pg_data,
+        logfc.threshold = 0,
+        min_pct = 0,
+        return.thresh = 1
+    ) |>
+    as_tibble() |>
+    rename(marker = gene)
 
 diff_abundant_markers_cluster |>
-  group_by(marker) |>
-  filter(any(p_val_adj < 0.05 & avg_log2FC > 1)) |>
-  select(marker, avg_log2FC, cluster) |>
-  pivot_wider(
-    names_from = cluster,
-    values_from = avg_log2FC,
-    values_fill = 0
-  ) |>
-  column_to_rownames("marker") |>
-  pheatmap(
-    cellwidth = 8,
-    cellheight = 8,
-    heatmap_legend_param = list(title = "Avg. log2 FC"),
-  ) |>
-  as.ggplot()
+    group_by(marker) |>
+    filter(any(p_val_adj < 0.05 & avg_log2FC > 1)) |>
+    select(marker, avg_log2FC, cluster) |>
+    pivot_wider(
+        names_from = cluster,
+        values_from = avg_log2FC,
+        values_fill = 0
+    ) |>
+    column_to_rownames("marker") |>
+    pheatmap(
+        cellwidth = 8,
+        cellheight = 8,
+        heatmap_legend_param = list(title = "Avg. log2 FC"),
+    ) |>
+    as.ggplot()
 
 ```
 
