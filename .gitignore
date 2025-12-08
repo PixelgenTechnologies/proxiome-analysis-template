@@ -6,4 +6,4 @@
 
 # Result files
 results/
-data/
+data/*.pxl

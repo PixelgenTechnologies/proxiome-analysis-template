@@ -1,0 +1,7 @@
+sample_id,sample_alias,condition,donor,age,file_path
+S1,S1_resting,resting,donor1,20,/workspaces/single_cell_analysis_sop/data/PNA056_Maud_PBMCs_unstimulated_sample01_S1.layout.dataset.pxl
+S2,S2_PHA,PHA,donor1,33,/workspaces/single_cell_analysis_sop/data/PNA056_Maud_PBMCs_PHA_sample02_S2.layout.dataset.pxl
+S3,S3_resting,resting,donor2,12,/workspaces/single_cell_analysis_sop/data/PNA064_Sample_1_S1.layout.pxl
+S4,S4_PHA,PHA,donor2,65,/workspaces/single_cell_analysis_sop/data/PNA064_Sample_2_S2.layout.pxl
+S5,S5_resting,resting,donor3,12,/workspaces/single_cell_analysis_sop/data/PNA064_Sample_3_S3.layout.pxl
+S6,S6_PHA,PHA,donor3,44,/workspaces/single_cell_analysis_sop/data/PNA064_Sample_5_S5.layout.pxl
