@@ -208,12 +208,47 @@ save_plot(
 TODO: Add text here
 
 ```{r}
-#| label: quality_control_connectivity
+#| label: quality_control_connectivity_plots
 
-plot_data <- 
-  FetchData(pg_data, 
-            c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")) |> 
-  mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
+# Average k-core per cell
+average_k_core_plot <- create_violin_plot(data = pg_data, 
+var_x = "sample_alias", 
+var_y = "average_k_core", 
+palette = sample_palette, 
+data_cutoff = 1)
+
+save_plot(
+  filename = here::here("results", "quality_control", "violin_plots", "quality_control_average_k_core.png"),
+  plot = average_k_core_plot,
+  width = 10,
+  height = 8,
+  create_dir = TRUE
+)
+
+# Add percentage of dangling nodes per cell
+pg_data <-
+  AddMetaData(pg_data, FetchData(
+    pg_data,
+    c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")
+  ) |>
+  mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi) |>
+ select(prc_dangling_nodes),
+  col.name = "prc_dangling_nodes"
+)
+
+dangling_nodes_plot <- create_violin_plot(data = pg_data, 
+var_x = "sample_alias", 
+var_y = "prc_dangling_nodes", 
+palette = sample_palette, 
+data_cutoff = 1)
+
+save_plot(
+  filename = here::here("results", "quality_control", "violin_plots", "quality_control_dangling_nodes.png"),
+  plot = dangling_nodes_plot,
+  width = 10,
+  height = 8,
+  create_dir = TRUE
+)
 
 plot_data |> 
   ggplot(aes(sample_alias, average_k_core, fill = condition)) +
