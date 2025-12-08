@@ -43,7 +43,7 @@ save_plot <-
     plot = last_plot(),
     width = 6,
     height = 4,
-    create_dir = FALSE,
+    create_dir = TRUE,
     file_formats = c("png", "pdf")
   ) {
     for (format in file_formats) {
@@ -66,7 +66,7 @@ save_plot <-
 ```{r}
 #| label: setup_read_metadata
 
-# This is a csv file with at least the following columns: sample_id, sample_alias, file_path.
+# This is a csv file with at least the following columns: sample_id, sample_alias and file_path.
 # sample_id is a short sample ID (e.g. S1, S2, S3), sample_alias is a more descriptive sample alias (e.g. S1_resting, S2_PHA), and file_path is the path to the PNA file.
 # Additional columns can be added as needed and will be added to the PNA object as metadata columns.
 metadata <- read.csv(here::here("data", "metadata.csv")) |> as_tibble()
