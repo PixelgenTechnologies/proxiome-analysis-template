@@ -126,7 +126,7 @@ pg_data <-
 
 # Sanity check the metadata
 tmp_meta <- pg_data[[]] |>
-    tibble::rownames_to_column("cell_id") |>
+    as_tibble(rownames = "cell_id") |>
     tidyr::separate(
         col = cell_id,
         sep = "_",
