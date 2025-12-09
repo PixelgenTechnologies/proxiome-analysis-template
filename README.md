@@ -25,8 +25,9 @@ The analysis requires a metadata file (samplesheet) in CSV format that maps samp
 - **sample_id**: A short, unique identifier for each sample (e.g., `S1`, `S2`, `S3`)
 - **sample_alias**: A more descriptive name for the sample (e.g., `S1_resting`, `S2_PHA`)
 - **file_path**: The full path to the corresponding PNA file for each sample
+- **condition**: A description of the sample condition
 
-You can include additional columns as needed (e.g., `condition`, `donor`, `time_point`, `treatment`). These will be automatically added to the PNA object as metadata columns and can be used for downstream analysis and visualization.
+You can include additional columns as needed (e.g., `donor`, `time_point`, `treatment`). These will be automatically added to the PNA object as metadata columns and can be used for downstream analysis and visualization.
 
 Example samplesheet:
 
