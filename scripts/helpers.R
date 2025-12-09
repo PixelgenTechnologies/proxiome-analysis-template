@@ -82,6 +82,7 @@ create_violin_plot <- function(
       axis.title.x = element_text(size = 14, face = "bold"),
       axis.title.y = element_text(size = 14, face = "bold")
     )
+}
 
 check_metadata_columns <- function(metadata) {
   if (
