@@ -1,4 +1,4 @@
-#' Create a violin/quasirandom plot with median overlays for Seurat metadata
+#' Create a violin/quasirandom plot with median overlays for PNA object metadata
 #'
 #' @param data Seurat object containing cell metadata
 #' @param var_x String; variable for the x-axis (categorical, e.g., sample/group)
