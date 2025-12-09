@@ -28,6 +28,7 @@ library(pixelatorR)
 library(harmony)
 library(ComplexHeatmap)
 library(ggplotify)
+library(here)
 
 ```
 
@@ -58,7 +59,7 @@ save_plot <-
 
 ## Read data
 
-We will begin with reading data. Specify the data file IDs, paths, and conditions below.
+### Set up data files and metadata
 
 ```{r}
 #| label: setup_read_data
@@ -85,6 +86,10 @@ We merge all data into a single Seurat object, adding metadata for sample alias 
 
 ```{r}
 #| label: setup_merge_data
+
+pg_data <-
+    data_files |>
+    lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 # Merge data
 pg_data <-
