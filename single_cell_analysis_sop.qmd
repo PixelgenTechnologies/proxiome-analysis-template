@@ -41,8 +41,9 @@ save_plot <-
     function(
       filename,
       plot = last_plot(),
-      width = 6,
-      height = 4,
+      width = 10,
+      height = 10,
+      create_dir = TRUE,
       file_formats = c("png", "pdf")
     ) {
         for (format in file_formats) {
@@ -50,73 +51,79 @@ save_plot <-
                 filename = file.path("results", paste0(filename, ".", format)),
                 plot = plot,
                 width = width,
-                height = height
+                height = height,
+                create.dir = create_dir
             )
         }
     }
 
-# Read helper functions
-source(here("scripts", "helpers.R"))
-
 ```
 
-## Read data
+## Create the PNA object
 
-### Set up data files and metadata
+### Read metadata file
+
+To handle file paths and sample-specific data, we need to read in a metadata file. This is a csv file with at least the following columns: sample_id, sample_alias, file_path and condition. Sample_id is a short sample ID (e.g. S1, S2, S3), sample_alias is a more descriptive sample alias (e.g. S1_resting, S2_PHA), file_path is the full path to the PNA file and condition describes the sample treatment or condition. Additional columns can be added as needed and will be added to the PNA object as metadata columns. For example, you might want to add a column for the condition, the donor, the time point, the treatment, etc.
+
+Here is an example of what your metadata file should look like:
+
+sample_id,sample_alias,file_path,condition,donor
+S1,S1_resting,Users/username/data/S1_resting.pna,resting,D1
+S2,S2_PHA,Users/username/data/S2_PHA.pna,stimulated,D2
+S3,S3_IL2,Users/username/data/S3_IL2.pna,IL2_treated,D1
+
 
 ```{r}
-#| label: setup_read_data
+#| label: setup_read_metadata
 
-data_files <-
-    c(
-        S1 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S04_Activated_CD4_cells.layout.pxl",
-        S2 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S05_Raji.layout.pxl",
-        S3 = "C:/Users/max/data/PNACC_data/pixelator/PNA109_S07_Raji_CD4_with_SEE.layout.pxl"
-    )
+# Read metadata file into a dataframe
+metadata <- read.csv(here::here("data", "metadata.csv")) |> as_tibble()
 
-conditions <-
-    c(S1 = "ctrl", S2 = "stim1", S3 = "stim2")
+# Check that the metadata file contains the required columns - otherwise stop the script
+check_metadata_columns(metadata)
 
-pg_data <-
-    data_files |>
-    lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
-
+# Print the metadata
+print(metadata)
 ```
 
-## Merge data
-
-We merge all data into a single Seurat object, adding metadata for sample alias and condition.
+### Load and merge data
 
 ```{r}
 #| label: setup_merge_data
 
+# Load the data from the file paths into a list of PNA objects
 pg_data <-
-    data_files |>
+    metadata$file_path |>
     lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
-# Merge data
+# Merge the PNA objects, adding the sample_id to the cell names
 pg_data <-
     merge(
         pg_data[[1]],
         y = pg_data[-1],
-        add.cell.ids = names(pg_data)
+        add.cell.ids = metadata$sample_id
     ) |>
     JoinLayers()
+```
 
-# Add metadata
-pg_data <-
-    pg_data |>
-    AddMetaData(
-        colnames(pg_data) |>
-            enframe("i", "comp_id") |>
-            mutate(
-                sample_alias = str_extract(comp_id, ".*_") |>
-                    str_remove("_$"),
-                condition = conditions[sample_alias]
-            ) |>
-            column_to_rownames("comp_id")
-    )
+### Add metadata
 
+```{r}
+#| label: setup_add_metadata
+
+# Add metadata to the PNA object
+pg_data[[]] <-
+    pg_data[[]] |>
+    as_tibble(rownames = "cell_id") |>
+    mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 17 characters from the cell_id to get the sample_id
+    left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
+    column_to_rownames("cell_id")
+
+# Sanity check the metadata
+for (col in colnames(metadata |> select(-file_path))) {
+    print(col)
+    print(table(pg_data[[]]$sample_alias, pg_data[[]][, col]))
+}
 ```
 
 
