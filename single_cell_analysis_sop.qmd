@@ -198,9 +198,9 @@ condition_palette <-
 sample_palette <-
     set_names(
         pixelatorES::create_sample_palette(
-            names(data_files)
-        )[seq_len(length(data_files))],
-        names(data_files)
+            metadata$sample_id
+        )[seq_len(length(metadata$sample_id))],
+        metadata$sample_id
     )
 
 ```
