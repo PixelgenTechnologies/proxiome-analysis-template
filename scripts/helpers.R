@@ -1,3 +1,28 @@
+#' Check the presence of required columns in metadata
+#'
+#' This function checks whether a metadata data.frame or tibble contains
+#' the required columns: "sample_id", "sample_alias", "file_path", and "condition".
+#' If any of these columns are missing, the function stops execution and
+#' returns an informative error message.
+#'
+#' @param metadata A data.frame or tibble containing metadata for samples.
+#'
+#' @return Invisible NULL. Stops with error if required columns are missing.
+#' @examples
+#' # Example usage:
+#' metadata <- data.frame(
+#'   sample_id = 1:3,
+#'   sample_alias = c("A", "B", "C"),
+#'   file_path = c("file1", "file2", "file3"),
+#'   condition = c("control", "case", "case")
+#' )
+#' check_metadata_columns(metadata) # No error
+#'
+#' # Example with missing column
+#' bad_metadata <- metadata[, -1]
+#' \dontrun{
+#'   check_metadata_columns(bad_metadata) # This will throw an error
+#' }
 check_metadata_columns <- function(metadata) {
   if (
     !all(
