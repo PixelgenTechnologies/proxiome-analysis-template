@@ -33,6 +33,9 @@ library(ComplexHeatmap)
 library(ggplotify)
 library(here)
 
+# Anchor the project root directory
+here::i_am("single_cell_analysis_sop.qmd")
+
 # Load helper functions
 source(here::here("scripts", "helpers.R"))
 
