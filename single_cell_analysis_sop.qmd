@@ -17,13 +17,14 @@ This SOP describes a standard workflow for analyzing single cell PNA data using 
 
 # Setup
 
-## Packages
+## Load packages and helper functions
 
-A set of commonly used packages are loaded here.
+A set of commonly used packages and helper functions are loaded here. These are used throughout the analysis and can be customized as needed.
 
 ```{r}
 #| label: setup_packages
 
+# Load commonly used packages
 library(tidyverse)
 library(Seurat)
 library(pixelatorR)
@@ -32,15 +33,7 @@ library(ComplexHeatmap)
 library(ggplotify)
 library(here)
 
-```
-
-## Functions
-
-A set of helper functions are loaded here.
-
-```{r}
-#| label: setup_functions
-
+# Load helper functions
 source(here::here("scripts", "helpers.R"))
 
 ```
@@ -171,12 +164,24 @@ cluster_palette <-
     unname() |>
     rep(10)
 
+# Create a condition palette for the conditions
+unique_conditions <- unique(metadata$condition)
+condition_palette <-
+    set_names(
+        pixelatorES::create_sample_palette(
+            unique_conditions
+        )[seq_len(length(unique_conditions))],
+        unique_conditions
+    )
+
+# Create a sample palette for the samples
+unique_samples <- unique(metadata$sample_id)
 sample_palette <-
     set_names(
         pixelatorES::create_sample_palette(
-            metadata$sample_id
-        )[seq_len(length(metadata$sample_id))],
-        metadata$sample_id
+            unique_samples
+        )[seq_len(length(unique_samples))],
+        unique_samples
     )
 
 ```
@@ -202,10 +207,7 @@ read_depth_plot <- create_violin_plot(
 
 save_plot(
     filename = here::here(
-        "results",
-        "01_quality_control",
-        "violin_plots",
-        "quality_control_read_depth"
+        "results/01_quality_control/violin_plots/quality_control_read_depth"
     ),
     plot = read_depth_plot,
     width = 10,
@@ -233,10 +235,7 @@ average_k_core_plot <- create_violin_plot(
 
 save_plot(
     filename = here::here(
-        "results",
-        "01_quality_control",
-        "violin_plots",
-        "quality_control_average_k_core"
+        "results/01_quality_control/violin_plots/quality_control_average_k_core"
     ),
     plot = average_k_core_plot,
     width = 10,
@@ -273,10 +272,7 @@ dangling_nodes_plot <- create_violin_plot(
 
 save_plot(
     filename = here::here(
-        "results",
-        "01_quality_control",
-        "violin_plots",
-        "quality_control_dangling_nodes"
+        "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
     ),
     plot = dangling_nodes_plot,
     width = 10,
@@ -304,10 +300,7 @@ isotype_fraction_plot <- create_violin_plot(
 
 save_plot(
     filename = here::here(
-        "results",
-        "01_quality_control",
-        "violin_plots",
-        "quality_control_isotype_controls"
+        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
     ),
     plot = isotype_fraction_plot,
     width = 10,
@@ -326,10 +319,7 @@ tau_score_plot <- TauPlot(pg_data, group_by = "sample_id")
 
 save_plot(
     filename = here::here(
-        "results",
-        "01_quality_control",
-        "tau_plots",
-        "quality_control_tau_score"
+        "results/01_quality_control/tau_plots/quality_control_tau_score"
     ),
     plot = tau_score_plot,
     width = 10,
@@ -383,10 +373,7 @@ n_umi_plot <- create_violin_plot(
 
 save_plot(
     filename = here::here(
-        "results",
-        "01_quality_control",
-        "violin_plots",
-        "quality_control_n_umi"
+        "results/01_quality_control/violin_plots/quality_control_n_umi"
     ),
     plot = n_umi_plot,
     width = 10,
@@ -413,7 +400,7 @@ molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_
         color = "red"
     )
 save_plot(
-    filename = here::here("results", "01_quality_control", "molecule_rank_plots", "quality_control_molecule_rank_plot_w_thresholds"),
+    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
     plot = molecule_rank_plot_w_thresholds,
     width = 10,
     height = 8,
@@ -422,7 +409,7 @@ save_plot(
 
 molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
 save_plot(
-    filename = here::here("results", "01_quality_control", "molecule_rank_plots", "quality_control_molecule_rank_plot"),
+    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
     plot = molecule_rank_plot,
     width = 10,
     height = 8,
@@ -558,7 +545,7 @@ annotated_molecule_rank_plot <- pg_data[[]] |>
         )
     )
 save_plot(
-    filename = here::here("results", "01_quality_control", "molecule_rank_plots", "quality_control_annotated_molecule_rank_plot"),
+    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
     plot = annotated_molecule_rank_plot,
     width = 15,
     height = 12,
