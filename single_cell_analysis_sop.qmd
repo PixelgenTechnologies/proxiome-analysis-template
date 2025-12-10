@@ -414,12 +414,13 @@ save_plot(
 
 ```
 
-### Cell size / Antibody molecule counts (n_umi)
+### Molecule Rank plots
 
 ```{r}
 #| label: quality_control_select_cells
 
-MoleculeRankPlot(pg_data, group_by = "sample_alias") +
+# Combined molecule rank plots
+molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_alias") +
     geom_hline(
         yintercept = n_umi_min_threshold,
         linetype = "dashed",
@@ -431,48 +432,157 @@ MoleculeRankPlot(pg_data, group_by = "sample_alias") +
         color = "red"
     )
 save_plot(
-    filename = "quality_control_molecule_rank_plot",
-    width = 6,
-    height = 4
+    filename = here::here("results", "01_quality_control", "molecule_rank_plots", "quality_control_molecule_rank_plot_w_thresholds"),
+    plot = molecule_rank_plot_w_thresholds,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
 )
 
-FetchData(pg_data, c("sample_alias", "condition", "n_umi")) |>
-    ggplot(aes(sample_alias, n_umi, fill = condition)) +
-    geom_violin(draw_quantiles = 0.5, scale = "width") +
+molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
+save_plot(
+    filename = here::here("results", "01_quality_control", "molecule_rank_plots", "quality_control_molecule_rank_plot"),
+    plot = molecule_rank_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
+)
+
+# Separate annotated molecule rank plot for each sample
+pg_data[[]] <- pg_data[[]] |>
+    group_by(sample_id) |>
+    mutate(
+        rank = rank(-n_umi, ties.method = "random")
+    ) |>
+    ungroup()
+
+umi_normal <- pg_data[[]] |>
+    mutate(
+        umi_normal = case_when(
+            n_umi > n_umi_min_threshold & n_umi < n_umi_max_threshold ~ TRUE,
+            n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
+        )
+    ) |>
+    filter(tau_type == "normal") |>
+    select(sample_id, umi_normal)
+
+umi_normal_count <- umi_normal |>
+    filter(is.logical(umi_normal)) |>
+    group_by(sample_id) |>
+    summarise(normal_count = sum(umi_normal), .groups = "drop")
+
+umi_outliers <- pg_data[[]] |>
+    select(sample_id, n_umi, tau_type) |>
+    filter(tau_type == "normal") |>
+    mutate(
+        umi_low = n_umi < n_umi_min_threshold,
+        umi_high = n_umi > n_umi_max_threshold
+    ) |>
+    group_by(sample_id) |>
+    summarise(
+        low_count = sum(umi_low),
+        high_count = sum(umi_high),
+        .groups = "drop"
+    )
+
+hline_normal <- data.frame(
+    sample_id = unique(pg_data[[]]$sample_id),
+    cutoff = n_umi_min_threshold
+)
+
+point_colors <- pg_data[[]] |>
+    rownames_to_column("component") |>
+    select(sample_id, n_umi, rank, component) |>
+    left_join(
+        umi_normal_count |> rownames_to_column("component"),
+        by = c("component", "sample_id")
+    ) |>
+    left_join(hline_normal, by = "sample_id") |>
+    mutate(
+        max_value = n_umi_max_threshold,
+        col = case_when(
+            isTRUE(umi_normal) ~ "#496389",
+            n_umi < cutoff & !isTRUE(umi_normal) ~ "#FFA292",
+            n_umi > max_value & !isTRUE(umi_normal) ~ "#FFA292",
+            TRUE ~ "#496389"
+        )
+    )
+
+annotated_molecule_rank_plot <- pg_data[[]] |>
+    select(sample_id, rank, n_umi, tau_type) |>
+    filter(tau_type == "normal") |>
+    ggplot(aes(x = rank, y = n_umi)) +
+    geom_point(
+        data = point_colors,
+        aes(x = rank, y = n_umi),
+        color = point_colors$col,
+        size = 1,
+        alpha = 0.8
+    ) +
+    geom_hline(
+        data = hline_normal,
+        aes(yintercept = cutoff),
+        linetype = "dashed",
+        color = "red"
+    ) +
+    facet_wrap(
+        ~ factor(sample_id, levels = sort(unique(sample_id))),
+        nrow = 2
+    ) +
     geom_text(
-        data = function(x) {
-            x |>
-                group_by(sample_alias) |>
-                summarise(median = median(n_umi))
-        },
-        aes(sample_alias, median, label = round(median)),
-        vjust = -0.5,
-        inherit.aes = FALSE
+        data = umi_normal_count,
+        aes(x = Inf, y = Inf, label = paste("Cells:", normal_count)),
+        hjust = 1.2,
+        vjust = 1.8,
+        size = 4,
+        color = "#496389",
+        position = position_nudge(y = 0.5)
     ) +
-    geom_hline(
-        yintercept = n_umi_min_threshold,
-        linetype = "dashed",
-        color = "red"
+    geom_text(
+        data = umi_outliers,
+        aes(x = 10, y = Inf, label = paste("High: ", high_count)),
+        vjust = 1.8,
+        hjust = 0.8,
+        size = 4,
+        color = "#FFA292",
+        position = position_nudge(y = -0.5)
     ) +
-    geom_hline(
-        yintercept = n_umi_max_threshold,
-        linetype = "dashed",
-        color = "red"
+    geom_text(
+        data = umi_outliers,
+        aes(x = 10, y = n_umi_min_threshold, label = paste("Low: ", low_count)),
+        size = 4,
+        vjust = 0.2,
+        hjust = 0.7,
+        color = "#FFA292",
+        position = position_nudge(y = -0.5)
     ) +
+    geom_rug(
+        aes(x = rank),
+        linewidth = 1,
+        sides = "l",
+        alpha = 0.05
+    ) +
+    scale_x_log10() +
     scale_y_log10() +
-    scale_fill_manual(values = sample_palette) +
-    theme_bw() +
-    labs(
-        title = "Antibody molecule counts per cell",
-        x = "Sample",
-        y = "Molecule counts per cell (log10 scale)"
+    coord_equal(ratio = 1.5) +
+    theme_minimal(base_size = 18) +
+    labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
+    theme(
+        legend.position = "top",
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.border = element_rect(
+            color = "black",
+            fill = NA,
+            linewidth = 0.5
+        )
     )
 save_plot(
-    filename = "quality_control_antibody_molecule_counts",
-    width = 6,
-    height = 4
+    filename = here::here("results", "01_quality_control", "molecule_rank_plots", "quality_control_annotated_molecule_rank_plot"),
+    plot = annotated_molecule_rank_plot,
+    width = 15,
+    height = 12,
+    create_dir = TRUE
 )
-
 ```
 
 ## Select markers (optional)
