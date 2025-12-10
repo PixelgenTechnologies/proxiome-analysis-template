@@ -17,11 +17,14 @@ This SOP describes a standard workflow for analyzing single cell PNA data using 
 
 # Setup
 
-## Packages
+## Load packages and helper functions
+
+A set of commonly used packages and helper functions are loaded here. These are used throughout the analysis and can be customized as needed.
 
 ```{r}
 #| label: setup_packages
 
+# Load commonly used packages
 library(tidyverse)
 library(Seurat)
 library(pixelatorR)
@@ -30,32 +33,8 @@ library(ComplexHeatmap)
 library(ggplotify)
 library(here)
 
-```
-
-## Functions
-
-```{r}
-#| label: setup_functions
-
-save_plot <-
-    function(
-      filename,
-      plot = last_plot(),
-      width = 10,
-      height = 10,
-      create_dir = TRUE,
-      file_formats = c("png", "pdf")
-    ) {
-        for (format in file_formats) {
-            ggsave(
-                filename = file.path("results", paste0(filename, ".", format)),
-                plot = plot,
-                width = width,
-                height = height,
-                create.dir = create_dir
-            )
-        }
-    }
+# Load helper functions
+source(here::here("scripts", "helpers.R"))
 
 ```
 
@@ -185,22 +164,24 @@ cluster_palette <-
     unname() |>
     rep(10)
 
-
+# Create a condition palette for the conditions
+unique_conditions <- unique(metadata$condition)
 condition_palette <-
     set_names(
         pixelatorES::create_sample_palette(
-            unique(conditions)
-        )[seq_len(n_distinct(conditions))],
-        unique(conditions)
+            unique_conditions
+        )[seq_len(length(unique_conditions))],
+        unique_conditions
     )
 
-
+# Create a sample palette for the samples
+unique_samples <- unique(metadata$sample_id)
 sample_palette <-
     set_names(
         pixelatorES::create_sample_palette(
-            names(data_files)
-        )[seq_len(length(data_files))],
-        names(data_files)
+            unique_samples
+        )[seq_len(length(unique_samples))],
+        unique_samples
     )
 
 ```
@@ -209,207 +190,150 @@ sample_palette <-
 
 In Quality Control we inspect certain metrics that are indicative of the quality of the data per sample and/or per cell. Based on these metrics we can decide whether to remove cells from the dataset before proceeding with data processing.
 
-## Read depth (n_reads)
+## Read Depth
+
+First we inspect the read depth per cell. This is a measure of the total number of reads in the cell, and is a good indicator of the quality of the data. The higher the read depth, the better the data quality.
 
 ```{r}
 #| label: quality_control_read_depth
 
-FetchData(pg_data, c("sample_alias", "condition", "reads_in_component")) |>
-    ggplot(aes(sample_alias, reads_in_component, fill = condition)) +
-    geom_violin(draw_quantiles = 0.5, scale = "width") +
-    geom_text(
-        data = function(x) {
-            x |>
-                group_by(sample_alias) |>
-                summarise(median = median(reads_in_component))
-        },
-        aes(sample_alias, median, label = round(median)),
-        vjust = -0.5,
-        inherit.aes = FALSE
-    ) +
-    scale_y_log10() +
-    scale_fill_manual(values = condition_palette) +
-    theme_bw() +
-    labs(
-        title = "Read depth per cell",
-        x = "Sample",
-        y = "Reads per cell (log10 scale)"
-    )
+read_depth_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_id",
+    var_y = "reads_in_component",
+    palette = sample_palette,
+    data_cutoff = 0.999 # Remove a few outlier cells that make the plot hard to read
+)
+
 save_plot(
-    filename = "quality_control_read_depth",
-    width = 6,
-    height = 4
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_read_depth"
+    ),
+    plot = read_depth_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
 )
 
 ```
 
-## Sequencing saturation
+## Connectivity
 
-Here we run simulations of 6 cells to estimate the sequencing saturation curves per sample.
+Here we inspect the average k-core per cell. The k-core is a measure of the connectivity of the cell, and is another good indicator of the quality of the data. The higher the average k-core, the better the graph connectivity.
 
 ```{r}
-#| label: quality_control_sequencing_saturation
+#| label: quality_control_average_k_core
 
-object_meta <-
-    FetchData(pg_data, c("sample_alias", "reads_in_component")) |>
-    group_by(sample_alias) |>
-    summarise(
-        n_comps = n(),
-        reads_per_component = mean(reads_in_component)
-    )
+# Average k-core per cell
+average_k_core_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_id",
+    var_y = "average_k_core",
+    palette = sample_palette,
+    data_cutoff = 1
+)
 
-seqsat_curve_data <-
-    data_files |>
-    names() |>
-    set_names() |>
-    parallel::mclapply(
-        function(sampl) {
-            n_comps <-
-                object_meta$n_comps[which(object_meta$sample_alias == sampl)]
-            n_comps <- pmin(n_comps, 6)
-            sampled_comps <- sample(
-                pg_data[[]] |>
-                    filter(sample_alias == sampl) |>
-                    rownames() |>
-                    sample(n_comps)
-            )
-            el <- pg_data |>
-                subset(cells = sampled_comps) |>
-                Edgelists(lazy = FALSE)
-
-            el |>
-                SequenceSaturationCurve(n_comps = n_comps)
-        },
-        mc.cores = 1
-    ) |>
-    bind_rows(.id = "sample_alias") |>
-    left_join(
-        object_meta,
-        by = join_by(sample_alias)
-    ) |>
-    mutate(
-        reads_per_component = reads_per_component * sample_frac
-    ) |>
-    select(
-        sample_alias,
-        reads_per_component,
-        graph_node_saturation,
-        graph_edge_saturation
-    ) |>
-    pivot_longer(
-        cols = c("graph_node_saturation", "graph_edge_saturation"),
-        names_to = "type",
-        values_to = "saturation"
-    ) |>
-    mutate(
-        type = str_remove(type, "graph_") |>
-            str_remove("_saturation") |>
-            str_to_sentence()
-    )
-
-seqsat_curve_data |>
-    ggplot(aes(reads_per_component, saturation, color = sample_alias)) +
-    geom_line(
-        data = seqsat_curve_data |>
-            group_by(sample_alias, type, reads_per_component) |>
-            summarise(saturation = mean(saturation)) |>
-            ungroup(),
-        aes(group = sample_alias)
-    ) +
-    geom_point(size = 0.1) +
-    facet_wrap(~type) +
-    scale_y_continuous(limits = c(0, 100)) +
-    scale_color_manual(values = sample_palette) +
-    theme_bw() +
-    labs(
-        x = "Reads per component",
-        y = "Sequencing saturation [%]",
-        title = "Sequencing saturation curve",
-        color = "Sample ID"
-    )
 save_plot(
-    filename = "quality_control_sequencing_saturation",
-    width = 6,
-    height = 4
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_average_k_core"
+    ),
+    plot = average_k_core_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
 )
 ```
 
-## Connectivity (average kcore and dangling nodes)
-
-TODO: Add text here
+Next, we plot the percentage of dangling nodes per cell. Dangling nodes belong to subgraphs that are connnected to the rest of the graph by a single edge, and are an indicator of the graph connectivity. The lower the percentage of dangling nodes, the better the graph connectivity.
 
 ```{r}
-#| label: quality_control_connectivity
+#| label: quality_control_dangling_nodes_plots
 
-plot_data <-
-    FetchData(
+# Add percentage of dangling nodes per cell - i.e. K-core 1 fraction
+pg_data <-
+    AddMetaData(
         pg_data,
-        c("sample_alias", "condition", "average_k_core", "k_core_1", "n_umi")
-    ) |>
-    mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi)
-
-plot_data |>
-    ggplot(aes(sample_alias, average_k_core, fill = condition)) +
-    geom_violin(draw_quantiles = 0.5, scale = "width") +
-    geom_text(
-        data = function(x) {
-            x |>
-                group_by(sample_alias) |>
-                summarise(median = median(average_k_core))
-        },
-        aes(sample_alias, median, label = round(median, 2)),
-        vjust = -0.5,
-        inherit.aes = FALSE
-    ) +
-    scale_fill_manual(values = condition_palette) +
-    theme_bw() +
-    labs(
-        title = "Average k-core per cell",
-        x = "Sample",
-        y = "Average k-core"
+        FetchData(
+            pg_data,
+            c("sample_id", "k_core_1", "n_umi")
+        ) |>
+            mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi) |>
+            select(prc_dangling_nodes),
+        col.name = "prc_dangling_nodes"
     )
 
-save_plot(
-    filename = "quality_control_average_k_core",
-    width = 6,
-    height = 4
+dangling_nodes_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_id",
+    var_y = "prc_dangling_nodes",
+    palette = sample_palette,
+    data_cutoff = 1
 )
 
-plot_data |>
-    ggplot(aes(sample_alias, prc_dangling_nodes, fill = condition)) +
-    geom_violin(draw_quantiles = 0.5, scale = "width") +
-    geom_text(
-        data = function(x) {
-            x |>
-                group_by(sample_alias) |>
-                summarise(median = median(prc_dangling_nodes))
-        },
-        aes(sample_alias, median, label = paste(round(median, 1), "%")),
-        vjust = -0.5,
-        inherit.aes = FALSE
-    ) +
-    scale_fill_manual(values = condition_palette) +
-    theme_bw() +
-    labs(
-        title = "Dangling nodes per cell",
-        x = "Sample",
-        y = "Dangling nodes [%]"
-    )
-
 save_plot(
-    filename = "quality_control_dangling_nodes",
-    width = 6,
-    height = 4
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
+    ),
+    plot = dangling_nodes_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
 )
 
 ```
 
+## Unspecific Background
+
+In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
+
+
+```{r}
+#| label: quality_control_isotype_controls
+
+isotype_fraction_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_id",
+    var_y = "isotype_fraction",
+    palette = sample_palette,
+    data_cutoff = 1
+)
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
+    ),
+    plot = isotype_fraction_plot,
+    width = 10,
+    height = 8
+)
+```
+
+## Tau score
+
+The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
+
+```{r}
+#| label: quality_control_tau_score
+
+tau_score_plot <- TauPlot(pg_data, group_by = "sample_id")
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/tau_plots/quality_control_tau_score"
+    ),
+    plot = tau_score_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
+)
+```
 
 
 ## Select cells
 
 Next, we will select cells to keep for downstream analysis. We want to remove cells that:
 - Are too small, possibly representing cell fragments
+- Are too large, possibly representing cell doublets or artefacts
 - Are noisy, using isotype marker background level
 - Have an abnormal marker distribution, using the tau score
 
@@ -423,118 +347,210 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 #| label: quality_control_define_thresholds
 
 # Define threshold for minimum molecule counts per cell
-
-n_umi_threshold <- 10000
+n_umi_min_threshold <- 15000
+n_umi_max_threshold <- 200000
 isotype_fraction_threshold <- 0.005
+
+# Plot to visualize thresholds as a violin plot
+n_umi_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_id",
+    var_y = "n_umi",
+    palette = sample_palette,
+    data_cutoff = 0.999
+) &
+    geom_hline(
+        yintercept = n_umi_min_threshold,
+        linetype = "dashed",
+        color = "red"
+    ) &
+    geom_hline(
+        yintercept = n_umi_max_threshold,
+        linetype = "dashed",
+        color = "red"
+    ) &
+    theme_bw()
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_n_umi"
+    ),
+    plot = n_umi_plot,
+    width = 10,
+    height = 8
+)
 
 ```
 
-### Cell size / Antibody molecule counts (n_umi)
+### Molecule Rank plots
 
 ```{r}
 #| label: quality_control_select_cells
 
-MoleculeRankPlot(pg_data, group_by = "sample_alias") +
+# Combined molecule rank plots
+molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_alias") +
     geom_hline(
-        yintercept = n_umi_threshold,
+        yintercept = n_umi_min_threshold,
+        linetype = "dashed",
+        color = "red"
+    ) +
+    geom_hline(
+        yintercept = n_umi_max_threshold,
         linetype = "dashed",
         color = "red"
     )
 save_plot(
-    filename = "quality_control_molecule_rank_plot",
-    width = 6,
-    height = 4
+    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
+    plot = molecule_rank_plot_w_thresholds,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
 )
 
+molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
+save_plot(
+    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
+    plot = molecule_rank_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
+)
 
-FetchData(pg_data, c("sample_alias", "condition", "n_umi")) |>
-    ggplot(aes(sample_alias, n_umi, fill = condition)) +
-    geom_violin(draw_quantiles = 0.5, scale = "width") +
-    geom_text(
-        data = function(x) {
-            x |>
-                group_by(sample_alias) |>
-                summarise(median = median(n_umi))
-        },
-        aes(sample_alias, median, label = round(median)),
-        vjust = -0.5,
-        inherit.aes = FALSE
+# Separate annotated molecule rank plot for each sample
+pg_data[[]] <- pg_data[[]] |>
+    group_by(sample_id) |>
+    mutate(
+        rank = rank(-n_umi, ties.method = "random")
+    ) |>
+    ungroup()
+
+umi_normal <- pg_data[[]] |>
+    mutate(
+        umi_normal = case_when(
+            n_umi > n_umi_min_threshold & n_umi < n_umi_max_threshold ~ TRUE,
+            n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
+        )
+    ) |>
+    filter(tau_type == "normal") |>
+    select(sample_id, umi_normal)
+
+umi_normal_count <- umi_normal |>
+    filter(is.logical(umi_normal)) |>
+    group_by(sample_id) |>
+    summarise(normal_count = sum(umi_normal), .groups = "drop")
+
+umi_outliers <- pg_data[[]] |>
+    select(sample_id, n_umi, tau_type) |>
+    filter(tau_type == "normal") |>
+    mutate(
+        umi_low = n_umi < n_umi_min_threshold,
+        umi_high = n_umi > n_umi_max_threshold
+    ) |>
+    group_by(sample_id) |>
+    summarise(
+        low_count = sum(umi_low),
+        high_count = sum(umi_high),
+        .groups = "drop"
+    )
+
+hline_normal <- data.frame(
+    sample_id = unique(pg_data[[]]$sample_id),
+    cutoff = n_umi_min_threshold
+)
+
+point_colors <- pg_data[[]] |>
+    rownames_to_column("component") |>
+    select(sample_id, n_umi, rank, component) |>
+    left_join(
+        umi_normal_count |> rownames_to_column("component"),
+        by = c("component", "sample_id")
+    ) |>
+    left_join(hline_normal, by = "sample_id") |>
+    mutate(
+        max_value = n_umi_max_threshold,
+        col = case_when(
+            isTRUE(umi_normal) ~ "#496389",
+            n_umi < cutoff & !isTRUE(umi_normal) ~ "#FFA292",
+            n_umi > max_value & !isTRUE(umi_normal) ~ "#FFA292",
+            TRUE ~ "#496389"
+        )
+    )
+
+annotated_molecule_rank_plot <- pg_data[[]] |>
+    select(sample_id, rank, n_umi, tau_type) |>
+    filter(tau_type == "normal") |>
+    ggplot(aes(x = rank, y = n_umi)) +
+    geom_point(
+        data = point_colors,
+        aes(x = rank, y = n_umi),
+        color = point_colors$col,
+        size = 1,
+        alpha = 0.8
     ) +
     geom_hline(
-        yintercept = n_umi_threshold,
+        data = hline_normal,
+        aes(yintercept = cutoff),
         linetype = "dashed",
         color = "red"
     ) +
+    facet_wrap(
+        ~ factor(sample_id, levels = sort(unique(sample_id))),
+        nrow = 2
+    ) +
+    geom_text(
+        data = umi_normal_count,
+        aes(x = Inf, y = Inf, label = paste("Cells:", normal_count)),
+        hjust = 1.2,
+        vjust = 1.8,
+        size = 4,
+        color = "#496389",
+        position = position_nudge(y = 0.5)
+    ) +
+    geom_text(
+        data = umi_outliers,
+        aes(x = 10, y = Inf, label = paste("High: ", high_count)),
+        vjust = 1.8,
+        hjust = 0.8,
+        size = 4,
+        color = "#FFA292",
+        position = position_nudge(y = -0.5)
+    ) +
+    geom_text(
+        data = umi_outliers,
+        aes(x = 10, y = n_umi_min_threshold, label = paste("Low: ", low_count)),
+        size = 4,
+        vjust = 0.2,
+        hjust = 0.7,
+        color = "#FFA292",
+        position = position_nudge(y = -0.5)
+    ) +
+    geom_rug(
+        aes(x = rank),
+        linewidth = 1,
+        sides = "l",
+        alpha = 0.05
+    ) +
+    scale_x_log10() +
     scale_y_log10() +
-    scale_fill_manual(values = condition_palette) +
-    theme_bw() +
-    labs(
-        title = "Antibody molecule counts per cell",
-        x = "Sample",
-        y = "Molecule counts per cell (log10 scale)"
+    coord_equal(ratio = 1.5) +
+    theme_minimal(base_size = 18) +
+    labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
+    theme(
+        legend.position = "top",
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.border = element_rect(
+            color = "black",
+            fill = NA,
+            linewidth = 0.5
+        )
     )
 save_plot(
-    filename = "quality_control_antibody_molecule_counts",
-    width = 6,
-    height = 4
+    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
+    plot = annotated_molecule_rank_plot,
+    width = 15,
+    height = 12,
+    create_dir = TRUE
 )
-
-```
-
-### Isotype controls
-
-TODO: Add text here
-
-```{r}
-#| label: quality_control_isotype_controls
-
-FetchData(pg_data, c("sample_alias", "condition", "isotype_fraction")) |>
-    ggplot(aes(sample_alias, isotype_fraction * 100, fill = condition)) +
-    geom_violin(draw_quantiles = 0.5, scale = "width") +
-    geom_text(
-        data = function(x) {
-            x |>
-                group_by(sample_alias) |>
-                summarise(median = median(isotype_fraction * 100))
-        },
-        aes(sample_alias, median, label = paste(round(median, 2), "%")),
-        vjust = -0.5,
-        inherit.aes = FALSE
-    ) +
-    geom_hline(
-        yintercept = isotype_fraction_threshold * 100,
-        linetype = "dashed",
-        color = "red"
-    ) +
-    scale_fill_manual(values = condition_palette) +
-    theme_bw() +
-    labs(
-        title = "Isotype control fraction per cell",
-        x = "Sample",
-        y = "Isotype control fraction per cell [%]"
-    )
-
-save_plot(
-    filename = "quality_control_isotype_controls",
-    width = 6,
-    height = 4
-)
-```
-
-### Tau score
-
-The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
-
-```{r}
-#| label: quality_control_tau_score
-
-TauPlot(pg_data)
-save_plot(
-    filename = "quality_control_tau_score",
-    width = 6,
-    height = 4
-)
-
 ```
 
 ## Select markers (optional)
