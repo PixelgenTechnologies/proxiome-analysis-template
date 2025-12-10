@@ -38,17 +38,15 @@ library(here)
 #| label: setup_functions
 
 save_plot <-
-    function(
-      filename,
-      plot = last_plot(),
-      width = 10,
-      height = 10,
-      create_dir = TRUE,
-      file_formats = c("png", "pdf")
-    ) {
+    function(filename,
+             plot = last_plot(),
+             width = 10,
+             height = 10,
+             create_dir = TRUE,
+             file_formats = c("png", "pdf")) {
         for (format in file_formats) {
             ggsave(
-                filename = file.path("results", paste0(filename, ".", format)),
+                filename = file.path(paste0(filename, ".", format)),
                 plot = plot,
                 width = width,
                 height = height,
@@ -56,6 +54,8 @@ save_plot <-
             )
         }
     }
+
+source(here("scripts", "helpers.R"))
 
 ```
 
@@ -184,16 +184,6 @@ cluster_palette <-
     ) |>
     unname() |>
     rep(10)
-
-
-condition_palette <-
-    set_names(
-        pixelatorES::create_sample_palette(
-            unique(conditions)
-        )[seq_len(n_distinct(conditions))],
-        unique(conditions)
-    )
-
 
 sample_palette <-
     set_names(
