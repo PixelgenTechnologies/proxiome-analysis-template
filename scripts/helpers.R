@@ -121,3 +121,40 @@ create_violin_plot <- function(
       axis.title.y = element_text(size = 14, face = "bold")
     )
 }
+
+#' Save Plot Helper Function
+#'
+#' Saves a ggplot2 plot to one or more file formats with options for size and directory creation.
+#'
+#' @param filename Character. The path and base filename (without extension) for saving the plot.
+#' @param plot ggplot object. The plot to save. Defaults to the last plot produced (`last_plot()`).
+#' @param width Numeric. The width of the plot in inches. Default is 10.
+#' @param height Numeric. The height of the plot in inches. Default is 10.
+#' @param create_dir Logical. Whether to create the directory if it does not exist. Default is TRUE.
+#' @param file_formats Character vector. File formats to save to (e.g., "png", "pdf"). Default is c("png", "pdf").
+#'
+#' @return Invisibly returns NULL. Used for its side effect of writing plot files.
+#' @examples
+#' \dontrun{
+#'   save_plot("results/myplot", plot = myplot, width = 8, height = 6)
+#' }
+save_plot <-
+  function(
+    filename,
+    plot = last_plot(),
+    width = 10,
+    height = 10,
+    create_dir = TRUE,
+    file_formats = c("png", "pdf")
+  ) {
+    for (format in file_formats) {
+      ggsave(
+        filename = file.path(paste0(filename, ".", format)),
+        plot = plot,
+        width = width,
+        height = height,
+        create.dir = create_dir
+      )
+    }
+    invisible(NULL)
+  }

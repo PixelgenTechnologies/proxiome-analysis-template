@@ -19,6 +19,8 @@ This SOP describes a standard workflow for analyzing single cell PNA data using 
 
 ## Packages
 
+A set of commonly used packages are loaded here.
+
 ```{r}
 #| label: setup_packages
 
@@ -34,28 +36,12 @@ library(here)
 
 ## Functions
 
+A set of helper functions are loaded here.
+
 ```{r}
 #| label: setup_functions
 
-save_plot <-
-    function(filename,
-             plot = last_plot(),
-             width = 10,
-             height = 10,
-             create_dir = TRUE,
-             file_formats = c("png", "pdf")) {
-        for (format in file_formats) {
-            ggsave(
-                filename = file.path(paste0(filename, ".", format)),
-                plot = plot,
-                width = width,
-                height = height,
-                create.dir = create_dir
-            )
-        }
-    }
-
-source(here("scripts", "helpers.R"))
+source(here::here("scripts", "helpers.R"))
 
 ```
 
