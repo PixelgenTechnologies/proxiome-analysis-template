@@ -345,13 +345,20 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 ```{r}
 #| label: quality_control_tau_score
 
-TauPlot(pg_data)
-save_plot(
-    filename = "quality_control_tau_score",
-    width = 6,
-    height = 4
-)
+tau_score_plot <- TauPlot(pg_data, group_by = "sample_id")
 
+save_plot(
+    filename = here::here(
+        "results",
+        "01_quality_control",
+        "tau_plots",
+        "quality_control_tau_score"
+    ),
+    plot = tau_score_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
+)
 ```
 
 
@@ -371,9 +378,6 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 
 ```{r}
 #| label: quality_control_define_thresholds
-
-# Quick plot to determine thresholds
-MoleculeRankPlot(pg_data, group_by = "sample_alias")
 
 # Define threshold for minimum molecule counts per cell
 n_umi_min_threshold <- 15000
