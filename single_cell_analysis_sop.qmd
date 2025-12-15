@@ -563,7 +563,7 @@ count_data <-
   LayerData(pg_data, "counts")
 cpm_data <- 
   count_data |> 
-  sweep(1, colSums(count_data), "/") 
+  sweep(1, rowSums(count_data), "/") 
 
 cpm_data <- cpm_data * 1e6
 
