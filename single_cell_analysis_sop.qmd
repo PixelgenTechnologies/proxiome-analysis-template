@@ -835,7 +835,6 @@ save_plot(
 
 ### Automatic annotation
 
-
 Here we perform an automatic cell annotation by matching each cell’s protein profile to annotated 
 cells in a reference PBMC dataset. These automated labels should be interpreted with caution, particularly when the 
 sample composition differs substantially from the PBMC reference. In such cases, for example in certain stimulated 
@@ -978,8 +977,7 @@ save_plot(
 
 ### Manual annotation
 
-Manual annotation from differential abundance between clusters or average abundance across clusters.
-
+While automated annotation provides a useful starting point, manual inspection and refinement are essential to ensure accuracy. Manual annotation can be guided by examining patterns of protein expression across clusters, for example by identifying differential abundance between clusters or evaluating the average abundance of specific markers. By carefully considering these expression patterns, you can adjust or confirm automated labels and capture cell populations that may not be well represented in the reference dataset. In this section, we  perform manual annotation based on these principles, complementing the automated approach and improving overall confidence in cell type assignments.
 
 ```{r}
 #| label: data_processing_manual_annotation
@@ -989,16 +987,21 @@ diff_abundant_markers_cluster <-
     pg_data, 
     logfc.threshold = 0,
     min_pct = 0, 
-    return.thresh = 1
+    test.use = "wilcox",
+    assay = "PNA",
+    slot = "data",
+    group.by = "seurat_clusters",
+    mean.fxn = rowMeans,
+    fc.name = "difference"
   ) |> 
   as_tibble() |> 
   rename(marker = gene)
 
 diff_abundant_markers_cluster |> 
   group_by(marker) |> 
-  filter(any(p_val_adj < 0.05 & avg_log2FC > 1)) |> 
-  select(marker, avg_log2FC, cluster) |> 
-  pivot_wider(names_from = cluster, values_from = avg_log2FC, values_fill = 0) |>
+  filter(any(p_val_adj < 0.05 & difference  > 1)) |> 
+  select(marker, difference, cluster) |> 
+  pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
   column_to_rownames("marker") |>
   t() |> 
   pheatmap(
@@ -1006,21 +1009,59 @@ diff_abundant_markers_cluster |>
     breaks = seq(-3, 3, length.out = 101),
     cellwidth = 8, 
     cellheight = 8,
-    heatmap_legend_param = list(title = "Avg. log2 FC"),
+    heatmap_legend_param = list(title = "CLR Difference"),
   ) |> 
   as.ggplot()
 
 save_plot(
   filename = "data_processing_differential_abundance_markers_per_cluster",
-  width = 6,
+  width = 10,
   height = 4
 )
 
+
+diff_abundant_markers_cluster |> 
+  ggplot(aes(difference, -log10(p_val))) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(data = . %>%
+              group_by(cluster) %>%
+              top_n(5, abs(difference)),
+            aes(label = marker),
+            vjust = -0.5,
+            size = 2) +
+  facet_wrap(~ cluster) +
+  scale_fill_manual(values = cluster_palette) +
+  theme_bw() +
+  labs(
+    title = "Differential abundance markers per cluster",
+    x = "Average CLR Difference",
+    y = "-log10(p value)"
+  )
+
+save_plot(
+  filename = "data_processing_differential_abundance_markers_per_cluster_volcano",
+  width = 8,
+  height = 6
+)
+
+
+
+```
+
+#### Marker abundance visualization
+
+Here we visualize the abundance of selected markers across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
+
+```{r}
 markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
 plot_data <- 
   FetchData(
     pg_data,
     c("harmonyumap_1", "harmonyumap_2",
+      "sample_alias", "condition",
+      "seurat_clusters",
       markers_of_interest),
     slot = "data"
   ) |> 
@@ -1045,11 +1086,123 @@ plot_data |>
     color = "CLR"
   )
 save_plot(
-  filename = "data_processing_marker_expression_harmonyumap",
+  filename = "data_processing_marker_abundance_harmonyumap",
   width = 6,
   height = 4
 )
+
+plot_data |> 
+  ggplot(aes(sample_alias, CLR, fill = condition)) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  facet_grid(marker ~ seurat_clusters) +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.border = element_rect(color = "gray"),
+    panel.spacing = unit(0, "mm")
+  ) +
+  labs(
+    title = "Marker abundance per cluster",
+    x = "Sample",
+    y = "CLR"
+  )
+save_plot(
+  filename = "data_processing_marker_abundance_per_cluster",
+  width = 8,
+  height = 8
+)
+
+
+plot_data |> 
+  group_by(marker, seurat_clusters) |> 
+  summarise(mean_CLR = mean(CLR)) |> 
+  pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
+  column_to_rownames("marker") |>
+  as.matrix() |> 
+  pheatmap(
+    color = PixelgenGradient(100, "Cherry"),
+    cellwidth = 8, 
+    cellheight = 8,
+    heatmap_legend_param = list(title = "Mean CLR"),
+  ) |> 
+  as.ggplot()
+save_plot(
+  filename = "data_processing_mean_marker_abundance_per_cluster_heatmap",
+  width = 6,
+  height = 4
+)
+
 ```
+
+#### Set manual annotation 
+
+Here we set the actual annotations based on the previous inspection of marker abundance. Each cluster gets its own annotation, and oftentimes several clusters can have the same annotation. 
+
+Please change the annotations according to your data.
+
+```{r}
+#| label: data_processing_set_manual_annotation
+
+# Specify cell annotation labels for each cluster
+cluster_cell_annotation <- 
+  c("0" = "CD4 T",
+    "1" = "CD4 T", 
+    "2" = "Mono", 
+    "3" = "B", 
+    "4" = "CD8 T", 
+    "5" = "CD4 T",
+    "6" = "NK",
+    "7" = "CD8 T",
+    "8" = "CD4 T",
+    "9" = "B",
+    "10" = "CD4 T", 
+    "11" = "Platelets", 
+    "12" = "Mono")
+
+# Add annotation to Seurat object
+pg_data[[]] <- 
+  pg_data[[]] |>
+  mutate(
+    cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
+  )
+
+
+  
+```
+
+### Comparison 
+
+```{r}
+
+
+FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
+  group_by(seurat_clusters, l1_annotation, cell_annotation) |>
+  count() |> 
+  group_by(seurat_clusters) |>
+  mutate(frac = n / sum(n)) |> 
+  ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
+  geom_tile() +
+  facet_wrap(~seurat_clusters, scales = "free") +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  labs(
+    title = "Comparison of automatic and manual annotations",
+    x = "Automatic annotation (L1)",
+    y = "Manual annotation",
+    fill = "Fraction of cells"
+  )
+save_plot(
+  filename = "data_processing_comparison_automatic_manual_annotation",
+  width = 8,
+  height = 6
+)
+
+```
+
 
 # Statistical testing
 
@@ -1078,6 +1231,8 @@ Remove protein pairs detected in fewer than min_cells_count cells
 ```{r}
 #| label: statistical_testing_marker_selection
 
+cell_annotation_column <- 
+  "l1_annotation_summary"
 isotype_markers <- 
   c("mIgG1", "mIgG2a", "mIgG2b")
 
@@ -1088,18 +1243,19 @@ abundance_data <-
                names_to = "component", 
                values_to = "CLR") |> 
   left_join(
-    FetchData(pg_data, c("sample_alias", "seurat_clusters")) |> 
+    FetchData(pg_data, c("sample_alias", cell_annotation_column)) |> 
       as_tibble(rownames = "component"),
     by = "component"
   ) 
 
+# Recalculate colocalization scores between each marker and any control
 marker_isotype_coloc <- 
   ProximityScores(pg_data, lazy = TRUE, 
                   add_marker_proportions = TRUE,
-                  meta_data_columns = c("sample_alias", "seurat_clusters")) |> 
+                  meta_data_columns = c("sample_alias", cell_annotation_column)) |> 
   filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |> 
   mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |> 
-  group_by(sample_alias, seurat_clusters, component, marker) |>
+  group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
   summarise(join_count = sum(join_count), 
             join_count_expected_mean = sum(join_count_expected_mean)) |> 
   mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
@@ -1159,15 +1315,15 @@ save_plot(
 
 plot_data <- 
   marker_isotype_coloc |> 
-  group_by(sample_alias, seurat_clusters, marker) |> 
+  group_by(sample_alias, !!sym(cell_annotation_column), marker) |> 
   summarise(join_count = sum(join_count), 
             join_count_expected_mean = sum(join_count_expected_mean)) |> 
   mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
   ungroup() |>
   left_join(abundance_data |> 
-              group_by(marker, sample_alias, seurat_clusters) |> 
+              group_by(marker, sample_alias, !!sym(cell_annotation_column)) |> 
               summarise(CLR = mean(CLR)),
-            by = c("marker", "sample_alias", "seurat_clusters"))
+            by = c("marker", "sample_alias", cell_annotation_column))
 
 plot_data |>
   ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
@@ -1177,7 +1333,8 @@ plot_data |>
   geom_text(aes(label = marker),
             vjust = -0.5,
             size = 2) +
-  facet_grid(seurat_clusters~sample_alias) +
+  facet_grid(rows = vars(!!sym(cell_annotation_column)),
+             cols = vars(sample_alias)) +
   scale_color_manual(values = c("black", "orangered")) +
   theme_bw() +
   labs(
