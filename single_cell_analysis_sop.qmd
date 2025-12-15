@@ -395,13 +395,14 @@ save_plot(
 
 ## Select cells
 
-Next, we will select cells to keep for downstream analysis. We want to remove cells that:
-- Are too small, possibly representing cell fragments
-- Are too large, possibly representing cell doublets or artefacts
-- Are noisy, using isotype marker background level
-- Have an abnormal marker distribution, using the tau score
+In the next steps, we will decide which cells to retain for downstream analysis. Our goal is to exclude cells that:
 
-We will begin with inspecting the data, and later remove cells in Data Processing that do not meet our quality criteria.
+- Are unusually small, which could indicate cell fragments
+- Are unusually large, which may represent cell doublets or technical artefacts
+- Show high levels of nonspecific background, as indicated by elevated isotype marker signal
+- Display abnormal marker expression profiles, as identified by the tau score
+
+We will start by visually inspecting these quality metrics. Cells that do not meet our defined thresholds will be excluded during the Data Processing stage.
 
 ### Define thresholds
 
