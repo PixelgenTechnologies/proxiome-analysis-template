@@ -632,11 +632,11 @@ In this example, we set the threshold to 1000 CPM at the 95th percentile. This m
 
 marker_cpm_p95_threshold <- 1000
 
-count_data <- 
-  LayerData(pg_data, "counts")
-cpm_data <- 
-  count_data |> 
-  sweep(1, rowSums(count_data), "/") 
+count_data <-
+    LayerData(pg_data, "counts")
+cpm_data <-
+    count_data |>
+    sweep(1, rowSums(count_data), "/")
 
 cpm_data <- cpm_data * 1e6
 
@@ -647,7 +647,7 @@ cpm_quantiles <-
     as_tibble(rownames = "marker") |>
     mutate(kept = `95%` > marker_cpm_p95_threshold)
 
-cpm_quantiles |>
+scatter_percentile_cpm_quantiles <- cpm_quantiles |>
     ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
     geom_point(size = 0.1) +
     geom_text(aes(label = marker), vjust = -0.5, size = 2) +
@@ -660,13 +660,14 @@ cpm_quantiles |>
         y = "95th / 50th percentile of CPM (log10 scale)"
     )
 save_plot(
-    filename = "quality_control_marker_selection_cpm",
+    filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
+    plot = scatter_percentile_cpm_quantiles,
     width = 6,
     height = 4
 )
 
 
-cpm_quantiles |>
+barplot_percentile_cpm_quantiles <- cpm_quantiles |>
     arrange(`95%`) |>
     mutate(marker = factor(marker, levels = marker)) |>
     ggplot(aes(x = marker, y = `95%`, fill = kept)) +
@@ -680,9 +681,10 @@ cpm_quantiles |>
         y = "95th percentile of CPM (log10 scale)"
     )
 save_plot(
-    filename = "quality_control_marker_selection_cpm_barplot",
+    filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = barplot_percentile_cpm_quantiles
 )
 
 selected_markers <-
