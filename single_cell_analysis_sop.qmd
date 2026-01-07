@@ -872,7 +872,7 @@ cell_metadata <-
     FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
     as_tibble(rownames = "cell_id")
 
-Embeddings(pg_data, "harmony") |>
+harmony_clusters_embeddings <- Embeddings(pg_data, "harmony") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
@@ -882,12 +882,13 @@ Embeddings(pg_data, "harmony") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmony_clusters",
+    filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_clusters_embeddings
 )
 
-Embeddings(pg_data, "harmony_umap") |>
+harmony_umap_clusters_embeddings <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
@@ -897,9 +898,10 @@ Embeddings(pg_data, "harmony_umap") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmonyumap_clusters",
+    filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_umap_clusters_embeddings
 )
 
 ```
