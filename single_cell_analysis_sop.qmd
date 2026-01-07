@@ -1078,72 +1078,73 @@ While automated annotation provides a useful starting point, manual inspection a
 ```{r}
 #| label: data_processing_manual_annotation
 
-diff_abundant_markers_cluster <- 
-  FindAllMarkers(
-    pg_data, 
-    logfc.threshold = 0,
-    min_pct = 0, 
-    test.use = "wilcox",
-    assay = "PNA",
-    slot = "data",
-    group.by = "seurat_clusters",
-    mean.fxn = rowMeans,
-    fc.name = "difference"
-  ) |> 
-  as_tibble() |> 
-  rename(marker = gene)
+diff_abundant_markers_cluster <-
+    FindAllMarkers(
+        pg_data,
+        logfc.threshold = 0,
+        min_pct = 0,
+        test.use = "wilcox",
+        assay = "PNA",
+        slot = "data",
+        group.by = "seurat_clusters",
+        mean.fxn = rowMeans,
+        fc.name = "difference"
+    ) |>
+    as_tibble() |>
+    rename(marker = gene)
 
-diff_abundant_markers_cluster |> 
-  group_by(marker) |> 
-  filter(any(p_val_adj < 0.05 & difference  > 1)) |> 
-  select(marker, difference, cluster) |> 
-  pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
-  column_to_rownames("marker") |>
-  t() |> 
-  pheatmap(
-    color = PixelgenGradient(100, "BluesCherry"),
-    breaks = seq(-3, 3, length.out = 101),
-    cellwidth = 8, 
-    cellheight = 8,
-    heatmap_legend_param = list(title = "CLR Difference"),
-  ) |> 
-  as.ggplot()
-
+# Heatmap of differential abundance markers per cluster
+differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_cluster |>
+    group_by(marker) |>
+    filter(any(p_val_adj < 0.05 & difference > 1)) |>
+    select(marker, difference, cluster) |>
+    pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    t() |>
+    pheatmap(
+        color = PixelgenGradient(100, "BluesCherry"),
+        breaks = seq(-3, 3, length.out = 101),
+        cellwidth = 8,
+        cellheight = 8,
+        heatmap_legend_param = list(title = "CLR Difference"),
+    ) |>
+    as.ggplot()
 save_plot(
-  filename = "data_processing_differential_abundance_markers_per_cluster",
-  width = 10,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster"),
+    width = 10,
+    height = 4,
+    plot = differential_abundance_markers_per_cluster_heatmap
 )
 
-
-diff_abundant_markers_cluster |> 
-  ggplot(aes(difference, -log10(p_val))) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0) +
-  geom_point(size = 0.1) +
-  geom_text(data = . %>%
-              group_by(cluster) %>%
-              top_n(5, abs(difference)),
-            aes(label = marker),
-            vjust = -0.5,
-            size = 2) +
-  facet_wrap(~ cluster) +
-  scale_fill_manual(values = cluster_palette) +
-  theme_bw() +
-  labs(
-    title = "Differential abundance markers per cluster",
-    x = "Average CLR Difference",
-    y = "-log10(p value)"
-  )
+# Volcano plot of differential abundance markers per cluster
+volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers_cluster |>
+    ggplot(aes(difference, -log10(p_val))) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_point(size = 0.1) +
+    geom_text(
+        data = . %>%
+            group_by(cluster) %>%
+            top_n(5, abs(difference)),
+        aes(label = marker),
+        vjust = -0.5,
+        size = 2
+    ) +
+    facet_wrap(~cluster) +
+    scale_fill_manual(values = cluster_palette) +
+    theme_bw() +
+    labs(
+        title = "Differential abundance markers per cluster",
+        x = "Average CLR Difference",
+        y = "-log10(p value)"
+    )
 
 save_plot(
-  filename = "data_processing_differential_abundance_markers_per_cluster_volcano",
-  width = 8,
-  height = 6
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster_volcano"),
+    width = 8,
+    height = 6,
+    plot = volcano_plot_differential_abundance_markers_per_cluster
 )
-
-
-
 ```
 
 #### Marker abundance visualization
