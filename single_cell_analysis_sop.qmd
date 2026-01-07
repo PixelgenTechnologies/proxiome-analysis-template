@@ -178,7 +178,7 @@ condition_palette <-
     )
 
 # Create a sample palette for the samples
-unique_samples <- unique(metadata$sample_id)
+unique_samples <- unique(metadata$sample_alias)
 sample_palette <-
     set_names(
         pixelatorES::create_sample_palette(
@@ -736,7 +736,7 @@ pg_data <-
 pca_red <-
     Reductions(pg_data, "pca")
 
-pca_red@stdev |>
+elbow_plot_pca <- pca_red@stdev |>
     as_tibble(rownames = "PC") |>
     mutate(PC = PC |> str_remove("PC_") |> as.integer()) |>
     ggplot(aes(PC, value)) +
@@ -748,18 +748,18 @@ pca_red@stdev |>
         x = "Principal Component",
         y = "Standard Deviation"
     )
-
-ggsave(
-    filename = "results/data_processing_pca_elbow_plot.png",
+save_plot(
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = elbow_plot_pca
 )
 
 cell_metadata <-
     FetchData(pg_data, c("sample_alias", "condition")) |>
     as_tibble(rownames = "cell_id")
 
-Embeddings(pg_data, "pca") |>
+pca_embeddings <- Embeddings(pg_data, "pca") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(PC_1, PC_2, color = sample_alias)) +
@@ -769,12 +769,14 @@ Embeddings(pg_data, "pca") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_pca",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = pca_embeddings
 )
 
-Embeddings(pg_data, "umap") |>
+umap_embeddings <-
+    Embeddings(pg_data, "umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(umap_1, umap_2, color = sample_alias)) +
@@ -784,9 +786,10 @@ Embeddings(pg_data, "umap") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_umap",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = umap_embeddings
 )
 ```
 
