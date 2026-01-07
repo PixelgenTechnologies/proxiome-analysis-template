@@ -1250,60 +1250,65 @@ Please change the annotations according to your data.
 #| label: data_processing_set_manual_annotation
 
 # Specify cell annotation labels for each cluster
-cluster_cell_annotation <- 
-  c("0" = "CD4 T",
-    "1" = "CD4 T", 
-    "2" = "Mono", 
-    "3" = "B", 
-    "4" = "CD8 T", 
-    "5" = "CD4 T",
-    "6" = "NK",
-    "7" = "CD8 T",
-    "8" = "CD4 T",
-    "9" = "B",
-    "10" = "CD4 T", 
-    "11" = "Platelets", 
-    "12" = "Mono")
+cluster_cell_annotation <-
+    c(
+        "0" = "CD4 T",
+        "1" = "CD4 T",
+        "2" = "Mono",
+        "3" = "CD8 T",
+        "4" = "CD4 T",
+        "5" = "CD8 T",
+        "6" = "B",
+        "7" = "NK",
+        "8" = "Platelets",
+        "9" = "CD8 T",
+        "10" = "Mono",
+        "11" = "DC",
+        "12" = "B",
+        "13" = "DC"
+    )
 
 # Add annotation to Seurat object
-pg_data[[]] <- 
-  pg_data[[]] |>
-  mutate(
-    cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
-  )
+pg_data[[]] <-
+    pg_data[[]] |>
+    mutate(
+        cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
+    )
 
 
-  
 ```
 
 ### Comparison 
 
+Compare automatic and manual annotations. This can help to identify any discrepancies between the two methods, and can be used to refine the manual annotations.
+
 ```{r}
 
 
-FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
-  group_by(seurat_clusters, l1_annotation, cell_annotation) |>
-  count() |> 
-  group_by(seurat_clusters) |>
-  mutate(frac = n / sum(n)) |> 
-  ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
-  geom_tile() +
-  facet_wrap(~seurat_clusters, scales = "free") +
-  scale_fill_gradient(low = "white", high = "darkblue") +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-  ) +
-  labs(
-    title = "Comparison of automatic and manual annotations",
-    x = "Automatic annotation (L1)",
-    y = "Manual annotation",
-    fill = "Fraction of cells"
-  )
+comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
+    group_by(seurat_clusters, l1_annotation, cell_annotation) |>
+    count() |>
+    group_by(seurat_clusters) |>
+    mutate(frac = n / sum(n)) |>
+    ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
+    geom_tile() +
+    facet_wrap(~seurat_clusters, scales = "free") +
+    scale_fill_gradient(low = "white", high = "darkblue") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    ) +
+    labs(
+        title = "Comparison of automatic and manual annotations",
+        x = "Automatic annotation (L1)",
+        y = "Manual annotation",
+        fill = "Fraction of cells"
+    )
 save_plot(
-  filename = "data_processing_comparison_automatic_manual_annotation",
-  width = 8,
-  height = 6
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
+    width = 8,
+    height = 6,
+    plot = comparison_automatic_manual_annotation
 )
 
 ```
