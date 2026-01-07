@@ -1152,82 +1152,90 @@ save_plot(
 Here we visualize the abundance of selected markers across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
 ```{r}
+#| label: data_processing_marker_abundance_visualization
+
+# Change markers_of_interest to the markers of interest for your dataset
 markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
-plot_data <- 
-  FetchData(
-    pg_data,
-    c("harmonyumap_1", "harmonyumap_2",
-      "sample_alias", "condition",
-      "seurat_clusters",
-      markers_of_interest),
-    slot = "data"
-  ) |> 
-  pivot_longer(
-    cols = all_of(markers_of_interest),
-    names_to = "marker",
-    values_to = "CLR"
-  )
 
-plot_data |> 
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
-  geom_point(size = 0.1) +
-  facet_wrap(~marker) +
-  scale_color_gradient(low = "lightgrey", high = "darkblue") +
-  coord_fixed() +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  labs(
-    title = "Marker expression on Harmony UMAP",
-    x = "Harmony UMAP 1",
-    y = "Harmony UMAP 2",
-    color = "CLR"
-  )
+plot_data <-
+    FetchData(
+        pg_data,
+        c(
+            "harmonyumap_1", "harmonyumap_2",
+            "sample_alias", "condition",
+            "seurat_clusters",
+            markers_of_interest
+        ),
+        slot = "data"
+    ) |>
+    pivot_longer(
+        cols = all_of(markers_of_interest),
+        names_to = "marker",
+        values_to = "CLR"
+    )
+
+marker_abundance_harmonyumap_plot <- plot_data |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
+    geom_point(size = 0.1) +
+    facet_wrap(~marker) +
+    scale_color_gradient(low = "lightgrey", high = "darkblue") +
+    coord_fixed() +
+    theme_bw() +
+    theme(panel.grid = element_blank()) +
+    labs(
+        title = "Marker expression on Harmony UMAP",
+        x = "Harmony UMAP 1",
+        y = "Harmony UMAP 2",
+        color = "CLR"
+    )
 save_plot(
-  filename = "data_processing_marker_abundance_harmonyumap",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_harmonyumap"),
+    width = 6,
+    height = 4,
+    plot = marker_abundance_harmonyumap_plot
 )
 
-plot_data |> 
-  ggplot(aes(sample_alias, CLR, fill = condition)) +
-  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
-  facet_grid(marker ~ seurat_clusters) +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.border = element_rect(color = "gray"),
-    panel.spacing = unit(0, "mm")
-  ) +
-  labs(
-    title = "Marker abundance per cluster",
-    x = "Sample",
-    y = "CLR"
-  )
+marker_abundance_per_cluster_plot <- plot_data |>
+    ggplot(aes(sample_alias, CLR, fill = condition)) +
+    geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+    facet_grid(marker ~ seurat_clusters) +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        panel.border = element_rect(color = "gray"),
+        panel.spacing = unit(0, "mm")
+    ) +
+    labs(
+        title = "Marker abundance per cluster",
+        x = "Sample",
+        y = "CLR"
+    )
 save_plot(
-  filename = "data_processing_marker_abundance_per_cluster",
-  width = 8,
-  height = 8
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
+    width = 8,
+    height = 8,
+    plot = marker_abundance_per_cluster_plot
 )
 
-
-plot_data |> 
-  group_by(marker, seurat_clusters) |> 
-  summarise(mean_CLR = mean(CLR)) |> 
-  pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
-  column_to_rownames("marker") |>
-  as.matrix() |> 
-  pheatmap(
-    color = PixelgenGradient(100, "Cherry"),
-    cellwidth = 8, 
-    cellheight = 8,
-    heatmap_legend_param = list(title = "Mean CLR"),
-  ) |> 
-  as.ggplot()
+mean_marker_abundance_per_cluster_heatmap <- plot_data |>
+    group_by(marker, seurat_clusters) |>
+    summarise(mean_CLR = mean(CLR)) |>
+    pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
+    column_to_rownames("marker") |>
+    as.matrix() |>
+    pheatmap(
+        color = PixelgenGradient(100, "Cherry"),
+        cellwidth = 8,
+        cellheight = 8,
+        heatmap_legend_param = list(title = "Mean CLR"),
+    ) |>
+    as.ggplot()
 save_plot(
-  filename = "data_processing_mean_marker_abundance_per_cluster_heatmap",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
+    width = 6,
+    height = 4,
+    plot = mean_marker_abundance_per_cluster_heatmap
 )
 
 ```
