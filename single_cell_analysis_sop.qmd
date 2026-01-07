@@ -75,7 +75,7 @@ print(metadata)
 
 # Load the data from the file paths into a list of PNA objects
 pg_data <-
-    metadata$file_path |>
+    here::here("data", metadata$file_path) |>
     lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 # Merge the PNA objects, adding the sample_id to the cell names
@@ -178,7 +178,7 @@ condition_palette <-
     )
 
 # Create a sample palette for the samples
-unique_samples <- unique(metadata$sample_id)
+unique_samples <- unique(metadata$sample_alias)
 sample_palette <-
     set_names(
         pixelatorES::create_sample_palette(
@@ -624,19 +624,19 @@ In this step we select markers that we believe are positive in at least one cell
 
 Here we provide one example approach based on counts per million (CPM) thresholds. We calculate the 50th percentile (the median) and 95th percentile of CPM per marker across all cells, and select markers that have a 95th percentile above a certain threshold. The threshold can be adjusted according to the background levels of the dataset, and according to expectations of which markers should be present in the data.
 
-In this example, we set the threshold to 1000 CPM at the 95th percentile. This means, in effect, that we let cell populations composing at least 5% of the sample dictate which markers we use in later analysis steps. Comparing the 95th percentile to the 50th percentile also gives us an idea of how much the marker expression varies across cells.
+In this example, we set the threshold to 500 CPM at the 95th percentile. This means, in effect, that we let cell populations composing at least 5% of the sample dictate which markers we use in later analysis steps. Comparing the 95th percentile to the 50th percentile also gives us an idea of how much the marker expression varies across cells.
 
 
 ```{r}
 #| label: quality_control_select_markers
 
-marker_cpm_p95_threshold <- 1000
+marker_cpm_p95_threshold <- 500
 
-count_data <- 
-  LayerData(pg_data, "counts")
-cpm_data <- 
-  count_data |> 
-  sweep(1, rowSums(count_data), "/") 
+count_data <-
+    LayerData(pg_data, "counts")
+cpm_data <-
+    count_data |>
+    sweep(1, rowSums(count_data), "/")
 
 cpm_data <- cpm_data * 1e6
 
@@ -647,7 +647,7 @@ cpm_quantiles <-
     as_tibble(rownames = "marker") |>
     mutate(kept = `95%` > marker_cpm_p95_threshold)
 
-cpm_quantiles |>
+scatter_percentile_cpm_quantiles <- cpm_quantiles |>
     ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
     geom_point(size = 0.1) +
     geom_text(aes(label = marker), vjust = -0.5, size = 2) +
@@ -660,13 +660,14 @@ cpm_quantiles |>
         y = "95th / 50th percentile of CPM (log10 scale)"
     )
 save_plot(
-    filename = "quality_control_marker_selection_cpm",
+    filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
+    plot = scatter_percentile_cpm_quantiles,
     width = 6,
     height = 4
 )
 
 
-cpm_quantiles |>
+barplot_percentile_cpm_quantiles <- cpm_quantiles |>
     arrange(`95%`) |>
     mutate(marker = factor(marker, levels = marker)) |>
     ggplot(aes(x = marker, y = `95%`, fill = kept)) +
@@ -680,9 +681,10 @@ cpm_quantiles |>
         y = "95th percentile of CPM (log10 scale)"
     )
 save_plot(
-    filename = "quality_control_marker_selection_cpm_barplot",
+    filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = barplot_percentile_cpm_quantiles
 )
 
 selected_markers <-
@@ -734,7 +736,7 @@ pg_data <-
 pca_red <-
     Reductions(pg_data, "pca")
 
-pca_red@stdev |>
+elbow_plot_pca <- pca_red@stdev |>
     as_tibble(rownames = "PC") |>
     mutate(PC = PC |> str_remove("PC_") |> as.integer()) |>
     ggplot(aes(PC, value)) +
@@ -746,18 +748,18 @@ pca_red@stdev |>
         x = "Principal Component",
         y = "Standard Deviation"
     )
-
-ggsave(
-    filename = "results/data_processing_pca_elbow_plot.png",
+save_plot(
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = elbow_plot_pca
 )
 
 cell_metadata <-
     FetchData(pg_data, c("sample_alias", "condition")) |>
     as_tibble(rownames = "cell_id")
 
-Embeddings(pg_data, "pca") |>
+pca_embeddings <- Embeddings(pg_data, "pca") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(PC_1, PC_2, color = sample_alias)) +
@@ -767,12 +769,14 @@ Embeddings(pg_data, "pca") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_pca",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = pca_embeddings
 )
 
-Embeddings(pg_data, "umap") |>
+umap_embeddings <-
+    Embeddings(pg_data, "umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(umap_1, umap_2, color = sample_alias)) +
@@ -782,9 +786,10 @@ Embeddings(pg_data, "umap") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_umap",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = umap_embeddings
 )
 ```
 
@@ -817,7 +822,7 @@ cell_metadata <-
     FetchData(pg_data, c("sample_alias", "condition")) |>
     as_tibble(rownames = "cell_id")
 
-Embeddings(pg_data, "harmony") |>
+harmony_embeddings <- Embeddings(pg_data, "harmony") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
@@ -827,12 +832,13 @@ Embeddings(pg_data, "harmony") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmony",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_embeddings
 )
 
-Embeddings(pg_data, "harmony_umap") |>
+harmony_umap_embeddings <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
@@ -842,9 +848,10 @@ Embeddings(pg_data, "harmony_umap") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmonyumap",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_umap_embeddings
 )
 
 ```
@@ -865,7 +872,7 @@ cell_metadata <-
     FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
     as_tibble(rownames = "cell_id")
 
-Embeddings(pg_data, "harmony") |>
+harmony_clusters_embeddings <- Embeddings(pg_data, "harmony") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
@@ -875,12 +882,13 @@ Embeddings(pg_data, "harmony") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmony_clusters",
+    filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_clusters_embeddings
 )
 
-Embeddings(pg_data, "harmony_umap") |>
+harmony_umap_clusters_embeddings <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
@@ -890,9 +898,10 @@ Embeddings(pg_data, "harmony_umap") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmonyumap_clusters",
+    filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_umap_clusters_embeddings
 )
 
 ```
@@ -921,124 +930,145 @@ reference$l2_annotation <- reference$celltype.l2
 
 # Annotation by label transfer
 pg_data <-
-  pg_data |>
-  AnnotateCells(
-    reference = reference,
-    reference_groups = c("l1_annotation", "l2_annotation"),
-    reference_assay = "PNA",
-    query_assay = "PNA",
-    # Summarise annotations by cluster, adding an extra column with majority vote
-    summarize_by_column = "seurat_clusters",
-    normalization_method = "CLR",
-    method = "nmf"
-  )
+    pg_data |>
+    AnnotateCells(
+        reference = reference,
+        reference_groups = c("l1_annotation", "l2_annotation"),
+        reference_assay = "PNA",
+        query_assay = "PNA",
+        # Summarise annotations by cluster, adding an extra column with majority vote
+        summarize_by_column = "seurat_clusters",
+        normalization_method = "CLR",
+        method = "nmf"
+    )
 
 
-cell_metadata <- 
-  FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters", 
-                       "l1_annotation_summary", "l2_annotation_summary", 
-                       "l1_annotation", "l2_annotation")) |> 
-  as_tibble(rownames = "cell_id")
+cell_metadata <-
+    FetchData(pg_data, c(
+        "sample_alias", "condition", "seurat_clusters",
+        "l1_annotation_summary", "l2_annotation_summary",
+        "l1_annotation", "l2_annotation"
+    )) |>
+    as_tibble(rownames = "cell_id")
 
 
-Embeddings(pg_data, "harmony_umap") |> 
-  as_tibble(rownames = "cell_id") |> 
-  left_join(cell_metadata, 
-            by = "cell_id") |> 
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
-  geom_point() +
-  geom_text(data = . %>% 
-              group_by(l1_annotation_summary) %>% 
-              summarise(harmonyumap_1 = median(harmonyumap_1),
-                        harmonyumap_2 = median(harmonyumap_2)),
-            aes(label = l1_annotation_summary),
-            size = 3,
-            color = "black") +
-  coord_fixed() +
-  scale_color_manual(values = cell_palette) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
+harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata,
+        by = "cell_id"
+    ) |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
+    geom_point() +
+    geom_text(
+        data = . %>%
+            group_by(l1_annotation_summary) %>%
+            summarise(
+                harmonyumap_1 = median(harmonyumap_1),
+                harmonyumap_2 = median(harmonyumap_2)
+            ),
+        aes(label = l1_annotation_summary),
+        size = 3,
+        color = "black"
+    ) +
+    coord_fixed() +
+    scale_color_manual(values = cell_palette) +
+    theme_bw() +
+    theme(panel.grid = element_blank())
 save_plot(
-  filename = "data_processing_harmonyumap_l1_annotation_summary",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_harmonyumap_l1_annotation_summary"),
+    width = 6,
+    height = 4,
+    plot = harmony_umap_l1_annotation_summary_plot
 )
 
 
-Embeddings(pg_data, "harmony_umap") |> 
-  as_tibble(rownames = "cell_id") |> 
-  left_join(cell_metadata, 
-            by = "cell_id") |> 
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
-  geom_point() +
-  geom_text(data = . %>% 
-              group_by(l1_annotation) %>% 
-              summarise(harmonyumap_1 = median(harmonyumap_1),
-                        harmonyumap_2 = median(harmonyumap_2)),
-            aes(label = l1_annotation),
-            size = 3,
-            color = "black") +
-  coord_fixed() +
-  scale_color_manual(values = cell_palette) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
+harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata,
+        by = "cell_id"
+    ) |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
+    geom_point() +
+    geom_text(
+        data = . %>%
+            group_by(l1_annotation) %>%
+            summarise(
+                harmonyumap_1 = median(harmonyumap_1),
+                harmonyumap_2 = median(harmonyumap_2)
+            ),
+        aes(label = l1_annotation),
+        size = 3,
+        color = "black"
+    ) +
+    coord_fixed() +
+    scale_color_manual(values = cell_palette) +
+    theme_bw() +
+    theme(panel.grid = element_blank())
 save_plot(
-  filename = "data_processing_harmonyumap_l1_annotation",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_harmonyumap_l1_annotation"),
+    width = 6,
+    height = 4,
+    plot = harmony_umap_l1_annotation_plot
 )
 
 
-
-Embeddings(pg_data, "harmony_umap") |> 
-  as_tibble(rownames = "cell_id") |> 
-  left_join(cell_metadata, 
-            by = "cell_id") |> 
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
-  geom_point() +
-  geom_text(data = . %>% 
-              group_by(l2_annotation) %>% 
-              summarise(harmonyumap_1 = median(harmonyumap_1),
-                        harmonyumap_2 = median(harmonyumap_2)),
-            aes(label = l2_annotation),
-            size = 3,
-            color = "black") +
-  coord_fixed() +
-  scale_color_manual(values = cell_palette) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
+harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata,
+        by = "cell_id"
+    ) |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
+    geom_point() +
+    geom_text(
+        data = . %>%
+            group_by(l2_annotation) %>%
+            summarise(
+                harmonyumap_1 = median(harmonyumap_1),
+                harmonyumap_2 = median(harmonyumap_2)
+            ),
+        aes(label = l2_annotation),
+        size = 3,
+        color = "black"
+    ) +
+    coord_fixed() +
+    scale_color_manual(values = cell_palette) +
+    theme_bw() +
+    theme(panel.grid = element_blank())
 save_plot(
-  filename = "data_processing_harmonyumap_l2_annotation",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_harmonyumap_l2_annotation"),
+    width = 6,
+    height = 4,
+    plot = harmony_umap_l2_annotation_plot
+)
+
+# cell type composition per sample
+cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
+    group_by(sample_alias, l1_annotation_summary) |>
+    count(name = "n_cells") |>
+    group_by(sample_alias) |>
+    mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
+    ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
+    geom_col(position = "fill") +
+    geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
+        position = position_fill(vjust = 0.5),
+        size = 3
+    ) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_fill_manual(values = cell_palette) +
+    theme_bw() +
+    labs(
+        title = "Cell type composition per sample",
+        x = "Sample",
+        y = "Cell type fraction"
+    )
+save_plot(
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_cell_type_composition_per_sample"),
+    width = 6,
+    height = 4,
+    plot = cell_type_composition_per_sample
 )
 
 
-FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |> 
-  group_by(sample_alias, l1_annotation_summary) |> 
-  count(name = "n_cells") |> 
-  group_by(sample_alias) |> 
-  mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
-  ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
-  geom_col(position = "fill") +
-  geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
-            position = position_fill(vjust = 0.5),
-            size = 3) +
-  scale_y_continuous(labels = scales::percent_format()) +
-  scale_fill_manual(values = cell_palette) +
-  theme_bw() +
-  labs(
-    title = "Cell type composition per sample",
-    x = "Sample",
-    y = "Cell type fraction"
-  )
-save_plot(
-  filename = "data_processing_cell_type_composition_per_sample",
-  width = 6,
-  height = 4
-)
-  
-  
 ```
 
 ### Manual annotation
@@ -1048,72 +1078,73 @@ While automated annotation provides a useful starting point, manual inspection a
 ```{r}
 #| label: data_processing_manual_annotation
 
-diff_abundant_markers_cluster <- 
-  FindAllMarkers(
-    pg_data, 
-    logfc.threshold = 0,
-    min_pct = 0, 
-    test.use = "wilcox",
-    assay = "PNA",
-    slot = "data",
-    group.by = "seurat_clusters",
-    mean.fxn = rowMeans,
-    fc.name = "difference"
-  ) |> 
-  as_tibble() |> 
-  rename(marker = gene)
+diff_abundant_markers_cluster <-
+    FindAllMarkers(
+        pg_data,
+        logfc.threshold = 0,
+        min_pct = 0,
+        test.use = "wilcox",
+        assay = "PNA",
+        slot = "data",
+        group.by = "seurat_clusters",
+        mean.fxn = rowMeans,
+        fc.name = "difference"
+    ) |>
+    as_tibble() |>
+    rename(marker = gene)
 
-diff_abundant_markers_cluster |> 
-  group_by(marker) |> 
-  filter(any(p_val_adj < 0.05 & difference  > 1)) |> 
-  select(marker, difference, cluster) |> 
-  pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
-  column_to_rownames("marker") |>
-  t() |> 
-  pheatmap(
-    color = PixelgenGradient(100, "BluesCherry"),
-    breaks = seq(-3, 3, length.out = 101),
-    cellwidth = 8, 
-    cellheight = 8,
-    heatmap_legend_param = list(title = "CLR Difference"),
-  ) |> 
-  as.ggplot()
-
+# Heatmap of differential abundance markers per cluster
+differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_cluster |>
+    group_by(marker) |>
+    filter(any(p_val_adj < 0.05 & difference > 1)) |>
+    select(marker, difference, cluster) |>
+    pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    t() |>
+    pheatmap(
+        color = PixelgenGradient(100, "BluesCherry"),
+        breaks = seq(-3, 3, length.out = 101),
+        cellwidth = 8,
+        cellheight = 8,
+        heatmap_legend_param = list(title = "CLR Difference"),
+    ) |>
+    as.ggplot()
 save_plot(
-  filename = "data_processing_differential_abundance_markers_per_cluster",
-  width = 10,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster"),
+    width = 10,
+    height = 4,
+    plot = differential_abundance_markers_per_cluster_heatmap
 )
 
-
-diff_abundant_markers_cluster |> 
-  ggplot(aes(difference, -log10(p_val))) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0) +
-  geom_point(size = 0.1) +
-  geom_text(data = . %>%
-              group_by(cluster) %>%
-              top_n(5, abs(difference)),
-            aes(label = marker),
-            vjust = -0.5,
-            size = 2) +
-  facet_wrap(~ cluster) +
-  scale_fill_manual(values = cluster_palette) +
-  theme_bw() +
-  labs(
-    title = "Differential abundance markers per cluster",
-    x = "Average CLR Difference",
-    y = "-log10(p value)"
-  )
+# Volcano plot of differential abundance markers per cluster
+volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers_cluster |>
+    ggplot(aes(difference, -log10(p_val))) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_point(size = 0.1) +
+    geom_text(
+        data = . %>%
+            group_by(cluster) %>%
+            top_n(5, abs(difference)),
+        aes(label = marker),
+        vjust = -0.5,
+        size = 2
+    ) +
+    facet_wrap(~cluster) +
+    scale_fill_manual(values = cluster_palette) +
+    theme_bw() +
+    labs(
+        title = "Differential abundance markers per cluster",
+        x = "Average CLR Difference",
+        y = "-log10(p value)"
+    )
 
 save_plot(
-  filename = "data_processing_differential_abundance_markers_per_cluster_volcano",
-  width = 8,
-  height = 6
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster_volcano"),
+    width = 8,
+    height = 6,
+    plot = volcano_plot_differential_abundance_markers_per_cluster
 )
-
-
-
 ```
 
 #### Marker abundance visualization
@@ -1121,82 +1152,90 @@ save_plot(
 Here we visualize the abundance of selected markers across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
 ```{r}
+#| label: data_processing_marker_abundance_visualization
+
+# Change markers_of_interest to the markers of interest for your dataset
 markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
-plot_data <- 
-  FetchData(
-    pg_data,
-    c("harmonyumap_1", "harmonyumap_2",
-      "sample_alias", "condition",
-      "seurat_clusters",
-      markers_of_interest),
-    slot = "data"
-  ) |> 
-  pivot_longer(
-    cols = all_of(markers_of_interest),
-    names_to = "marker",
-    values_to = "CLR"
-  )
 
-plot_data |> 
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
-  geom_point(size = 0.1) +
-  facet_wrap(~marker) +
-  scale_color_gradient(low = "lightgrey", high = "darkblue") +
-  coord_fixed() +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  labs(
-    title = "Marker expression on Harmony UMAP",
-    x = "Harmony UMAP 1",
-    y = "Harmony UMAP 2",
-    color = "CLR"
-  )
+plot_data <-
+    FetchData(
+        pg_data,
+        c(
+            "harmonyumap_1", "harmonyumap_2",
+            "sample_alias", "condition",
+            "seurat_clusters",
+            markers_of_interest
+        ),
+        slot = "data"
+    ) |>
+    pivot_longer(
+        cols = all_of(markers_of_interest),
+        names_to = "marker",
+        values_to = "CLR"
+    )
+
+marker_abundance_harmonyumap_plot <- plot_data |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
+    geom_point(size = 0.1) +
+    facet_wrap(~marker) +
+    scale_color_gradient(low = "lightgrey", high = "darkblue") +
+    coord_fixed() +
+    theme_bw() +
+    theme(panel.grid = element_blank()) +
+    labs(
+        title = "Marker expression on Harmony UMAP",
+        x = "Harmony UMAP 1",
+        y = "Harmony UMAP 2",
+        color = "CLR"
+    )
 save_plot(
-  filename = "data_processing_marker_abundance_harmonyumap",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_harmonyumap"),
+    width = 6,
+    height = 4,
+    plot = marker_abundance_harmonyumap_plot
 )
 
-plot_data |> 
-  ggplot(aes(sample_alias, CLR, fill = condition)) +
-  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
-  facet_grid(marker ~ seurat_clusters) +
-  scale_fill_manual(values = condition_palette) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.border = element_rect(color = "gray"),
-    panel.spacing = unit(0, "mm")
-  ) +
-  labs(
-    title = "Marker abundance per cluster",
-    x = "Sample",
-    y = "CLR"
-  )
+marker_abundance_per_cluster_plot <- plot_data |>
+    ggplot(aes(sample_alias, CLR, fill = condition)) +
+    geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+    facet_grid(marker ~ seurat_clusters) +
+    scale_fill_manual(values = condition_palette) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        panel.border = element_rect(color = "gray"),
+        panel.spacing = unit(0, "mm")
+    ) +
+    labs(
+        title = "Marker abundance per cluster",
+        x = "Sample",
+        y = "CLR"
+    )
 save_plot(
-  filename = "data_processing_marker_abundance_per_cluster",
-  width = 8,
-  height = 8
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
+    width = 8,
+    height = 8,
+    plot = marker_abundance_per_cluster_plot
 )
 
-
-plot_data |> 
-  group_by(marker, seurat_clusters) |> 
-  summarise(mean_CLR = mean(CLR)) |> 
-  pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
-  column_to_rownames("marker") |>
-  as.matrix() |> 
-  pheatmap(
-    color = PixelgenGradient(100, "Cherry"),
-    cellwidth = 8, 
-    cellheight = 8,
-    heatmap_legend_param = list(title = "Mean CLR"),
-  ) |> 
-  as.ggplot()
+mean_marker_abundance_per_cluster_heatmap <- plot_data |>
+    group_by(marker, seurat_clusters) |>
+    summarise(mean_CLR = mean(CLR)) |>
+    pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
+    column_to_rownames("marker") |>
+    as.matrix() |>
+    pheatmap(
+        color = PixelgenGradient(100, "Cherry"),
+        cellwidth = 8,
+        cellheight = 8,
+        heatmap_legend_param = list(title = "Mean CLR"),
+    ) |>
+    as.ggplot()
 save_plot(
-  filename = "data_processing_mean_marker_abundance_per_cluster_heatmap",
-  width = 6,
-  height = 4
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
+    width = 6,
+    height = 4,
+    plot = mean_marker_abundance_per_cluster_heatmap
 )
 
 ```
@@ -1211,60 +1250,65 @@ Please change the annotations according to your data.
 #| label: data_processing_set_manual_annotation
 
 # Specify cell annotation labels for each cluster
-cluster_cell_annotation <- 
-  c("0" = "CD4 T",
-    "1" = "CD4 T", 
-    "2" = "Mono", 
-    "3" = "B", 
-    "4" = "CD8 T", 
-    "5" = "CD4 T",
-    "6" = "NK",
-    "7" = "CD8 T",
-    "8" = "CD4 T",
-    "9" = "B",
-    "10" = "CD4 T", 
-    "11" = "Platelets", 
-    "12" = "Mono")
+cluster_cell_annotation <-
+    c(
+        "0" = "CD4 T",
+        "1" = "CD4 T",
+        "2" = "Mono",
+        "3" = "CD8 T",
+        "4" = "CD4 T",
+        "5" = "CD8 T",
+        "6" = "B",
+        "7" = "NK",
+        "8" = "Platelets",
+        "9" = "CD8 T",
+        "10" = "Mono",
+        "11" = "DC",
+        "12" = "B",
+        "13" = "DC"
+    )
 
 # Add annotation to Seurat object
-pg_data[[]] <- 
-  pg_data[[]] |>
-  mutate(
-    cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
-  )
+pg_data[[]] <-
+    pg_data[[]] |>
+    mutate(
+        cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
+    )
 
 
-  
 ```
 
 ### Comparison 
 
+Compare automatic and manual annotations. This can help to identify any discrepancies between the two methods, and can be used to refine the manual annotations.
+
 ```{r}
 
 
-FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
-  group_by(seurat_clusters, l1_annotation, cell_annotation) |>
-  count() |> 
-  group_by(seurat_clusters) |>
-  mutate(frac = n / sum(n)) |> 
-  ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
-  geom_tile() +
-  facet_wrap(~seurat_clusters, scales = "free") +
-  scale_fill_gradient(low = "white", high = "darkblue") +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-  ) +
-  labs(
-    title = "Comparison of automatic and manual annotations",
-    x = "Automatic annotation (L1)",
-    y = "Manual annotation",
-    fill = "Fraction of cells"
-  )
+comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
+    group_by(seurat_clusters, l1_annotation, cell_annotation) |>
+    count() |>
+    group_by(seurat_clusters) |>
+    mutate(frac = n / sum(n)) |>
+    ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
+    geom_tile() +
+    facet_wrap(~seurat_clusters, scales = "free") +
+    scale_fill_gradient(low = "white", high = "darkblue") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    ) +
+    labs(
+        title = "Comparison of automatic and manual annotations",
+        x = "Automatic annotation (L1)",
+        y = "Manual annotation",
+        fill = "Fraction of cells"
+    )
 save_plot(
-  filename = "data_processing_comparison_automatic_manual_annotation",
-  width = 8,
-  height = 6
+    filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
+    width = 8,
+    height = 6,
+    plot = comparison_automatic_manual_annotation
 )
 
 ```
