@@ -908,7 +908,7 @@ save_plot(
 
 ## Marker Distribution on UMAP
 
-Here we visualize the distribution of markers on the UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
+Here we visualize the distribution of markers on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
 ```{r}
 #| label: data_processing_marker_distribution_on_umap
