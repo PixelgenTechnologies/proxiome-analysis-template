@@ -248,6 +248,61 @@ cell_palette <-
         "Platelets" = "#DB6365",
         "gdT" = "#5A3E9E"
     )
+c(
+    "CD4 T" = "#6D92D1",
+    "CD4 Naive" = "#B9CDED",
+    "Naive CD4 T" = "#B9CDED",
+    "CD4 TSCM" = "#92B0E0",
+    "CD4 TCM" = "#6D92D1",
+    "CD4 TEM" = "#4A73C0",
+    "CD4 TEFF" = "#224792",
+    "CD4 TEMRA" = "#1C3A76",
+    "Treg" = "#2955AE",
+    "CD4 CTL" = "#2955AE",
+    "CD8 T" = "#75C5B5",
+    "CD8 Naive" = "#D0EDE6",
+    "Naive CD8 T" = "#D0EDE6",
+    "CD8 TSCM" = "#A2DACE",
+    "CD8 TCM" = "#75C5B5",
+    "CD8 TEM" = "#4AAF9D",
+    "CD8 TEFF" = "#209785",
+    "CD8 TEMRA" = "#1B7E6F",
+    "other T" = "#1B7E9F",
+    "Other T" = "#1B7E9F",
+    "MAIT" = "#0D6D5E",
+    "DPT" = "#1B7E9F",
+    "DNT" = "#7B787F",
+    "dnT" = "#7B787F",
+    "NK" = "#A28EDB",
+    "CD56dim NK" = "#A28EDB",
+    "CD56bright NK" = "#866CCD",
+    "NK_CD56bright" = "#866CCD",
+    "NKT" = "#6C4ABD",
+    "B" = "#C7A989", # "#917557",
+    "B naive" = "#F0DAC4",
+    "Naive B" = "#F0DAC4",
+    "B intermediate" = "#F0DAC4",
+    "Memory B" = "#C7A989",
+    "B memory" = "#C7A989",
+    "Plasma cells" = "#DE9982",
+    "Plasmablast" = "#DE9982",
+    "DC" = "#DA94C1",
+    "cDC1" = "#DA94C1",
+    "cDC2" = "#BB5391",
+    "pDC" = "#9C4579",
+    "Mono" = "#F7DFA0",
+    "Classical Mono" = "#F7DFA0",
+    "CD14 Mono" = "#F7DFA0",
+    "Intermediate Mono" = "#E6BE4A",
+    "CD16 Mono" = "#BD9315",
+    "Non-classical Mono" = "#BD9315",
+    "other" = "#797979",
+    "Neutrophils" = "#CDCDCD",
+    "Basophils" = "#797979",
+    "Platelet" = "#DB6365",
+    "Platelets" = "#DB6365",
+    "gdT" = "#5A3E9E"
+)
 ```
 
 # Quality Control
@@ -1360,147 +1415,163 @@ Remove protein pairs detected in fewer than min_cells_count cells
 ```{r}
 #| label: statistical_testing_marker_selection
 
-cell_annotation_column <- 
-  "l1_annotation_summary"
-isotype_markers <- 
-  c("mIgG1", "mIgG2a", "mIgG2b")
+cell_annotation_column <-
+    "l1_annotation_summary"
+isotype_markers <-
+    c("mIgG1", "mIgG2a", "mIgG2b")
 
-abundance_data <- 
-  LayerData(pg_data, "data") |> 
-  as_tibble(rownames = "marker") |> 
-  pivot_longer(-marker, 
-               names_to = "component", 
-               values_to = "CLR") |> 
-  left_join(
-    FetchData(pg_data, c("sample_alias", cell_annotation_column)) |> 
-      as_tibble(rownames = "component"),
-    by = "component"
-  ) 
+abundance_data <-
+    LayerData(pg_data, "data") |>
+    as_tibble(rownames = "marker") |>
+    pivot_longer(-marker,
+        names_to = "component",
+        values_to = "CLR"
+    ) |>
+    left_join(
+        FetchData(pg_data, c("sample_alias", cell_annotation_column)) |>
+            as_tibble(rownames = "component"),
+        by = "component"
+    )
 
 # Recalculate colocalization scores between each marker and any control
-marker_isotype_coloc <- 
-  ProximityScores(pg_data, lazy = TRUE, 
-                  add_marker_proportions = TRUE,
-                  meta_data_columns = c("sample_alias", cell_annotation_column)) |> 
-  filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |> 
-  mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |> 
-  group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
-  summarise(join_count = sum(join_count), 
-            join_count_expected_mean = sum(join_count_expected_mean)) |> 
-  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
-  collect()
+marker_isotype_coloc <-
+    ProximityScores(pg_data,
+        lazy = TRUE,
+        add_marker_proportions = TRUE,
+        meta_data_columns = c("sample_alias", cell_annotation_column)
+    ) |>
+    filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |>
+    mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |>
+    group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
+    summarise(
+        join_count = sum(join_count),
+        join_count_expected_mean = sum(join_count_expected_mean)
+    ) |>
+    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
+    collect()
 
 
-marker_isotype_coloc |> 
-  left_join(abundance_data) |> 
-  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-  geom_point(size = 0.1) +
-  geom_hline(yintercept = 0) +
-  facet_wrap(~sample_alias) +
-  theme_bw() +
-  scale_color_manual(values = c("black", "orangered")) +
-  labs(
-    title = "Marker colocalization with isotypes",
-    x = "CLR abundance",
-    y = "Log2 ratio of observed vs expected colocalization"
-  )
+marker_isotype_coloc |>
+    left_join(abundance_data) |>
+    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+    geom_point(size = 0.1) +
+    geom_hline(yintercept = 0) +
+    facet_wrap(~sample_alias) +
+    theme_bw() +
+    scale_color_manual(values = c("black", "orangered")) +
+    labs(
+        title = "Marker colocalization with isotypes",
+        x = "CLR abundance",
+        y = "Log2 ratio of observed vs expected colocalization"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc",
-  width = 6,
-  height = 4
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc",
+    width = 6,
+    height = 4
 )
 
-marker_isotype_coloc |> 
-  group_by(sample_alias, marker) |> 
-  summarise(join_count = sum(join_count), 
-            join_count_expected_mean = sum(join_count_expected_mean)) |> 
-  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
-  ungroup() |>
-  left_join(abundance_data |> 
-              group_by(marker, sample_alias) |> 
-              summarise(CLR = mean(CLR)),
-            by = c("marker", "sample_alias")) |>
-  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-  geom_hline(yintercept = 0) +
-  geom_point(size = 0.1) +
-  geom_text(aes(label = marker),
-            vjust = -0.5,
-            size = 2) +
-  facet_wrap(~sample_alias) +
-  scale_color_manual(values = c("black", "orangered")) +
-  theme_bw() +
-  labs(
-    title = "Marker colocalization with isotypes per sample",
-    x = "Mean CLR abundance",
-    y = "Sample-wide log2 ratio of observed vs expected colocalization"
-  ) 
+marker_isotype_coloc |>
+    group_by(sample_alias, marker) |>
+    summarise(
+        join_count = sum(join_count),
+        join_count_expected_mean = sum(join_count_expected_mean)
+    ) |>
+    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
+    ungroup() |>
+    left_join(
+        abundance_data |>
+            group_by(marker, sample_alias) |>
+            summarise(CLR = mean(CLR)),
+        by = c("marker", "sample_alias")
+    ) |>
+    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+    geom_hline(yintercept = 0) +
+    geom_point(size = 0.1) +
+    geom_text(aes(label = marker),
+        vjust = -0.5,
+        size = 2
+    ) +
+    facet_wrap(~sample_alias) +
+    scale_color_manual(values = c("black", "orangered")) +
+    theme_bw() +
+    labs(
+        title = "Marker colocalization with isotypes per sample",
+        x = "Mean CLR abundance",
+        y = "Sample-wide log2 ratio of observed vs expected colocalization"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
-  width = 8,
-  height = 6
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
+    width = 8,
+    height = 6
 )
 
 
-
-plot_data <- 
-  marker_isotype_coloc |> 
-  group_by(sample_alias, !!sym(cell_annotation_column), marker) |> 
-  summarise(join_count = sum(join_count), 
-            join_count_expected_mean = sum(join_count_expected_mean)) |> 
-  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
-  ungroup() |>
-  left_join(abundance_data |> 
-              group_by(marker, sample_alias, !!sym(cell_annotation_column)) |> 
-              summarise(CLR = mean(CLR)),
-            by = c("marker", "sample_alias", cell_annotation_column))
+plot_data <-
+    marker_isotype_coloc |>
+    group_by(sample_alias, !!sym(cell_annotation_column), marker) |>
+    summarise(
+        join_count = sum(join_count),
+        join_count_expected_mean = sum(join_count_expected_mean)
+    ) |>
+    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
+    ungroup() |>
+    left_join(
+        abundance_data |>
+            group_by(marker, sample_alias, !!sym(cell_annotation_column)) |>
+            summarise(CLR = mean(CLR)),
+        by = c("marker", "sample_alias", cell_annotation_column)
+    )
 
 plot_data |>
-  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-  geom_hline(yintercept = 0) +
-  geom_point(size = 0.1) +
-  
-  geom_text(aes(label = marker),
-            vjust = -0.5,
-            size = 2) +
-  facet_grid(rows = vars(!!sym(cell_annotation_column)),
-             cols = vars(sample_alias)) +
-  scale_color_manual(values = c("black", "orangered")) +
-  theme_bw() +
-  labs(
-    title = "Marker colocalization with isotypes per cluster",
-    x = "Mean CLR abundance",
-    y = "Cluster-wide log2 ratio of observed vs expected colocalization"
-  ) 
+    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+    geom_hline(yintercept = 0) +
+    geom_point(size = 0.1) +
+    geom_text(aes(label = marker),
+        vjust = -0.5,
+        size = 2
+    ) +
+    facet_grid(
+        rows = vars(!!sym(cell_annotation_column)),
+        cols = vars(sample_alias)
+    ) +
+    scale_color_manual(values = c("black", "orangered")) +
+    theme_bw() +
+    labs(
+        title = "Marker colocalization with isotypes per cluster",
+        x = "Mean CLR abundance",
+        y = "Cluster-wide log2 ratio of observed vs expected colocalization"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
-  width = 8,
-  height = 6
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
+    width = 8,
+    height = 6
 )
 
-plot_data |> 
-  group_by(marker) |> 
-  filter(any(log2_ratio > log2(1.5))) |>
-  mutate(total_log2_ratio = sum(log2_ratio)) |>
-  arrange(desc(total_log2_ratio)) |>
-  ungroup() |> 
-  mutate(marker = factor(marker, 
-                         levels = unique(marker))) |>
-  ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
-  geom_tile() +
-  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-  coord_fixed() +
-  facet_grid(sample_alias ~ .) +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  labs(
-    title = "Marker colocalization with isotypes per cluster",
-    x = "Marker",
-    y = "Cluster"
-  )
+plot_data |>
+    group_by(marker) |>
+    filter(any(log2_ratio > log2(1.5))) |>
+    mutate(total_log2_ratio = sum(log2_ratio)) |>
+    arrange(desc(total_log2_ratio)) |>
+    ungroup() |>
+    mutate(marker = factor(marker,
+        levels = unique(marker)
+    )) |>
+    ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
+    geom_tile() +
+    scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+    coord_fixed() +
+    facet_grid(sample_alias ~ .) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(
+        title = "Marker colocalization with isotypes per cluster",
+        x = "Marker",
+        y = "Cluster"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
-  width = 12,
-  height = 6
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
+    width = 12,
+    height = 6
 )
 
 ```
