@@ -624,13 +624,13 @@ In this step we select markers that we believe are positive in at least one cell
 
 Here we provide one example approach based on counts per million (CPM) thresholds. We calculate the 50th percentile (the median) and 95th percentile of CPM per marker across all cells, and select markers that have a 95th percentile above a certain threshold. The threshold can be adjusted according to the background levels of the dataset, and according to expectations of which markers should be present in the data.
 
-In this example, we set the threshold to 1000 CPM at the 95th percentile. This means, in effect, that we let cell populations composing at least 5% of the sample dictate which markers we use in later analysis steps. Comparing the 95th percentile to the 50th percentile also gives us an idea of how much the marker expression varies across cells.
+In this example, we set the threshold to 500 CPM at the 95th percentile. This means, in effect, that we let cell populations composing at least 5% of the sample dictate which markers we use in later analysis steps. Comparing the 95th percentile to the 50th percentile also gives us an idea of how much the marker expression varies across cells.
 
 
 ```{r}
 #| label: quality_control_select_markers
 
-marker_cpm_p95_threshold <- 1000
+marker_cpm_p95_threshold <- 500
 
 count_data <-
     LayerData(pg_data, "counts")
