@@ -75,7 +75,7 @@ print(metadata)
 
 # Load the data from the file paths into a list of PNA objects
 pg_data <-
-    metadata$file_path |>
+    here::here("data", metadata$file_path) |>
     lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 # Merge the PNA objects, adding the sample_id to the cell names
