@@ -822,7 +822,7 @@ cell_metadata <-
     FetchData(pg_data, c("sample_alias", "condition")) |>
     as_tibble(rownames = "cell_id")
 
-Embeddings(pg_data, "harmony") |>
+harmony_embeddings <- Embeddings(pg_data, "harmony") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
@@ -832,12 +832,13 @@ Embeddings(pg_data, "harmony") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmony",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_embeddings
 )
 
-Embeddings(pg_data, "harmony_umap") |>
+harmony_umap_embeddings <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata, by = "cell_id") |>
     ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
@@ -847,9 +848,10 @@ Embeddings(pg_data, "harmony_umap") |>
     theme_bw()
 
 save_plot(
-    filename = "data_processing_harmonyumap",
+    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
     width = 6,
-    height = 4
+    height = 4,
+    plot = harmony_umap_embeddings
 )
 
 ```
