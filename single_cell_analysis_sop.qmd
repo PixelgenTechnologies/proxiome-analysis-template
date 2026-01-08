@@ -193,7 +193,62 @@ sample_palette <-
 #' @export
 #'
 cell_palette <-
-  c(
+    c(
+        "CD4 T" = "#6D92D1",
+        "CD4 Naive" = "#B9CDED",
+        "Naive CD4 T" = "#B9CDED",
+        "CD4 TSCM" = "#92B0E0",
+        "CD4 TCM" = "#6D92D1",
+        "CD4 TEM" = "#4A73C0",
+        "CD4 TEFF" = "#224792",
+        "CD4 TEMRA" = "#1C3A76",
+        "Treg" = "#2955AE",
+        "CD4 CTL" = "#2955AE",
+        "CD8 T" = "#75C5B5",
+        "CD8 Naive" = "#D0EDE6",
+        "Naive CD8 T" = "#D0EDE6",
+        "CD8 TSCM" = "#A2DACE",
+        "CD8 TCM" = "#75C5B5",
+        "CD8 TEM" = "#4AAF9D",
+        "CD8 TEFF" = "#209785",
+        "CD8 TEMRA" = "#1B7E6F",
+        "other T" = "#1B7E9F",
+        "Other T" = "#1B7E9F",
+        "MAIT" = "#0D6D5E",
+        "DPT" = "#1B7E9F",
+        "DNT" = "#7B787F",
+        "dnT" = "#7B787F",
+        "NK" = "#A28EDB",
+        "CD56dim NK" = "#A28EDB",
+        "CD56bright NK" = "#866CCD",
+        "NK_CD56bright" = "#866CCD",
+        "NKT" = "#6C4ABD",
+        "B" = "#C7A989", # "#917557",
+        "B naive" = "#F0DAC4",
+        "Naive B" = "#F0DAC4",
+        "B intermediate" = "#F0DAC4",
+        "Memory B" = "#C7A989",
+        "B memory" = "#C7A989",
+        "Plasma cells" = "#DE9982",
+        "Plasmablast" = "#DE9982",
+        "DC" = "#DA94C1",
+        "cDC1" = "#DA94C1",
+        "cDC2" = "#BB5391",
+        "pDC" = "#9C4579",
+        "Mono" = "#F7DFA0",
+        "Classical Mono" = "#F7DFA0",
+        "CD14 Mono" = "#F7DFA0",
+        "Intermediate Mono" = "#E6BE4A",
+        "CD16 Mono" = "#BD9315",
+        "Non-classical Mono" = "#BD9315",
+        "other" = "#797979",
+        "Neutrophils" = "#CDCDCD",
+        "Basophils" = "#797979",
+        "Platelet" = "#DB6365",
+        "Platelets" = "#DB6365",
+        "gdT" = "#5A3E9E"
+    )
+c(
     "CD4 T" = "#6D92D1",
     "CD4 Naive" = "#B9CDED",
     "Naive CD4 T" = "#B9CDED",
@@ -247,7 +302,7 @@ cell_palette <-
     "Platelet" = "#DB6365",
     "Platelets" = "#DB6365",
     "gdT" = "#5A3E9E"
-  )
+)
 ```
 
 # Quality Control
@@ -1360,147 +1415,163 @@ Remove protein pairs detected in fewer than min_cells_count cells
 ```{r}
 #| label: statistical_testing_marker_selection
 
-cell_annotation_column <- 
-  "l1_annotation_summary"
-isotype_markers <- 
-  c("mIgG1", "mIgG2a", "mIgG2b")
+cell_annotation_column <-
+    "l1_annotation_summary"
+isotype_markers <-
+    c("mIgG1", "mIgG2a", "mIgG2b")
 
-abundance_data <- 
-  LayerData(pg_data, "data") |> 
-  as_tibble(rownames = "marker") |> 
-  pivot_longer(-marker, 
-               names_to = "component", 
-               values_to = "CLR") |> 
-  left_join(
-    FetchData(pg_data, c("sample_alias", cell_annotation_column)) |> 
-      as_tibble(rownames = "component"),
-    by = "component"
-  ) 
+abundance_data <-
+    LayerData(pg_data, "data") |>
+    as_tibble(rownames = "marker") |>
+    pivot_longer(-marker,
+        names_to = "component",
+        values_to = "CLR"
+    ) |>
+    left_join(
+        FetchData(pg_data, c("sample_alias", cell_annotation_column)) |>
+            as_tibble(rownames = "component"),
+        by = "component"
+    )
 
 # Recalculate colocalization scores between each marker and any control
-marker_isotype_coloc <- 
-  ProximityScores(pg_data, lazy = TRUE, 
-                  add_marker_proportions = TRUE,
-                  meta_data_columns = c("sample_alias", cell_annotation_column)) |> 
-  filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |> 
-  mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |> 
-  group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
-  summarise(join_count = sum(join_count), 
-            join_count_expected_mean = sum(join_count_expected_mean)) |> 
-  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
-  collect()
+marker_isotype_coloc <-
+    ProximityScores(pg_data,
+        lazy = TRUE,
+        add_marker_proportions = TRUE,
+        meta_data_columns = c("sample_alias", cell_annotation_column)
+    ) |>
+    filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |>
+    mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |>
+    group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
+    summarise(
+        join_count = sum(join_count),
+        join_count_expected_mean = sum(join_count_expected_mean)
+    ) |>
+    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
+    collect()
 
 
-marker_isotype_coloc |> 
-  left_join(abundance_data) |> 
-  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-  geom_point(size = 0.1) +
-  geom_hline(yintercept = 0) +
-  facet_wrap(~sample_alias) +
-  theme_bw() +
-  scale_color_manual(values = c("black", "orangered")) +
-  labs(
-    title = "Marker colocalization with isotypes",
-    x = "CLR abundance",
-    y = "Log2 ratio of observed vs expected colocalization"
-  )
+marker_isotype_coloc |>
+    left_join(abundance_data) |>
+    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+    geom_point(size = 0.1) +
+    geom_hline(yintercept = 0) +
+    facet_wrap(~sample_alias) +
+    theme_bw() +
+    scale_color_manual(values = c("black", "orangered")) +
+    labs(
+        title = "Marker colocalization with isotypes",
+        x = "CLR abundance",
+        y = "Log2 ratio of observed vs expected colocalization"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc",
-  width = 6,
-  height = 4
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc",
+    width = 6,
+    height = 4
 )
 
-marker_isotype_coloc |> 
-  group_by(sample_alias, marker) |> 
-  summarise(join_count = sum(join_count), 
-            join_count_expected_mean = sum(join_count_expected_mean)) |> 
-  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
-  ungroup() |>
-  left_join(abundance_data |> 
-              group_by(marker, sample_alias) |> 
-              summarise(CLR = mean(CLR)),
-            by = c("marker", "sample_alias")) |>
-  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-  geom_hline(yintercept = 0) +
-  geom_point(size = 0.1) +
-  geom_text(aes(label = marker),
-            vjust = -0.5,
-            size = 2) +
-  facet_wrap(~sample_alias) +
-  scale_color_manual(values = c("black", "orangered")) +
-  theme_bw() +
-  labs(
-    title = "Marker colocalization with isotypes per sample",
-    x = "Mean CLR abundance",
-    y = "Sample-wide log2 ratio of observed vs expected colocalization"
-  ) 
+marker_isotype_coloc |>
+    group_by(sample_alias, marker) |>
+    summarise(
+        join_count = sum(join_count),
+        join_count_expected_mean = sum(join_count_expected_mean)
+    ) |>
+    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
+    ungroup() |>
+    left_join(
+        abundance_data |>
+            group_by(marker, sample_alias) |>
+            summarise(CLR = mean(CLR)),
+        by = c("marker", "sample_alias")
+    ) |>
+    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+    geom_hline(yintercept = 0) +
+    geom_point(size = 0.1) +
+    geom_text(aes(label = marker),
+        vjust = -0.5,
+        size = 2
+    ) +
+    facet_wrap(~sample_alias) +
+    scale_color_manual(values = c("black", "orangered")) +
+    theme_bw() +
+    labs(
+        title = "Marker colocalization with isotypes per sample",
+        x = "Mean CLR abundance",
+        y = "Sample-wide log2 ratio of observed vs expected colocalization"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
-  width = 8,
-  height = 6
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
+    width = 8,
+    height = 6
 )
 
 
-
-plot_data <- 
-  marker_isotype_coloc |> 
-  group_by(sample_alias, !!sym(cell_annotation_column), marker) |> 
-  summarise(join_count = sum(join_count), 
-            join_count_expected_mean = sum(join_count_expected_mean)) |> 
-  mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |> 
-  ungroup() |>
-  left_join(abundance_data |> 
-              group_by(marker, sample_alias, !!sym(cell_annotation_column)) |> 
-              summarise(CLR = mean(CLR)),
-            by = c("marker", "sample_alias", cell_annotation_column))
+plot_data <-
+    marker_isotype_coloc |>
+    group_by(sample_alias, !!sym(cell_annotation_column), marker) |>
+    summarise(
+        join_count = sum(join_count),
+        join_count_expected_mean = sum(join_count_expected_mean)
+    ) |>
+    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
+    ungroup() |>
+    left_join(
+        abundance_data |>
+            group_by(marker, sample_alias, !!sym(cell_annotation_column)) |>
+            summarise(CLR = mean(CLR)),
+        by = c("marker", "sample_alias", cell_annotation_column)
+    )
 
 plot_data |>
-  ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-  geom_hline(yintercept = 0) +
-  geom_point(size = 0.1) +
-  
-  geom_text(aes(label = marker),
-            vjust = -0.5,
-            size = 2) +
-  facet_grid(rows = vars(!!sym(cell_annotation_column)),
-             cols = vars(sample_alias)) +
-  scale_color_manual(values = c("black", "orangered")) +
-  theme_bw() +
-  labs(
-    title = "Marker colocalization with isotypes per cluster",
-    x = "Mean CLR abundance",
-    y = "Cluster-wide log2 ratio of observed vs expected colocalization"
-  ) 
+    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
+    geom_hline(yintercept = 0) +
+    geom_point(size = 0.1) +
+    geom_text(aes(label = marker),
+        vjust = -0.5,
+        size = 2
+    ) +
+    facet_grid(
+        rows = vars(!!sym(cell_annotation_column)),
+        cols = vars(sample_alias)
+    ) +
+    scale_color_manual(values = c("black", "orangered")) +
+    theme_bw() +
+    labs(
+        title = "Marker colocalization with isotypes per cluster",
+        x = "Mean CLR abundance",
+        y = "Cluster-wide log2 ratio of observed vs expected colocalization"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
-  width = 8,
-  height = 6
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
+    width = 8,
+    height = 6
 )
 
-plot_data |> 
-  group_by(marker) |> 
-  filter(any(log2_ratio > log2(1.5))) |>
-  mutate(total_log2_ratio = sum(log2_ratio)) |>
-  arrange(desc(total_log2_ratio)) |>
-  ungroup() |> 
-  mutate(marker = factor(marker, 
-                         levels = unique(marker))) |>
-  ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
-  geom_tile() +
-  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-  coord_fixed() +
-  facet_grid(sample_alias ~ .) +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  labs(
-    title = "Marker colocalization with isotypes per cluster",
-    x = "Marker",
-    y = "Cluster"
-  )
+plot_data |>
+    group_by(marker) |>
+    filter(any(log2_ratio > log2(1.5))) |>
+    mutate(total_log2_ratio = sum(log2_ratio)) |>
+    arrange(desc(total_log2_ratio)) |>
+    ungroup() |>
+    mutate(marker = factor(marker,
+        levels = unique(marker)
+    )) |>
+    ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
+    geom_tile() +
+    scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+    coord_fixed() +
+    facet_grid(sample_alias ~ .) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(
+        title = "Marker colocalization with isotypes per cluster",
+        x = "Marker",
+        y = "Cluster"
+    )
 save_plot(
-  filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
-  width = 12,
-  height = 6
+    filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
+    width = 12,
+    height = 6
 )
 
 ```
@@ -1512,18 +1583,679 @@ Statistical test (typically Wilcoxon) between conditions
 ```{r}
 #| label: statistical_testing_differential_abundance
 
-print(1)
+## REMOVE THIS CHUNK AFTER TESTING
 
+# Select 10 random markers to test for each cell type [TESTING]
+markers_to_test <- lapply(unique(pg_data[[]]$cell_annotation), function(x) {
+    sample(rownames(pg_data), size = 10)
+})
+names(markers_to_test) <- unique(pg_data[[]]$cell_annotation)
+
+# create an additional condition factor to test multiple comparisons
+pg_data$condition <- ifelse(pg_data$sample_alias == "S6_PHA", "PMA", pg_data$condition)
 ```
 
-## Differential proximity analysis
+
+```{r}
+
+differential_abundance_analysis <-
+    names(markers_to_test) |>
+    map(function(x) {
+        tryCatch(
+            {
+                daa_res <- RunDAA(subset(pg_data, cell_annotation == x),
+                    contrast_column = "condition",
+                    reference = "resting",
+                    features = markers_to_test[[x]]
+                )
+                daa_res$group <- x
+                return(daa_res)
+            },
+            error = function(e) {
+                message(paste("Error for cell type:", x, ":", e))
+                return(NULL)
+            }
+        )
+    }) |>
+    bind_rows() |>
+    mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+
+dir.create(here::here("results/03_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
+
+# Save the differential abundance analysis results to a file
+saveRDS(differential_abundance_analysis, here::here("results/03_statistical_testing/abundance/differential_abundance_analysis.rds"))
+
+# Save the differential abundance analysis results to a csv file
+write.csv(differential_abundance_analysis, here::here("results/03_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
+
+```    
+
+### Summarizing plots
+
+Here we create two types of summarizing plots for the differential abundance analysis results:
+
+1. **Volcano plot**: Shows the relationship between effect size (log fold change) and statistical significance (-log10 adjusted p-value) for each marker, faceted by cell type. This helps identify markers that are both significantly different and have large effect sizes.
+
+2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially abundant in which cell types.
+
+```{r}
+#| label: statistical_testing_differential_abundance_plots
+
+# Determine the effect size column name
+effect_size_col <- "difference"
+
+# Determine the feature/marker column name
+feature_col <- "marker"
+
+# Extract target and reference condition names from the dataframe
+# Handle multiple target conditions by identifying all comparisons
+reference_condition <- "resting" # Known from RunDAA call
+
+# Determine target conditions - check if dataframe has target/contrast columns
+if ("target" %in% colnames(differential_abundance_analysis)) {
+    # If target column exists, get all unique targets
+    target_conditions <- unique(differential_abundance_analysis$target)
+    target_conditions <- target_conditions[!is.na(target_conditions)]
+} else {
+    stop("Could not find target column. Available columns: ", paste(colnames(differential_abundance_analysis), collapse = ", "))
+}
+
+# Prepare base data for plotting (add target column if it doesn't exist)
+plot_data_base <- differential_abundance_analysis |>
+    mutate(
+        neg_log10_p_adj = -log10(p_adj),
+        significant = p_adj < 0.05,
+        effect_size = !!sym(effect_size_col),
+        marker = !!sym(feature_col)
+    )
+
+
+# Loop through each target condition and create plots
+for (target_condition in target_conditions) {
+    # Filter data for this target (if target column exists)
+    if ("target" %in% colnames(plot_data_base)) {
+        plot_data <- plot_data_base |>
+            filter(target == target_condition)
+    }
+
+    # Skip if no data for this target
+    if (nrow(plot_data) == 0) {
+        warning(paste("No data found for target condition:", target_condition))
+        next
+    }
+
+    # Create directory name based on target and reference
+    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+    base_output_dir <- here::here("results/03_statistical_testing/differential_abundance_plots", comparison_dir)
+
+    # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
+    # This plot helps identify markers that are both significantly different and have large effect sizes
+    # Identify top 5 most extreme effect sizes per cell type for labeling
+    top_markers_faceted <- plot_data |>
+        group_by(group) |>
+        slice_max(order_by = abs(effect_size), n = 5) |>
+        ungroup()
+
+    volcano_plot_differential_abundance <- plot_data |>
+        ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+        geom_point() +
+        scale_color_gradient2(
+            low = "#0066FFFF",
+            mid = "#74D055FF",
+            high = "#FF0000FF",
+            midpoint = 0
+        ) +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = 0) +
+        geom_vline(xintercept = c(-1, 1), col = "grey") +
+        coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
+        facet_wrap(~group, scales = "free") +
+        geom_text(
+            data = top_markers_faceted,
+            aes(label = marker),
+            hjust = -0.2,
+            vjust = 0
+        ) +
+        theme_bw() +
+        labs(
+            title = paste("Differential abundance analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
+            subtitle = "Effect size vs statistical significance by cell type",
+            x = paste("Effect size (", effect_size_col, ")", sep = ""),
+            y = "-log10(adjusted p-value)",
+            color = "Effect size"
+        ) +
+        theme(
+            strip.background = element_rect(fill = "lightblue", color = "black"),
+            panel.grid.minor = element_blank(),
+            panel.grid.major = element_blank()
+        )
+
+    # Save faceted volcano plot in the comparison directory
+    save_plot(
+        filename = file.path(base_output_dir, "differential_abundance_volcano"),
+        plot = volcano_plot_differential_abundance,
+        width = 12,
+        height = 8,
+        create_dir = TRUE
+    )
+
+    # Plot 2: Non-faceted volcano plots per cell type
+    # Create individual folders per cell type and save non-faceted volcano plots for each cell type
+    # Get unique cell types (groups)
+    unique_cell_types <- unique(plot_data$group)
+
+    # For each cell type, create a non-faceted volcano plot
+    for (cell_type in unique_cell_types) {
+        # Create directory for this cell type
+        cell_type_dir <- file.path(base_output_dir, cell_type)
+        dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+
+        # Filter data for this cell type
+        cell_type_plot_data <- plot_data |>
+            filter(group == cell_type)
+
+        # Create non-faceted volcano plot for this cell type
+        # Identify top 5 most extreme effect sizes for labeling
+        top_markers_cell_type <- cell_type_plot_data |>
+            slice_max(order_by = abs(effect_size), n = 5)
+
+        volcano_plot_cell_type <- cell_type_plot_data |>
+            ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+            geom_point() +
+            scale_color_gradient2(
+                low = "#0066FFFF",
+                mid = "#74D055FF",
+                high = "#FF0000FF",
+                midpoint = 0
+            ) +
+            geom_hline(yintercept = 0) +
+            geom_vline(xintercept = 0) +
+            geom_vline(xintercept = c(-1, 1), col = "grey") +
+            coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
+            geom_text(
+                data = top_markers_cell_type,
+                aes(label = marker),
+                hjust = -0.2,
+                vjust = 0
+            ) +
+            theme_bw() +
+            labs(
+                title = paste("Differential abundance analysis: Volcano plot", sep = ""),
+                subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
+                x = paste("Effect size (", effect_size_col, ")", sep = ""),
+                y = "-log10(adjusted p-value)",
+                color = "Effect size"
+            ) +
+            theme(
+                plot.title = element_text(size = 14, face = "bold"),
+                plot.subtitle = element_text(size = 12),
+                panel.grid.minor = element_blank(),
+                panel.grid.major = element_blank()
+            )
+
+        # Save non-faceted volcano plot
+        save_plot(
+            filename = file.path(cell_type_dir, "volcano_plot"),
+            plot = volcano_plot_cell_type,
+            width = 8,
+            height = 6,
+            create_dir = FALSE # Directory already created
+        )
+    }
+
+    # Plot 3: Heatmap showing significant markers across cell types
+    # This provides an overview of which markers are differentially abundant in which cell types
+    # Filter for significant markers and prepare data for heatmap
+    significant_markers <- plot_data |>
+        filter(significant) |>
+        select(marker, group, effect_size) |>
+        # Pivot to wide format for heatmap
+        pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
+        column_to_rownames("marker") |>
+        as.matrix()
+
+    # Only create heatmap if there are significant markers
+    if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
+        # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
+        effect_vals <- as.numeric(significant_markers)
+        effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
+        max_abs_effect <- max(abs(effect_quantiles))
+        breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
+
+        heatmap_differential_abundance <- significant_markers |>
+            pheatmap(
+                color = PixelgenGradient(100, "BluesCherry"),
+                breaks = breaks_range,
+                cellwidth = 12,
+                cellheight = 8,
+                cluster_rows = TRUE,
+                cluster_cols = TRUE,
+                heatmap_legend_param = list(title = "Effect size"),
+                fontsize = 8,
+                fontsize_row = 6,
+                fontsize_col = 8
+            ) |>
+            as.ggplot()
+
+        save_plot(
+            filename = file.path(base_output_dir, "differential_abundance_heatmap"),
+            plot = heatmap_differential_abundance,
+            width = 10,
+            height = max(6, nrow(significant_markers) * 0.3),
+            create_dir = TRUE
+        )
+    } else {
+        warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
+    }
+}
+```
+
+## Differential Clustering Analysis
 
 Statistical test (typically Wilcoxon) between conditions
 
 ```{r}
 #| label: statistical_testing_differential_proximity
 
-print(1)
+differential_clustering_analysis <-
+    names(markers_to_test) |>
+    map(function(x) {
+        tryCatch(
+            {
+                # Store markers in a variable to ensure proper evaluation in lazy query context
+                # Convert to character vector to ensure proper SQL translation
+                markers_vec <- as.character(markers_to_test[[x]])
+                proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
+                    lazy = TRUE,
+                    meta_data_columns = c("sample_alias", "condition")
+                ) |>
+                    filter(marker_1 == marker_2) |>
+                    filter(marker_1 %in% markers_vec) |>
+                    filter(marker_2 %in% markers_vec) |>
+                    collect()
+
+                res <- DifferentialProximityAnalysis(proximity_data,
+                    contrast_column = "condition",
+                    reference = "resting",
+                    proximity_metric = "log2_ratio",
+                    min_n_obs = 5
+                )
+                res$group <- x
+                return(res)
+            },
+            error = function(e) {
+                message(paste("Error for cell type:", x, ":", e))
+                return(NULL)
+            }
+        )
+    }) |>
+    bind_rows() |>
+    mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+
+dir.create(here::here("results/03_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
+
+# Save the differential abundance analysis results to a file
+saveRDS(differential_clustering_analysis, here::here("results/03_statistical_testing/clustering/differential_clustering_analysis.rds"))
+
+# Save the differential abundance analysis results to a csv file
+write.csv(differential_clustering_analysis, here::here("results/03_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
 
 ```
 
+
+### Summarizing plots
+
+Here we create two types of summarizing plots for the differential clustering analysis results:
+
+1. **Volcano plot**: Shows the relationship between effect size (log fold change) and statistical significance (-log10 adjusted p-value) for each marker, faceted by cell type. This helps identify markers that are both significantly different and have large effect sizes.
+
+2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially clustered in which cell types.
+
+```{r}
+#| label: statistical_testing_differential_clustering_plots
+
+# Determine the effect size column name
+effect_size_col <- "diff_median"
+
+# Determine the feature/marker column name
+feature_col <- "marker_1"
+
+# Extract target and reference condition names from the dataframe
+# Handle multiple target conditions by identifying all comparisons
+reference_condition <- "resting" # Known from DifferentialProximityAnalysis call
+
+# Determine target conditions - check if dataframe has target/contrast columns
+if ("target" %in% colnames(differential_clustering_analysis)) {
+    # If target column exists, get all unique targets
+    target_conditions <- unique(differential_clustering_analysis$target)
+    target_conditions <- target_conditions[!is.na(target_conditions)]
+} else {
+    stop("Could not find target column. Available columns: ", paste(colnames(differential_clustering_analysis), collapse = ", "))
+}
+
+# Prepare base data for plotting (add target column if it doesn't exist)
+plot_data_base <- differential_clustering_analysis |>
+    mutate(
+        neg_log10_p_adj = -log10(p_adj),
+        significant = p_adj < 0.05,
+        effect_size = !!sym(effect_size_col),
+        marker = !!sym(feature_col)
+    )
+
+
+
+# Loop through each target condition and create plots
+for (target_condition in target_conditions) {
+    # Filter data for this target (if target column exists)
+    if ("target" %in% colnames(plot_data_base)) {
+        plot_data <- plot_data_base |>
+            filter(target == target_condition)
+    }
+
+    # Skip if no data for this target
+    if (nrow(plot_data) == 0) {
+        warning(paste("No data found for target condition:", target_condition))
+        next
+    }
+
+    # Create directory name based on target and reference
+    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+    base_output_dir <- here::here("results/03_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
+
+    # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
+    # This plot helps identify markers that are both significantly different and have large effect sizes
+    # Identify top 5 most extreme effect sizes per cell type for labeling
+    top_markers_faceted <- plot_data |>
+        group_by(group) |>
+        slice_max(order_by = abs(effect_size), n = 5) |>
+        ungroup()
+
+    volcano_plot_differential_clustering <- plot_data |>
+        ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+        geom_point() +
+        scale_color_gradient2(
+            low = "#0066FFFF",
+            mid = "#74D055FF",
+            high = "#FF0000FF",
+            midpoint = 0
+        ) +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = 0) +
+        geom_vline(xintercept = c(-1, 1), col = "grey") +
+        coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
+        facet_wrap(~group, scales = "free") +
+        geom_text(
+            data = top_markers_faceted,
+            aes(label = marker),
+            hjust = -0.2,
+            vjust = 0
+        ) +
+        theme_bw() +
+        labs(
+            title = paste("Differential clustering analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
+            subtitle = "Effect size vs statistical significance by cell type",
+            x = paste("Effect size (", effect_size_col, ")", sep = ""),
+            y = "-log10(adjusted p-value)",
+            color = "Effect size"
+        ) +
+        theme(
+            strip.background = element_rect(fill = "lightblue", color = "black"),
+            panel.grid.minor = element_blank(),
+            panel.grid.major = element_blank()
+        )
+
+    # Save faceted volcano plot in the comparison directory
+    save_plot(
+        filename = file.path(base_output_dir, "differential_clustering_volcano"),
+        plot = volcano_plot_differential_clustering,
+        width = 12,
+        height = 8,
+        create_dir = TRUE
+    )
+
+    # Plot 2: Non-faceted volcano plots per cell type
+    # Create individual folders per cell type and save non-faceted volcano plots for each cell type
+    # Get unique cell types (groups)
+    unique_cell_types <- unique(plot_data$group)
+
+    # For each cell type, create a non-faceted volcano plot
+    for (cell_type in unique_cell_types) {
+        # Create directory for this cell type
+        cell_type_dir <- file.path(base_output_dir, cell_type)
+        dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+
+        # Filter data for this cell type
+        cell_type_plot_data <- plot_data |>
+            filter(group == cell_type)
+
+        # Create non-faceted volcano plot for this cell type
+        # Identify top 5 most extreme effect sizes for labeling
+        top_markers_cell_type <- cell_type_plot_data |>
+            slice_max(order_by = abs(effect_size), n = 5)
+
+        volcano_plot_cell_type <- cell_type_plot_data |>
+            ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+            geom_point() +
+            scale_color_gradient2(
+                low = "#0066FFFF",
+                mid = "#74D055FF",
+                high = "#FF0000FF",
+                midpoint = 0
+            ) +
+            geom_hline(yintercept = 0) +
+            geom_vline(xintercept = 0) +
+            geom_vline(xintercept = c(-1, 1), col = "grey") +
+            coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
+            geom_text(
+                data = top_markers_cell_type,
+                aes(label = marker),
+                hjust = -0.2,
+                vjust = 0
+            ) +
+            theme_bw() +
+            labs(
+                title = paste("Differential clustering analysis: Volcano plot", sep = ""),
+                subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
+                x = paste("Effect size (", effect_size_col, ")", sep = ""),
+                y = "-log10(adjusted p-value)",
+                color = "Effect size"
+            ) +
+            theme(
+                plot.title = element_text(size = 14, face = "bold"),
+                plot.subtitle = element_text(size = 12),
+                panel.grid.minor = element_blank(),
+                panel.grid.major = element_blank()
+            )
+
+        # Save non-faceted volcano plot
+        save_plot(
+            filename = file.path(cell_type_dir, "volcano_plot"),
+            plot = volcano_plot_cell_type,
+            width = 8,
+            height = 6,
+            create_dir = FALSE # Directory already created
+        )
+    }
+
+    # Plot 3: Heatmap showing significant markers across cell types
+    # This provides an overview of which markers are differentially clustered in which cell types
+    # Filter for significant markers and prepare data for heatmap
+    significant_markers <- plot_data |>
+        filter(significant) |>
+        select(marker, group, effect_size) |>
+        # Pivot to wide format for heatmap
+        pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
+        column_to_rownames("marker") |>
+        as.matrix()
+
+    # Only create heatmap if there are significant markers
+    if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
+        # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
+        effect_vals <- as.numeric(significant_markers)
+        effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
+        max_abs_effect <- max(abs(effect_quantiles))
+        breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
+
+        heatmap_differential_clustering <- significant_markers |>
+            pheatmap(
+                color = PixelgenGradient(100, "BluesCherry"),
+                breaks = breaks_range,
+                cellwidth = 12,
+                cellheight = 8,
+                cluster_rows = TRUE,
+                cluster_cols = TRUE,
+                heatmap_legend_param = list(title = "Effect size"),
+                fontsize = 8,
+                fontsize_row = 6,
+                fontsize_col = 8
+            ) |>
+            as.ggplot()
+
+        save_plot(
+            filename = file.path(base_output_dir, "differential_clustering_heatmap"),
+            plot = heatmap_differential_clustering,
+            width = 10,
+            height = max(6, nrow(significant_markers) * 0.3),
+            create_dir = TRUE
+        )
+    } else {
+        warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
+    }
+}
+```
+
+## Differential Colocalization Analysis
+
+Statistical test (typically Wilcoxon) between conditions
+
+```{r}
+#| label: statistical_testing_differential_colocalization
+
+
+differential_colocalization_analysis <-
+    names(markers_to_test) |>
+    map(function(x) {
+        tryCatch(
+            {
+                # Store markers in a variable to ensure proper evaluation in lazy query context
+                # Convert to character vector to ensure proper SQL translation
+                markers_vec <- as.character(markers_to_test[[x]])
+                proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
+                    lazy = TRUE,
+                    meta_data_columns = c("sample_alias", "condition")
+                ) |>
+                    filter(marker_1 %in% markers_vec) |>
+                    filter(marker_2 %in% markers_vec) |>
+                    collect()
+
+                res <- DifferentialProximityAnalysis(proximity_data,
+                    contrast_column = "condition",
+                    reference = "resting",
+                    proximity_metric = "log2_ratio",
+                    min_n_obs = 5
+                )
+                res$group <- x
+                return(res)
+            },
+            error = function(e) {
+                message(paste("Error for cell type:", x, ":", e))
+                return(NULL)
+            }
+        )
+    }) |>
+    bind_rows() |>
+    mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+
+dir.create(here::here("results/03_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
+
+# Save the differential abundance analysis results to a file
+saveRDS(differential_colocalization_analysis, here::here("results/03_statistical_testing/colocalization/differential_colocalization_analysis.rds"))
+
+# Save the differential abundance analysis results to a csv file
+write.csv(differential_colocalization_analysis, here::here("results/03_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
+
+
+```
+
+### Summarizing plots
+
+Here we create summarizing plots for the differential colocalization analysis results:
+
+1. **Colocalization Heatmap**: Displays the difference in medians for marker pairs, with dot size representing statistical significance (-log10 adjusted p-value). This provides an overview of which marker pairs are differentially colocalized for each cell type and condition comparison.
+
+```{r}
+#| label: statistical_testing_differential_colocalization_plot
+
+# Extract target and reference condition names from the dataframe
+reference_condition <- "resting" # Known from DifferentialProximityAnalysis call
+
+# Determine target conditions - check if dataframe has target/contrast columns
+if ("target" %in% colnames(differential_colocalization_analysis)) {
+    # If target column exists, get all unique targets
+    target_conditions <- unique(differential_colocalization_analysis$target)
+    target_conditions <- target_conditions[!is.na(target_conditions)]
+} else {
+    stop("Could not find target column. Available columns: ", paste(colnames(differential_colocalization_analysis), collapse = ", "))
+}
+
+# Get unique cell types (groups)
+unique_cell_types <- unique(differential_colocalization_analysis$group)
+unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
+
+# Loop through each target condition and cell type combination
+for (target_condition in target_conditions) {
+    # Create directory name based on target and reference
+    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+    base_output_dir <- here::here("results/03_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
+
+    for (cell_type in unique_cell_types) {
+        # Create directory for this cell type
+        cell_type_dir <- file.path(base_output_dir, cell_type)
+        dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+
+        # Filter data for this target and cell type
+        # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
+        plot_data <- differential_colocalization_analysis %>%
+            filter(group == cell_type & target == target_condition) %>%
+            mutate(diff_median = case_when(
+                p_adj < 0.001 ~ diff_median,
+                TRUE ~ 0
+            ))
+
+        # Skip if no data for this combination
+        if (nrow(plot_data) == 0) {
+            warning(paste("No data found for target condition:", target_condition, "and cell type:", cell_type))
+            next
+        }
+
+        # Create the colocalization heatmap plot
+        # Add title indicating the target and cell type
+        colocalization_heatmap <- ColocalizationHeatmap(
+            plot_data,
+            marker1_col = "marker_1",
+            marker2_col = "marker_2",
+            value_col = "diff_median",
+            type = "dots",
+            size_col_transform = \(x) {
+                -log10(x)
+            }
+        ) &
+            labs(size = "-log10(p_adj)") &
+            scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data$p_adj)))) &
+            labs(fill = "Difference\nin medians") &
+            labs(
+                title = paste("Differential Colocalization Analysis", sep = ""),
+                subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = "")
+            )
+
+        # Save the plot
+        save_plot(
+            filename = file.path(cell_type_dir, "colocalization_heatmap"),
+            plot = colocalization_heatmap,
+            width = 10,
+            height = 8,
+            create_dir = FALSE # Directory already created
+        )
+    }
+}
+```
