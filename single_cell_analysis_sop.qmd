@@ -263,7 +263,7 @@ First we inspect the read depth per cell. This is a measure of the total number 
 
 read_depth_plot <- create_violin_plot(
     data = pg_data,
-    var_x = "sample_id",
+    var_x = "sample_alias",
     var_y = "reads_in_component",
     palette = sample_palette,
     data_cutoff = 0.999 # Remove a few outlier cells that make the plot hard to read
@@ -291,7 +291,7 @@ Here we inspect the average k-core per cell. The k-core is a measure of the conn
 # Average k-core per cell
 average_k_core_plot <- create_violin_plot(
     data = pg_data,
-    var_x = "sample_id",
+    var_x = "sample_alias",
     var_y = "average_k_core",
     palette = sample_palette,
     data_cutoff = 1
@@ -319,7 +319,7 @@ pg_data <-
         pg_data,
         FetchData(
             pg_data,
-            c("sample_id", "k_core_1", "n_umi")
+            c("sample_alias", "k_core_1", "n_umi")
         ) |>
             mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi) |>
             select(prc_dangling_nodes),
@@ -328,7 +328,7 @@ pg_data <-
 
 dangling_nodes_plot <- create_violin_plot(
     data = pg_data,
-    var_x = "sample_id",
+    var_x = "sample_alias",
     var_y = "prc_dangling_nodes",
     palette = sample_palette,
     data_cutoff = 1
@@ -356,7 +356,7 @@ In PNA experiments, isotype control antibodies are included to measure unspecifi
 
 isotype_fraction_plot <- create_violin_plot(
     data = pg_data,
-    var_x = "sample_id",
+    var_x = "sample_alias",
     var_y = "isotype_fraction",
     palette = sample_palette,
     data_cutoff = 1
@@ -379,7 +379,7 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 ```{r}
 #| label: quality_control_tau_score
 
-tau_score_plot <- TauPlot(pg_data, group_by = "sample_id")
+tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
 
 save_plot(
     filename = here::here(
@@ -419,7 +419,7 @@ isotype_fraction_threshold <- 0.005
 # Plot to visualize thresholds as a violin plot
 n_umi_plot <- create_violin_plot(
     data = pg_data,
-    var_x = "sample_id",
+    var_x = "sample_alias",
     var_y = "n_umi",
     palette = sample_palette,
     data_cutoff = 0.999
