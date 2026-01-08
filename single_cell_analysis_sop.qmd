@@ -2043,7 +2043,54 @@ for (cell_type in cell_types) {
 }
 ```
 
+## Colocalization Score network
 
+```{r}
+#| label: colocalization_score_network
+
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+
+proximity_data <- ProximityScores(pg_data,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias")
+) |>
+    filter(marker_1 %in% network_markers) |>
+    filter(marker_2 %in% network_markers) |>
+    collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+rm(proximity_data)
+gc()
+
+df_net <- summary_proximity_data %>%
+    filter(abs(mean_log2_ratio) > 0.1 & pct_detected > 0.5) %>%
+    mutate(from = marker_1, to = marker_2) %>%
+    select(from, to, mean_log2_ratio, sample_alias)
+
+tidygraph::as_tbl_graph(df_net) %>%
+    ggraph(layout = "kk") +
+    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+    geom_node_label(aes(label = name), size = 2.5) +
+    scale_edge_color_gradientn(
+        colours = c(
+            "#1F395F", "#647DA3", "#BBC8DA",
+            "#FFFFFF", "#F0BCCD", "#BE5F7D",
+            "#781534"
+        ),
+        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    ) +
+    scale_x_continuous(expand = c(0.2, 0.2)) +
+    scale_y_continuous(expand = c(0.2, 0.2)) +
+    facet_edges(~sample_alias, nrow = 2) +
+    theme(
+        aspect.ratio = 1,
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.spacing = unit(1, "lines")
+    ) +
+    labs(edge_color = "Mean\nlog2 ratio") +
+    guides(edge_width = "none")
+
+```
 
 ## Differential Clustering Analysis
 
