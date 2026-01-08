@@ -45,14 +45,14 @@ source("scripts/helpers.R")
 
 ### Read metadata file
 
-To handle file paths and sample-specific data, we need to read in a metadata file. This is a csv file with at least the following columns: sample_id, sample_alias, file_path and condition. Sample_id is a short sample ID (e.g. S1, S2, S3), sample_alias is a more descriptive sample alias (e.g. S1_resting, S2_PHA), file_path is the full path to the PNA file and condition describes the sample treatment or condition. Additional columns can be added as needed and will be added to the PNA object as metadata columns. For example, you might want to add a column for the condition, the donor, the time point, the treatment, etc.
+To handle file paths and sample-specific data, we need to read in a metadata file. This is a csv file with at least the following columns: sample_id, sample_alias, file_path and condition. Sample_id is a short sample ID (e.g. S1, S2, S3), sample_alias is a more descriptive sample alias (e.g. S1_resting, S2_PHA), file_path is the name of the PXL file in the data folder and condition describes the sample treatment or condition. Additional columns can be added as needed and will be added to the PNA object as metadata columns. For example, you might want to add a column for the condition, the donor, the time point, the treatment, etc.
 
 Here is an example of what your metadata file should look like:
 
 sample_id,sample_alias,file_path,condition,donor
-S1,S1_resting,Users/username/data/S1_resting.pna,resting,D1
-S2,S2_PHA,Users/username/data/S2_PHA.pna,stimulated,D2
-S3,S3_IL2,Users/username/data/S3_IL2.pna,IL2_treated,D1
+S1,S1_resting,S1_resting.pxl,resting,D1
+S2,S2_PHA,S2_PHA.pxl,stimulated,D2
+S3,S3_IL2,S3_IL2.pxl,IL2_treated,D1
 
 
 ```{r}
