@@ -2067,7 +2067,7 @@ df_net <- summary_proximity_data %>%
     mutate(from = marker_1, to = marker_2) %>%
     select(from, to, mean_log2_ratio, sample_alias)
 
-tidygraph::as_tbl_graph(df_net) %>%
+network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
     ggraph(layout = "kk") +
     geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
     geom_node_label(aes(label = name), size = 2.5) +
@@ -2089,6 +2089,14 @@ tidygraph::as_tbl_graph(df_net) %>%
     ) +
     labs(edge_color = "Mean\nlog2 ratio") +
     guides(edge_width = "none")
+
+save_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types")),
+    plot = network_plot_all_cell_types,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+)
 
 ```
 
