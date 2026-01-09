@@ -1327,6 +1327,156 @@ save_plot(
 
 ```
 
+# Abundance Distribution
+
+This section plots the abundance distribution of all markers, both in normalized CLR values as raw count data. It does this in different ways: per sample, per cell type, per condition, and per cell type faceted by sample. 
+It produces a lot of plots, so it may take a while to run!
+
+```{r}
+
+# PLOTTING THIS TAKES AROUND 10-15 MIN!
+
+all_markers <- rownames(pg_data)
+
+# Collect CLR and count data
+plot_data_clr <- FetchData(pg_data, c("sample_alias", "cell_annotation", "condition", all_markers), layer = "data")
+plot_data_cts <- FetchData(pg_data, c("sample_alias", "cell_annotation", "condition", all_markers), layer = "counts")
+
+# concatenate CLR and count data
+plot_data <- plot_data_clr |>
+    pivot_longer(cols = all_of(all_markers), names_to = "marker", values_to = "abundance") |>
+    mutate(metric = "CLR") |>
+    bind_rows(
+        plot_data_cts |>
+            pivot_longer(cols = all_of(all_markers), names_to = "marker", values_to = "abundance") |>
+            mutate(metric = "Count")
+    )
+
+plot_data |>
+    group_by(marker) |>
+    group_map(~ {
+        # Create 2 plots for the current marker: CLR per sample, Count per sample
+        p_clr_per_sample <- .x |> # .x contains the grouped data for the current marker
+            filter(metric == "CLR") |>
+            ggplot(aes(sample_alias, abundance, color = sample_alias)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = sample_palette) +
+            labs(title = "CLR per sample", x = "", y = "CLR")
+
+        # Set y limits to the 99th percentile per marker
+        count_99 <- quantile(.x$abundance[.x$metric == "Count"], 0.99, na.rm = TRUE)
+        p_count_per_sample <- .x |>
+            filter(metric == "Count") |>
+            ggplot(aes(sample_alias, abundance, color = sample_alias)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = sample_palette) +
+            labs(title = "Count per sample", x = "", y = "Count") +
+            ylim(NA, count_99)
+
+        # Save per sample plots
+        p_abundance_distribution_per_sample <- (p_clr_per_sample + p_count_per_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+        save_plot(
+            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_sample/{.y}_abundance_distribution_per_sample")),
+            width = 12,
+            height = 8,
+            plot = p_abundance_distribution_per_sample
+        )
+
+        # Create 2 plots for the current marker: CLR per cell type, Count per cell type
+        p_clr_per_celltype <- .x |>
+            filter(metric == "CLR") |>
+            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = cell_palette) +
+            labs(title = "CLR per cell type", x = "", y = "CLR")
+
+        p_count_per_celltype <- .x |>
+            filter(metric == "Count") |>
+            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = cell_palette) +
+            labs(title = "Count per cell type", x = "", y = "Count") +
+            ylim(NA, count_99)
+
+        # Save per cell type plots
+        p_abundance_distribution_per_celltype <- (p_clr_per_celltype + p_count_per_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+        save_plot(
+            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_cell_type/{.y}_abundance_distribution_per_celltype")),
+            width = 12,
+            height = 8,
+            plot = p_abundance_distribution_per_celltype
+        )
+
+        # Save per cell type plots faceted by sample
+        p_clr_per_celltype_faceted_by_sample <- .x |>
+            filter(metric == "CLR") |>
+            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = cell_palette) +
+            labs(title = "CLR per cell type", x = "", y = "CLR") +
+            facet_wrap(~sample_alias)
+
+        p_count_per_celltype_faceted_by_sample <- .x |>
+            filter(metric == "Count") |>
+            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = cell_palette) +
+            labs(title = "Count per cell type", x = "", y = "Count") +
+            facet_wrap(~sample_alias) +
+            ylim(NA, count_99)
+
+        p_abundance_distribution_per_celltype_faceted_by_sample <- (p_clr_per_celltype_faceted_by_sample + p_count_per_celltype_faceted_by_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+        save_plot(
+            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_cell_type_faceted_by_sample/{.y}_abundance_distribution_per_celltype_faceted_by_sample")),
+            width = 16,
+            height = 12,
+            plot = p_abundance_distribution_per_celltype_faceted_by_sample
+        )
+
+        # Create plots for the current marker: CLR per condition per cell type, Count per condition per cell type
+        p_clr_per_condition_faceted_by_celltype <- .x |>
+            filter(metric == "CLR") |>
+            ggplot(aes(condition, abundance, color = condition)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = condition_palette) +
+            labs(title = "CLR per condition per cell type", x = "", y = "CLR") +
+            facet_wrap(~cell_annotation)
+
+        p_count_per_condition_faceted_by_celltype <- .x |>
+            filter(metric == "Count") |>
+            ggplot(aes(condition, abundance, color = condition)) +
+            ggbeeswarm::geom_quasirandom() +
+            theme_bw() +
+            theme(legend.position = "none") +
+            scale_color_manual(values = condition_palette) +
+            labs(title = "Count per condition per cell type", x = "", y = "Count") +
+            facet_wrap(~cell_annotation) +
+            ylim(NA, count_99)
+
+        p_abundance_distribution_per_condition_faceted_by_celltype <- (p_clr_per_condition_faceted_by_celltype + p_count_per_condition_faceted_by_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+        save_plot(
+            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_condition_faceted_by_celltype/{.y}_abundance_distribution_per_condition_faceted_by_celltype")),
+            width = 16,
+            height = 12,
+            plot = p_abundance_distribution_per_condition_faceted_by_celltype
+        )
+    })
+
+```
 
 # Statistical testing
 
