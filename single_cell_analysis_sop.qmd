@@ -122,7 +122,6 @@ for (col in colnames(metadata |> select(-file_path))) {
 }
 ```
 
-
 ## Theme
 
 Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  The color palettes are created using the `PixelgenAccentColors()` function from the `pixelatorR` package, which creates a set of 12 colors for each hue. The color palettes are then used to color the clusters and conditions in the plots.
@@ -476,6 +475,10 @@ save_plot(
 
 ### Molecule Rank plots
 
+This section generates molecule rank plots that visualize the distribution of UMI counts across cells, ranked by abundance. These plots are essential for evaluating the quality thresholds defined earlier and ensuring they appropriately capture the cell population distribution. The plots display cells ranked by their UMI count (from highest to lowest) on a log-log scale, with threshold lines overlaid to visualize how many cells would be retained or excluded based on the current threshold settings.
+
+Setting correct thresholds is crucial for downstream analysis quality. Thresholds that are too lenient may retain low-quality cells, cell fragments, or doublets that can confound biological interpretation. Conversely, thresholds that are too stringent may exclude valid cells and reduce statistical power. The annotated plots generated here provide detailed per-sample statistics showing the number of cells that fall within the acceptable range versus those that would be excluded as outliers (both low and high UMI counts). Users should carefully review these plots and adjust thresholds as needed to balance data quality with cell retention, ensuring that the thresholds appropriately reflect the characteristics of their specific dataset.
+
 ```{r}
 #| label: quality_control_select_cells
 
@@ -647,11 +650,11 @@ save_plot(
 
 ## Select markers (optional)
 
-In this step we select markers that we believe are positive in at least one cell population in the dataset. There is not a single correct way to do this, and the selection criteria will depend on the dataset and experimental design. 
+This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
 
-Here we provide one example approach based on counts per million (CPM) thresholds. We calculate the 50th percentile (the median) and 95th percentile of CPM per marker across all cells, and select markers that have a 95th percentile above a certain threshold. The threshold can be adjusted according to the background levels of the dataset, and according to expectations of which markers should be present in the data.
+This section demonstrates one approach using counts per million (CPM) thresholds. For each marker, the 50th percentile (median) and 95th percentile of CPM values are calculated across all cells. Markers are then selected based on whether their 95th percentile exceeds a defined threshold. This threshold should be adjusted according to the background signal levels in the dataset and the expected presence of specific markers based on the experimental design.
 
-In this example, we set the threshold to 500 CPM at the 95th percentile. This means, in effect, that we let cell populations composing at least 5% of the sample dictate which markers we use in later analysis steps. Comparing the 95th percentile to the 50th percentile also gives us an idea of how much the marker expression varies across cells.
+In the example provided here, the threshold is set to 500 CPM at the 95th percentile. This effectively means that markers are retained if they are expressed at detectable levels in cell populations comprising at least 5% of the sample. Comparing the 95th percentile to the 50th percentile (median) provides insight into the variability of marker expression across cells, helping to distinguish markers with consistent expression from those with highly variable or rare expression patterns.
 
 
 ```{r}
@@ -726,9 +729,9 @@ selected_markers <-
 
 ## Normalize and scale data
 
-We typically normalize PNA data using CLR over margin 2, which means that we normalize the counts per cell by the geometric mean across all markers. This normalization method accounts for differences in sequencing depth between cells, while preserving relative differences in marker abundance within each cell.
+PNA data are normalized using centered log-ratio (CLR) transformation over margin 2, which normalizes counts per cell by dividing by the geometric mean across all markers for that cell. This normalization approach effectively accounts for differences in sequencing depth between cells while preserving the relative differences in marker abundance within each cell. The CLR transformation is particularly well-suited for compositional data like PNA, where the total signal per cell can vary substantially.
 
-Next, we perform Z-score scaling of the normalized data per marker, which centers the data around zero and scales it to unit variance. This step is important for downstream dimensionality reduction and clustering, as it ensures that all markers contribute equally to the analysis, regardless of their absolute abundance levels.
+Following normalization, the data are Z-score scaled per marker. This transformation centers each marker's distribution around zero and scales it to unit variance. Z-score scaling is essential for downstream dimensionality reduction and clustering analyses, as it ensures that all markers contribute equally to the analysis regardless of their absolute abundance levels. Without this scaling step, highly abundant markers would dominate the analysis, potentially obscuring important signals from less abundant but biologically relevant markers.
 
 ```{r}
 #| label: data_processing_normalize_scale
@@ -744,11 +747,11 @@ pg_data <-
 
 ## Dimensionality reduction
 
-Next, we perform a Principal Component Analysis (PCA) to extract the main axes of variation in the data. We typically use the first 10-20 principal components (PCs) for downstream analysis, but this number can be adjusted based on the dataset and experimental design. A rule of thumb is that the selected PCs should explain a substantial portion of the total variance in the data, while avoiding overfitting or noise. Oftentimes PCs correspond to technical effects, cell states, or experiment effects in the data, and so this number can be adjusted e.g. according to expectations on the number of cell states one expects.
+Principal Component Analysis (PCA) is performed to extract the main axes of variation in the data. The first 10-20 principal components (PCs) are typically used for downstream analysis, though this number should be adjusted based on the specific dataset and experimental design. As a general guideline, the selected PCs should explain a substantial portion of the total variance while avoiding overfitting to noise. Principal components often capture technical effects, cell states, or experimental conditions, so the number of PCs can be adjusted according to the expected number of cell states or the complexity of the experimental design. The number of PCs is set to 20 by default, but can be adjusted as needed.
 
-Here we use the marker selection we previously performed to select markers for PCA. This step is optional, but can help to reduce noise and improve the interpretability of the results.
+If marker selection was performed in the Quality Control section, those selected markers can be used for PCA instead of all markers. This optional step helps reduce noise from low-abundance or non-informative markers and can improve the interpretability of the results. 
 
-After PCA, we perform Uniform Manifold Approximation and Projection (UMAP) to visualize the data in a low-dimensional space. UMAP is a non-linear dimensionality reduction technique that preserves both local and global structure in the data, making it well-suited for visualizing complex datasets such as single-cell PNA data.
+Following PCA, Uniform Manifold Approximation and Projection (UMAP) is applied to visualize the data in a two-dimensional space. UMAP is a non-linear dimensionality reduction technique that preserves both local neighborhood structure and global relationships in the data. This makes it particularly well-suited for visualizing complex single-cell PNA datasets, where it can reveal cell type clusters and relationships that may not be apparent in higher-dimensional space. The number of neighbors is set to 30 by default, but can be adjusted as needed.
 
 ```{r}
 #| label: data_processing_dimensionality_reduction
@@ -822,13 +825,13 @@ save_plot(
 
 ## Data harmonization (optional)
 
-If your experiment contains multiple samples with similar cell types, but these cell types for one reason or other do not cluster together well, it can be beneficial to harmonize the data. Data harmonization aims to align similar cell types across samples such that they cluster together, which can help to understand which cell types are shared between samples, even if they have somewhat different protein profile. This is particularly useful in experiments with batch effects or technical variability, or biological effects such as donor variability or stimulation perturbations. 
+Data harmonization is an optional step that can be beneficial when experiments contain multiple samples with similar cell types that do not cluster together well due to technical or biological variability. The goal of data harmonization is to align similar cell types across samples so that they cluster together, facilitating the identification of shared cell types between samples even when they exhibit somewhat different protein expression profiles. This approach is particularly useful in experiments with batch effects, technical variability, or biological sources of variation such as donor differences or stimulation-induced perturbations.
 
-Here we use the Harmony algorithm to harmonize the data based on the sample ID, but any sample metadata can be used. 
+The Harmony algorithm is used here to harmonize the data based on sample ID, though any sample metadata column can be specified for harmonization. The algorithm integrates information across samples while preserving biological variation within each sample.
 
-We recommend inspecting the harmonized data carefully to ensure that the harmonization has not removed important biological variation, and that similar cell types are indeed clustering together across samples. In many cases it is not necessary to harmonize the data, especially if the samples are already well-mixed and similar cell types cluster together without harmonization.
+**Important considerations**: Users should carefully inspect the harmonized data to ensure that harmonization has not removed important biological variation and that similar cell types are indeed clustering together across samples. In many cases, harmonization is not necessary, particularly when samples are already well-mixed and similar cell types cluster together naturally without harmonization.
 
-The harmonization we perform here results in a harmonized dimensional reduction called "harmony", which we use for UMAP visualization and clustering. However, the original data remains unchanged, so we really only use the harmonization to find common cell identities between samples.
+The harmonization process generates a new dimensional reduction called "harmony", which is used for UMAP visualization and clustering. Importantly, the original data remains unchanged, so harmonization is used primarily to identify common cell identities across samples rather than to modify the underlying expression data.
 
 ```{r}
 #| label: data_processing_data_harmonization
@@ -885,7 +888,11 @@ save_plot(
 
 ## Clustering
 
-After dimensionality reduction, we perform clustering. We essentially group cells that are similar in their protein profiles into clusters, which we can later annotate as cell types or cell states. We will perform Leiden clustering on a nearest neighbor graph constructed from the PCA or Harmony reduction. The resolution parameter controls the granularity of the clustering, with higher values resulting in more clusters. The optimal resolution depends on the dataset and experimental design, and can be determined by inspecting the clustering results at different resolutions.
+Clustering groups cells with similar protein expression profiles into discrete clusters, which can subsequently be annotated as distinct cell types or cell states. This step is essential for identifying and characterizing the cellular composition of the dataset.
+
+Leiden clustering is performed on a k-nearest neighbor graph constructed from the dimensionality-reduced space (either PCA or Harmony reduction). The algorithm identifies communities of cells that are more densely connected to each other than to cells in other communities, effectively partitioning the data into biologically meaningful groups.
+
+The resolution parameter is a critical hyperparameter that controls the granularity of the clustering. Higher resolution values result in more fine-grained clusters (more clusters with fewer cells each), while lower values produce broader clusters (fewer clusters with more cells each). The optimal resolution depends on the dataset characteristics, experimental design, and the level of cellular heterogeneity expected. Users should test multiple resolution values (e.g., 0.3, 0.5, 0.7, 1.0) and visually inspect the resulting clusters on UMAP plots to determine which resolution best captures the expected cell type diversity without over-clustering or under-clustering the data. The resolution is set to 0.5 by default, but can be adjusted as needed.
 
 ```{r}
 #| label: data_processing_clustering
@@ -935,7 +942,7 @@ save_plot(
 
 ## Marker Distribution on UMAP
 
-Here we visualize the distribution of all markers on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types.
+This section visualizes the distribution of all markers on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
 
 ```{r}
 #| label: data_processing_marker_distribution_on_umap
@@ -956,13 +963,11 @@ for (marker in rownames(pg_data)) {
 
 ### Automatic annotation
 
-Here we perform an automatic cell annotation by matching each cell’s protein profile to annotated 
-cells in a reference PBMC dataset. These automated labels should be interpreted with caution, particularly when the 
-sample composition differs substantially from the PBMC reference. In such cases, for example in certain stimulated 
-samples or cell lines, the annotations may be unreliable. We therefore recommend performing cell annotation as part of 
-downstream analysis to ensure accurate and context-appropriate results.
+Automatic cell annotation is performed by matching each cell's protein expression profile to annotated cells in a reference peripheral blood mononuclear cell (PBMC) dataset using label transfer methods. This approach provides an initial annotation framework that can accelerate the annotation process.
 
-Automated annotation can be a great head start in annotation, but all annotations should at least be inspected and verified, and adjusted when necessary. 
+**Important limitations and recommendations**: Automated annotations should be interpreted with caution, particularly when the sample composition differs substantially from the PBMC reference dataset. For example, annotations may be unreliable for certain stimulated samples, cell lines, or tissues that are not well-represented in the reference. Additionally, automated methods may not capture cell states or subtypes that are specific to the experimental conditions.
+
+All automated annotations should be inspected, verified, and adjusted as necessary. Automated annotation serves as a starting point, but manual review and refinement are essential to ensure accurate and context-appropriate cell type assignments. Users should carefully examine marker expression patterns, differential abundance results, and UMAP visualizations to validate and refine the automated annotations before proceeding with downstream analyses. 
 
 ```{r}
 #| label: data_processing_annotation
@@ -1117,9 +1122,19 @@ save_plot(
 
 ```
 
-### Manual annotation
+### Discover Cell Types
 
-While automated annotation provides a useful starting point, manual inspection and refinement are essential to ensure accuracy. Manual annotation can be guided by examining patterns of protein expression across clusters, for example by identifying differential abundance between clusters or evaluating the average abundance of specific markers. By carefully considering these expression patterns, you can adjust or confirm automated labels and capture cell populations that may not be well represented in the reference dataset. In this section, we  perform manual annotation based on these principles, complementing the automated approach and improving overall confidence in cell type assignments.
+While automated annotation provides a useful starting point, manual inspection and refinement are essential to ensure accuracy. This section performs differential abundance analysis to identify cluster-specific marker expression patterns, which serve as the foundation for manual cell type identification.
+
+Differential abundance analysis compares marker expression levels between each cluster and all other clusters, identifying markers that are significantly enriched or depleted in specific clusters. These cluster-specific markers are characteristic features that can be used to identify cell types based on known marker expression patterns. For example, clusters enriched for CD3, CD4, and CD45RA are likely CD4+ T cells, while clusters showing high CD19 and CD20 expression are likely B cells.
+
+The analysis generates two key visualizations to aid interpretation:
+
+1. **Heatmap of differential abundance**: Displays the average CLR difference for each marker across all clusters, allowing rapid identification of which markers distinguish each cluster. Markers with strong positive values (red) are enriched in that cluster, while negative values (blue) indicate depletion. This overview helps identify clusters with similar marker profiles and those with unique expression signatures.
+
+2. **Volcano plots per cluster**: Show the relationship between statistical significance and effect size for each marker within each cluster. Markers in the upper right or upper left quadrants (high significance and large effect size) are the most reliable cluster-defining markers. The top markers for each cluster are automatically labeled, facilitating quick identification of key distinguishing features.
+
+By examining these differential abundance patterns in conjunction with known cell type marker expression profiles, users can systematically identify cell types. The process involves: (1) identifying clusters with characteristic marker combinations, (2) comparing these patterns to established cell type markers, (3) confirming or adjusting automated annotations based on the observed expression patterns, and (4) identifying cell populations that may not be well-represented in the reference dataset. This evidence-based approach complements automated annotation and significantly improves confidence in cell type assignments.
 
 ```{r}
 #| label: data_processing_manual_annotation
@@ -1195,7 +1210,7 @@ save_plot(
 
 #### Marker abundance visualization
 
-Here we visualize the abundance of selected markers across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
+Here we visualize the abundance of **selected markers** across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
 ```{r}
 #| label: data_processing_marker_abundance_visualization
@@ -1288,9 +1303,11 @@ save_plot(
 
 #### Set manual annotation 
 
-Here we set the actual annotations based on the previous inspection of marker abundance. Each cluster gets its own annotation, and oftentimes several clusters can have the same annotation. 
+This step assigns cell type annotations to each cluster based on the comprehensive analysis performed in the previous sections. The annotations are determined by integrating information from multiple sources: (1) differential abundance analysis identifying cluster-specific markers, (2) marker abundance visualizations on UMAP and per cluster, (3) automated annotation results, and (4) knowledge of established cell type marker expression patterns.
 
-Please change the annotations according to your data.
+Each cluster is assigned a cell type label through a named vector that maps cluster numbers to cell type annotations. Importantly, multiple clusters can share the same annotation when they represent different states or subtypes of the same cell type. For example, multiple clusters may all be annotated as "CD4 T" if they represent different CD4+ T cell subsets (e.g., naive, memory, effector) that are distinguished by additional markers but share core CD4+ T cell characteristics.
+
+Users must carefully review all available evidence (differential abundance results, marker visualizations, automated annotations, and biological knowledge) before assigning annotations. The example annotations provided here are placeholders and must be customized according to the specific characteristics of your dataset. Incorrect annotations will propagate through all downstream analyses, so this step requires careful consideration and validation.
 
 ```{r}
 #| label: data_processing_set_manual_annotation
@@ -1361,8 +1378,18 @@ save_plot(
 
 # Abundance Distribution
 
-This section plots the abundance distribution of all markers, both in normalized CLR values as raw count data. It does this in different ways: per sample, per cell type, per condition, and per cell type faceted by sample. 
-It produces a lot of plots, so it may take a while to run!
+This section generates comprehensive abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
+
+The analysis creates multiple visualization perspectives to facilitate comprehensive exploration:
+
+- **Per sample**: Shows marker abundance distributions across all samples, useful for identifying sample-specific expression patterns or batch effects
+- **Per cell type**: Displays marker expression within each annotated cell type, helping to identify cell type-specific markers and expression heterogeneity
+- **Per cell type faceted by sample**: Combines cell type and sample information, enabling identification of cell type-specific expression differences between samples
+- **Per condition faceted by cell type**: Compares marker abundance across experimental conditions within each cell type, useful for identifying condition-specific changes in marker expression
+
+These visualizations are valuable for quality control, marker validation, and exploratory data analysis. They help identify markers with high variability, detect potential batch effects, and understand marker expression patterns across the experimental design.
+
+**Note**: This section generates a large number of plots (multiple plots per marker), which can take approximately 10-15 minutes to complete depending on the number of markers and cells in the dataset.
 
 ```{r}
 
