@@ -1920,130 +1920,143 @@ save_plot(
 
 Show the colocalization heatmap for the markers expressed in the cluster/cell type for that cell type, separated per sample but in the same order.
 
+## Colocalization Score network
+
+### Per Sample
+
 ```{r}
-#| label: data_processing_raw_colocalization_heatmap
+#| label: colocalization_score_network
 
-cell_types <- unique(pg_data[[]]$cell_annotation)
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+only_positive_mean_log2_ratio <- TRUE
+# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
+metric_threshold <- 0.1
+pct_detected_threshold <- 0.5
 
-for (cell_type in cell_types) {
-    expressed_markers <- markers_to_test[[cell_type]]
-    pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
+proximity_data <- ProximityScores(pg_data,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias")
+) |>
+    filter(marker_1 %in% network_markers) |>
+    filter(marker_2 %in% network_markers) |>
+    collect()
 
-    proximity_data <- ProximityScores(pg_data_cell_type,
-        lazy = TRUE,
-        meta_data_columns = c("sample_alias")
-    ) |>
-        filter(marker_1 %in% expressed_markers) |>
-        filter(marker_2 %in% expressed_markers) |>
-        collect()
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+rm(proximity_data)
+gc()
 
-    summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
-    rm(proximity_data)
-    gc()
+# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
+df_net <- summary_proximity_data %>%
+    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+    filter(pct_detected > pct_detected_threshold) %>%
+    mutate(from = marker_1, to = marker_2) %>%
+    select(from, to, mean_log2_ratio, sample_alias)
 
-    # Create reference heatmap to determine marker ordering
-    reference_heatmap <- ColocalizationHeatmap(
-        summary_proximity_data |> filter(sample_alias == "S1_resting"),
-        marker1_col = "marker_1",
-        marker2_col = "marker_2",
-        value_col = "mean_log2_ratio",
-        size_col = "pct_detected",
-        type = "dots",
-        cluster_cols = TRUE,
-        cluster_rows = TRUE,
-        legend_range = c(-1, 1)
-    )
+network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
+    ggraph(layout = "kk") +
+    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+    geom_node_label(aes(label = name), size = 2.5) +
+    scale_edge_color_gradientn(
+        colours = c(
+            "#1F395F", "#647DA3", "#BBC8DA",
+            "#FFFFFF", "#F0BCCD", "#BE5F7D",
+            "#781534"
+        ),
+        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    ) +
+    scale_x_continuous(expand = c(0.2, 0.2)) +
+    scale_y_continuous(expand = c(0.2, 0.2)) +
+    facet_edges(~sample_alias, nrow = 2) +
+    theme(
+        aspect.ratio = 1,
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.spacing = unit(1, "lines")
+    ) +
+    labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
+    guides(edge_width = "none")
 
-    marker_order <- layer_scales(reference_heatmap)$y$range$range
+save_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
+    plot = network_plot_all_cell_types,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+)
 
-    # Calculate global scale ranges across all samples for this cell type
-    # This ensures all heatmaps have consistent color and size scales for fair comparison
-    global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
-    global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
-
-    # Use symmetric range for value scale (centered around 0) to match legend_range behavior
-    # But ensure it covers the actual data range
-    max_abs_value <- max(abs(global_value_range))
-    global_value_limits <- c(-max_abs_value, max_abs_value)
-
-    # Get all unique sample_alias values
-    unique_samples <- unique(summary_proximity_data$sample_alias)
-
-    # Create heatmaps for each sample using the reference marker order
-    # Store plots in a list to combine them later
-    sample_heatmaps <- list()
-
-    for (sample in unique_samples) {
-        # Filter data for current sample
-        sample_data <- summary_proximity_data |> filter(sample_alias == sample)
-
-        tmp_plot <- ColocalizationHeatmap(
-            sample_data,
-            marker1_col = "marker_1",
-            marker2_col = "marker_2",
-            value_col = "mean_log2_ratio",
-            size_col = "pct_detected",
-            type = "dots",
-            cluster_cols = FALSE,
-            cluster_rows = FALSE,
-            legend_range = global_value_limits # Use global range for consistent scaling
-        ) +
-            ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
-
-        # Apply the reference marker order to the ggplot object by modifying the scales
-        # This ensures all heatmaps have consistent marker ordering
-        tmp_plot <- tmp_plot +
-            scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
-            scale_y_discrete(limits = rev(marker_order), drop = FALSE)
-
-        # Ensure consistent scales across all samples for fair comparison
-        # The legend_range parameter already handles the value scale, but we need to ensure
-        # the size scale is also consistent. Try both fill and color aesthetics in case
-        # ColocalizationHeatmap uses either one
-        plot_layers <- tmp_plot$layers
-        has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-        has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
-
-        # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-        if (has_fill) {
-            tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-        if (has_color && !has_fill) {
-            tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-
-        # Ensure consistent size scale across all samples
-        tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
-
-        # Save individual plot
-        save_plot(
-            filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
-            plot = tmp_plot,
-            width = 10,
-            height = 8,
-            create_dir = TRUE
-        )
-
-        # Store plot for combined visualization
-        sample_heatmaps[[sample]] <- tmp_plot
-    }
-
-    # Create a combined plot with all samples side by side
-    # Use patchwork to combine plots (install with: install.packages("patchwork"))
-    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
-
-    # Save the combined plot
-    save_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
-        plot = combined_plot,
-        width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
-        height = 16, # Adjust height based on number of samples
-        create_dir = TRUE
-    )
-}
 ```
 
 
+### Per Sample
+
+```{r}
+#| label: colocalization_score_network
+
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+cell_type_of_interest <- "CD8 T"
+only_positive_mean_log2_ratio <- TRUE
+# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
+metric_threshold <- 0.1
+pct_detected_threshold <- 0.5
+
+proximity_data <- ProximityScores(pg_data,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias", "cell_annotation")
+) |>
+    filter(cell_annotation == cell_type_of_interest) |>
+    filter(marker_1 %in% network_markers) |>
+    filter(marker_2 %in% network_markers) |>
+    filter(marker_1 != marker_2) |>
+    collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+rm(proximity_data)
+gc()
+
+# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
+df_net <- summary_proximity_data %>%
+    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+    filter(pct_detected > pct_detected_threshold) %>%
+    mutate(from = marker_1, to = marker_2) %>%
+    select(from, to, mean_log2_ratio, sample_alias)
+
+network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
+    ggraph(layout = "kk") +
+    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+    geom_node_label(aes(label = name), size = 2.5) +
+    scale_edge_color_gradientn(
+        colours = c(
+            "#1F395F", "#647DA3", "#BBC8DA",
+            "#FFFFFF", "#F0BCCD", "#BE5F7D",
+            "#781534"
+        ),
+        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    ) +
+    scale_x_continuous(expand = c(0.2, 0.2)) +
+    scale_y_continuous(expand = c(0.2, 0.2)) +
+    facet_edges(~sample_alias, nrow = 2) +
+    theme(
+        aspect.ratio = 1,
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.spacing = unit(1, "lines")
+    ) +
+    labs(
+        edge_color = "Mean\nlog2 ratio",
+        title = glue::glue("Colocalization Score Network {cell_type_of_interest}"),
+        subtitle = glue::glue(
+            "Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}"
+        )
+    ) +
+    guides(edge_width = "none")
+
+save_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
+    plot = network_plot_cell_type_of_interest,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+)
+
+```
 
 ## Differential Clustering Analysis
 
