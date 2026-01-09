@@ -13,13 +13,15 @@ execute:
   message: false
 ---
 
-This SOP describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is meant to be interactive and modular, allowing users to adapt it to their specific experimental designs and analysis needs.
+This SOP describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is interactive and modular, requiring manual intervention at several key steps. 
+
+**Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
 # Setup
 
 ## Load packages and helper functions
 
-A set of commonly used packages and helper functions are loaded here. These are used throughout the analysis and can be customized as needed.
+A set of commonly used packages and helper functions are loaded here. The core packages include `tidyverse` for data manipulation and visualization, `Seurat` for single-cell analysis infrastructure, `pixelatorR` for PNA-specific analysis functions, `harmony` for batch correction and data harmonization, `ComplexHeatmap` for advanced heatmap visualizations, and `here` for robust file path management. Additionally, custom helper functions are sourced from `scripts/helpers.R` to provide reusable plotting and data processing utilities. These packages and functions are used throughout the analysis workflow. Users can customize the helper functions in `scripts/helpers.R` to adapt them to their specific needs or add additional utility functions as required.
 
 ```{r}
 #| label: setup_packages
@@ -45,15 +47,23 @@ source("scripts/helpers.R")
 
 ### Read metadata file
 
-To handle file paths and sample-specific data, we need to read in a metadata file. This is a csv file with at least the following columns: sample_id, sample_alias, file_path and condition. Sample_id is a short sample ID (e.g. S1, S2, S3), sample_alias is a more descriptive sample alias (e.g. S1_resting, S2_PHA), file_path is the name of the PXL file in the data folder and condition describes the sample treatment or condition. Additional columns can be added as needed and will be added to the PNA object as metadata columns. For example, you might want to add a column for the condition, the donor, the time point, the treatment, etc.
+To handle file paths and sample-specific data, a metadata file must be provided as a CSV file. The metadata file must contain the following required columns:
 
-Here is an example of what your metadata file should look like:
+- **`sample_id`**: A short sample identifier (e.g., `S1`, `S2`, `S3`)
+- **`sample_alias`**: A more descriptive sample name (e.g., `S1_resting`, `S2_PHA`, `S3_IL2`)
+- **`file_path`**: The filename of the PXL file located in the `data` folder (e.g., `S1_resting.pxl`)
+- **`condition`**: The sample treatment or experimental condition (e.g., `resting`, `stimulated`, `IL2_treated`)
 
+Additional columns can be added as needed (e.g., `donor`, `time_point`, `batch`, `replicate`) and will automatically be incorporated into the PNA object as metadata columns for downstream analysis.
+
+**Example metadata file:**
+
+```csv
 sample_id,sample_alias,file_path,condition,donor
 S1,S1_resting,S1_resting.pxl,resting,D1
 S2,S2_PHA,S2_PHA.pxl,stimulated,D2
 S3,S3_IL2,S3_IL2.pxl,IL2_treated,D1
-
+```
 
 ```{r}
 #| label: setup_read_metadata
@@ -69,6 +79,8 @@ print(metadata)
 ```
 
 ### Load and merge data
+
+This step loads each PXL file specified in the metadata and merges them into a single combined PNA object. First, each PXL file is read using `ReadPNA_Seurat()`, which creates a Seurat-compatible PNA object for each sample. Proximity scores are not loaded at this stage (`load_proximity_scores = FALSE`) to reduce memory usage, as they can be computed later if needed. The individual PNA objects are then merged using Seurat's `merge()` function, which combines all samples into a single object. During merging, the `sample_id` from the metadata is automatically appended to each cell's identifier to ensure unique cell names across samples. Finally, `JoinLayers()` consolidates any split layers in the merged object, ensuring all data is accessible in a unified structure.
 
 ```{r}
 #| label: setup_merge_data
@@ -89,6 +101,8 @@ pg_data <-
 ```
 
 ### Add metadata
+
+This step adds sample-level metadata from the metadata file to each cell in the PNA object. The process extracts the existing cell metadata from the PNA object and converts it to a tibble format. The `sample_id` is then extracted from each cell's identifier by removing the last 17 characters. The metadata from the CSV file (excluding the `file_path` column, which is not needed in the cell metadata) is then left-joined to the cell metadata based on matching `sample_id` values. Finally, the enriched metadata is converted back to a data frame with cell identifiers as rownames and assigned back to the PNA object's metadata slot. A sanity check is performed to verify that the metadata was correctly added by displaying cross-tabulations of metadata columns.
 
 ```{r}
 #| label: setup_add_metadata
@@ -111,7 +125,7 @@ for (col in colnames(metadata |> select(-file_path))) {
 
 ## Theme
 
-Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  
+Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  The color palettes are created using the `PixelgenAccentColors()` function from the `pixelatorR` package, which creates a set of 12 colors for each hue. The color palettes are then used to color the clusters and conditions in the plots.
 
 ```{r}
 #| label: setup_theme
@@ -247,7 +261,14 @@ cell_palette <-
 
 # Quality Control
 
-In Quality Control we inspect certain metrics that are indicative of the quality of the data per sample and/or per cell. Based on these metrics we can decide whether to remove cells from the dataset before proceeding with data processing.
+Quality control is a critical step that ensures only high-quality cells are included in downstream analyses. This section systematically evaluates multiple quality metrics at both the sample and cell level to identify and exclude low-quality cells, cell fragments, doublets, and technical artifacts. The quality metrics examined include:
+
+- **Read depth**: The total number of reads per cell, which reflects sequencing depth and overall data quality
+- **Graph connectivity**: Metrics such as average k-core and percentage of dangling nodes, which assess the quality of the protein interaction network structure
+- **Unspecific background**: The fraction of isotype control signal, which quantifies non-specific binding and background noise
+- **Tau score**: A measure of protein composition heterogeneity that helps identify cells with abnormal marker expression profiles
+
+These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, users can identify cells that should be excluded from the dataset. The actual filtering of cells based on these thresholds is performed during the Data Processing stage, allowing users to review the quality metrics and adjust thresholds as needed before applying filters.
 
 ## Read Depth
 
@@ -369,6 +390,8 @@ save_plot(
 
 ## Tau score
 
+**Should we keep this as SOP?**
+
 The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
 
 ```{r}
@@ -390,18 +413,22 @@ save_plot(
 
 ## Select cells
 
-In the next steps, we will decide which cells to retain for downstream analysis. Our goal is to exclude cells that:
+In the following steps, we will determine which cells to retain for downstream analysis. The objective is to remove cells that are likely to represent poor-quality data based on the following criteria:
 
-- Are unusually small, which could indicate cell fragments
-- Are unusually large, which may represent cell doublets or technical artefacts
-- Show high levels of nonspecific background, as indicated by elevated isotype marker signal
-- Display abnormal marker expression profiles, as identified by the tau score
+- Unusually small cells, which may indicate cell fragments
+- Unusually large cells, which may represent doublets or technical artifacts
+- Cells with high levels of nonspecific background, as evidenced by elevated isotype marker signal
+- Cells with abnormal marker expression profiles, as indicated by the tau score
 
-We will start by visually inspecting these quality metrics. Cells that do not meet our defined thresholds will be excluded during the Data Processing stage.
+We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds will be excluded during the Data Processing stage.
 
 ### Define thresholds
 
-Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples.
+Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
+
+- **`n_umi_min_threshold`**: The minimum number of UMI counts per cell. Cells with fewer than this number of UMI counts are likely to be cell fragments.
+- **`n_umi_max_threshold`**: The maximum number of UMI counts per cell. Cells with more than this number of UMI counts are likely to be doublets or technical artifacts.
+- **`isotype_fraction_threshold`**: The maximum fraction of UMI counts that can be attributed to isotype control antibodies. Cells with more than this fraction of UMI counts attributed to isotype control antibodies are likely to have high levels of nonspecific background.
 
 ```{r}
 #| label: quality_control_define_thresholds
@@ -410,6 +437,11 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 n_umi_min_threshold <- 15000
 n_umi_max_threshold <- 200000
 isotype_fraction_threshold <- 0.005
+```
+
+
+```{r}
+#| label: quality_control_n_umi_plot
 
 # Plot to visualize thresholds as a violin plot
 n_umi_plot <- create_violin_plot(
