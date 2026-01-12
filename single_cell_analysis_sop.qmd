@@ -102,7 +102,7 @@ pg_data <-
 
 ### Add metadata
 
-This step adds sample-level metadata from the metadata file to each cell in the PNA object. The process extracts the existing cell metadata from the PNA object and converts it to a tibble format. The `sample_id` is then extracted from each cell's identifier by removing the last 17 characters. The metadata from the CSV file (excluding the `file_path` column, which is not needed in the cell metadata) is then left-joined to the cell metadata based on matching `sample_id` values. Finally, the enriched metadata is converted back to a data frame with cell identifiers as rownames and assigned back to the PNA object's metadata slot. A sanity check is performed to verify that the metadata was correctly added by displaying cross-tabulations of metadata columns.
+This step adds sample-level metadata from the metadata file to each cell in the PNA object. The process extracts the existing cell metadata from the PNA object and converts it to a tibble format. The `sample_id` is then extracted from each cell's identifier by removing the last 18 characters. The metadata from the CSV file (excluding the `file_path` column, which is not needed in the cell metadata) is then left-joined to the cell metadata based on matching `sample_id` values. Finally, the enriched metadata is converted back to a data frame with cell identifiers as rownames and assigned back to the PNA object's metadata slot. A sanity check is performed to verify that the metadata was correctly added by displaying cross-tabulations of metadata columns.
 
 ```{r}
 #| label: setup_add_metadata
@@ -111,7 +111,7 @@ This step adds sample-level metadata from the metadata file to each cell in the 
 pg_data[[]] <-
     pg_data[[]] |>
     as_tibble(rownames = "cell_id") |>
-    mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 17 characters from the cell_id to get the sample_id
+    mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 18 characters from the cell_id to get the sample_id
     left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
     column_to_rownames("cell_id")
 
