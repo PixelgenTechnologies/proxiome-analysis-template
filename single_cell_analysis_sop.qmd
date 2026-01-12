@@ -389,8 +389,6 @@ save_plot(
 
 ## Tau score
 
-**Should we keep this as SOP?**
-
 The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
 
 ```{r}
@@ -823,7 +821,7 @@ save_plot(
 )
 ```
 
-## Data harmonization (optional)
+## Data harmonization
 
 Data harmonization is an optional step that can be beneficial when experiments contain multiple samples with similar cell types that do not cluster together well due to technical or biological variability. The goal of data harmonization is to align similar cell types across samples so that they cluster together, facilitating the identification of shared cell types between samples even when they exhibit somewhat different protein expression profiles. This approach is particularly useful in experiments with batch effects, technical variability, or biological sources of variation such as donor differences or stimulation-induced perturbations.
 
@@ -1107,11 +1105,14 @@ cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_ann
     scale_y_continuous(labels = scales::percent_format()) +
     scale_fill_manual(values = cell_palette) +
     theme_bw() +
-    labs(
-        title = "Cell type composition per sample",
-        x = "Sample",
-        y = "Cell type fraction"
+    theme(
+        axis.text.x = element_text(angle = 60, hjust = 1)
     )
+labs(
+    title = "Cell type composition per sample",
+    x = "Sample",
+    y = "Cell type fraction"
+)
 save_plot(
     filename = here::here("results/02_data_processing/annotation_plots/data_processing_cell_type_composition_per_sample"),
     width = 6,
@@ -1153,6 +1154,8 @@ diff_abundant_markers_cluster <-
     ) |>
     as_tibble() |>
     rename(marker = gene)
+
+write_csv(diff_abundant_markers_cluster, here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster.csv"))
 
 # Heatmap of differential abundance markers per cluster
 differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_cluster |>
