@@ -2127,10 +2127,135 @@ save_plot(
 )
 ```
 
-
 ### Per cluster/cell type
 
 Show the colocalization heatmap for the markers expressed in the cluster/cell type for that cell type, separated per sample but in the same order.
+
+```{r}
+#| label: data_processing_raw_colocalization_heatmap
+
+cell_types <- unique(pg_data[[]]$cell_annotation)
+
+for (cell_type in cell_types) {
+    expressed_markers <- markers_to_test[[cell_type]]
+    pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
+
+    proximity_data <- ProximityScores(pg_data_cell_type,
+        lazy = TRUE,
+        meta_data_columns = c("sample_alias")
+    ) |>
+        filter(marker_1 %in% expressed_markers) |>
+        filter(marker_2 %in% expressed_markers) |>
+        collect()
+
+    summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+    rm(proximity_data)
+    gc()
+
+    # Create reference heatmap to determine marker ordering
+    reference_heatmap <- ColocalizationHeatmap(
+        summary_proximity_data |> filter(sample_alias == "S1_resting"),
+        marker1_col = "marker_1",
+        marker2_col = "marker_2",
+        value_col = "mean_log2_ratio",
+        size_col = "pct_detected",
+        type = "dots",
+        cluster_cols = TRUE,
+        cluster_rows = TRUE,
+        legend_range = c(-1, 1)
+    )
+
+    marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+    # Calculate global scale ranges across all samples for this cell type
+    # This ensures all heatmaps have consistent color and size scales for fair comparison
+    global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
+    global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+
+    # Use symmetric range for value scale (centered around 0) to match legend_range behavior
+    # But ensure it covers the actual data range
+    max_abs_value <- max(abs(global_value_range))
+    global_value_limits <- c(-max_abs_value, max_abs_value)
+
+    # Get all unique sample_alias values
+    unique_samples <- unique(summary_proximity_data$sample_alias)
+
+    # Create heatmaps for each sample using the reference marker order
+    # Store plots in a list to combine them later
+    sample_heatmaps <- list()
+
+    for (sample in unique_samples) {
+        # Filter data for current sample
+        sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+
+        tmp_plot <- ColocalizationHeatmap(
+            sample_data,
+            marker1_col = "marker_1",
+            marker2_col = "marker_2",
+            value_col = "mean_log2_ratio",
+            size_col = "pct_detected",
+            type = "dots",
+            cluster_cols = FALSE,
+            cluster_rows = FALSE,
+            legend_range = global_value_limits # Use global range for consistent scaling
+        ) +
+            ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
+
+        # Apply the reference marker order to the ggplot object by modifying the scales
+        # This ensures all heatmaps have consistent marker ordering
+        tmp_plot <- tmp_plot +
+            scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+            scale_y_discrete(limits = rev(marker_order), drop = FALSE)
+
+        # Ensure consistent scales across all samples for fair comparison
+        # The legend_range parameter already handles the value scale, but we need to ensure
+        # the size scale is also consistent. Try both fill and color aesthetics in case
+        # ColocalizationHeatmap uses either one
+        plot_layers <- tmp_plot$layers
+        has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+        has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+
+        # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+        if (has_fill) {
+            tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+        }
+        if (has_color && !has_fill) {
+            tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+        }
+
+        # Ensure consistent size scale across all samples
+        tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
+
+        # Save individual plot
+        save_plot(
+            filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
+            plot = tmp_plot,
+            width = 10,
+            height = 8,
+            create_dir = TRUE
+        )
+
+        # Store plot for combined visualization
+        sample_heatmaps[[sample]] <- tmp_plot
+    }
+
+    # Create a combined plot with all samples side by side
+    # Use patchwork to combine plots (install with: install.packages("patchwork"))
+    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
+
+    # Save the combined plot
+    save_plot(
+        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
+        plot = combined_plot,
+        width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
+        height = 16, # Adjust height based on number of samples
+        create_dir = TRUE
+    )
+}
+```
+
+
+
 
 ## Colocalization Score network
 
