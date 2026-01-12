@@ -17,9 +17,77 @@ This SOP describes a standard workflow for analyzing single cell PNA data using 
 
 **Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
-# Setup
+## Project Folder Structure
 
-## Load packages and helper functions
+This analysis workflow creates the following folder structure for organizing input data and output results:
+
+```
+.
+├── data/                                    # Input data directory
+│   ├── metadata.csv                         # Sample metadata file (required)
+│   └── *.pxl                                # PNA data files (one per sample)
+│
+├── scripts/                                 # Analysis scripts
+│   └── helpers.R                            # Helper functions for plotting and data processing
+│
+└── results/                                 # Output results directory
+    ├── 01_quality_control/                   # Section 1: Quality control metrics and plots
+    │   ├── violin_plots/                     # Violin plots for QC metrics (read depth, k-core, etc.)
+    │   ├── molecule_rank_plots/              # Molecule rank plots with thresholds
+    │   ├── tau_plots/                        # Tau score plots for outlier detection
+    │   └── marker_selection_plots/           # Marker selection plots (CPM-based filtering)
+    │
+    ├── 02_data_processing/                   # Section 2: Data processing outputs
+    │   ├── dimensionality_reduction_plots/    # PCA, UMAP, and Harmony plots
+    │   ├── clustering_plots/                  # Cluster visualization plots
+    │   ├── marker_umap_plots/                 # Individual marker UMAP plots
+    │   └── annotation_plots/                  # Cell type annotation plots and tables
+    │
+    ├── 03_abundance/                          # Section 3: Abundance distribution analysis
+    │   └── abundance_plots/
+    │       ├── per_sample/                    # Abundance plots per sample
+    │       ├── per_cell_type/                 # Abundance plots per cell type
+    │       ├── per_cell_type_faceted_by_sample/  # Faceted plots by sample
+    │       └── per_condition_faceted_by_celltype/ # Faceted plots by condition
+    │
+    ├── 04_raw_proximity/                      # Section 4: Colocalization score analysis
+    │   ├── raw_colocalization_heatmap_per_sample/      # Heatmaps per sample
+    │   ├── raw_colocalization_heatmap_per_cell_type/   # Heatmaps per cell type
+    │   │   └── {cell_type}/                  # Subdirectories for each cell type
+    │   └── colocalization_score_network/      # Network visualizations
+    │       ├── colocalization_score_network_all_cell_types/
+    │       └── colocalization_score_network_per_cell_type/
+    │           └── {cell_type_of_interest}/
+    │
+    └── 05_statistical_testing/                # Section 5: Statistical testing results
+        ├── abundance/                         # Differential abundance analysis
+        │   ├── differential_abundance_analysis.csv
+        │   ├── differential_abundance_analysis.rds
+        │   └── differential_abundance_plots/
+        │       └── {condition}_vs_{reference}/ # Comparison-specific plots
+        │
+        ├── clustering/                        # Differential clustering analysis
+        │   ├── differential_clustering_analysis.csv
+        │   ├── differential_clustering_analysis.rds
+        │   └── differential_clustering_plots/
+        │       └── {condition}_vs_{reference}/
+        │
+        └── colocalization/                    # Differential colocalization analysis
+            ├── differential_colocalization_analysis.csv
+            ├── differential_colocalization_analysis.rds
+            └── differential_colocalization_plots/
+                └── {condition}_vs_{reference}/
+                    └── {cell_type}/          # Plots per cell type
+```
+
+**Note:** 
+- The `{condition}`, `{reference}`, `{cell_type}`, and `{cell_type_of_interest}` placeholders represent dynamically created subdirectories based on your experimental conditions and cell types.
+- All plots are saved in both PDF and PNG formats for easy viewing and publication.
+- Folder numbering (01-05) corresponds to the analysis sections, ensuring consistent organization throughout the workflow.
+
+# 0. Setup
+
+## 0.1. Load packages and helper functions
 
 A set of commonly used packages and helper functions are loaded here. The core packages include `tidyverse` for data manipulation and visualization, `Seurat` for single-cell analysis infrastructure, `pixelatorR` for PNA-specific analysis functions, `harmony` for batch correction and data harmonization, `ComplexHeatmap` for advanced heatmap visualizations, and `here` for robust file path management. Additionally, custom helper functions are sourced from `scripts/helpers.R` to provide reusable plotting and data processing utilities. These packages and functions are used throughout the analysis workflow. Users can customize the helper functions in `scripts/helpers.R` to adapt them to their specific needs or add additional utility functions as required.
 
@@ -43,9 +111,9 @@ source("scripts/helpers.R")
 
 ```
 
-## Create the PNA object
+## 0.2. Create the PNA object
 
-### Read metadata file
+### 0.2.1. Read metadata file
 
 To handle file paths and sample-specific data, a metadata file must be provided as a CSV file. The metadata file must contain the following required columns:
 
@@ -78,7 +146,7 @@ check_metadata_columns(metadata)
 print(metadata)
 ```
 
-### Load and merge data
+### 0.2.2. Load and merge data
 
 This step loads each PXL file specified in the metadata and merges them into a single combined PNA object. First, each PXL file is read using `ReadPNA_Seurat()`, which creates a Seurat-compatible PNA object for each sample. Proximity scores are not loaded at this stage (`load_proximity_scores = FALSE`) to reduce memory usage, as they can be computed later if needed. The individual PNA objects are then merged using Seurat's `merge()` function, which combines all samples into a single object. During merging, the `sample_id` from the metadata is automatically appended to each cell's identifier to ensure unique cell names across samples. Finally, `JoinLayers()` consolidates any split layers in the merged object, ensuring all data is accessible in a unified structure.
 
@@ -100,7 +168,7 @@ pg_data <-
     JoinLayers()
 ```
 
-### Add metadata
+### 0.2.3. Add metadata
 
 This step adds sample-level metadata from the metadata file to each cell in the PNA object. The process extracts the existing cell metadata from the PNA object and converts it to a tibble format. The `sample_id` is then extracted from each cell's identifier by removing the last 18 characters. The metadata from the CSV file (excluding the `file_path` column, which is not needed in the cell metadata) is then left-joined to the cell metadata based on matching `sample_id` values. Finally, the enriched metadata is converted back to a data frame with cell identifiers as rownames and assigned back to the PNA object's metadata slot. A sanity check is performed to verify that the metadata was correctly added by displaying cross-tabulations of metadata columns.
 
@@ -122,7 +190,7 @@ for (col in colnames(metadata |> select(-file_path))) {
 }
 ```
 
-## Theme
+## 0.3. Theme
 
 Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  The color palettes are created using the `PixelgenAccentColors()` function from the `pixelatorR` package, which creates a set of 12 colors for each hue. The color palettes are then used to color the clusters and conditions in the plots.
 
@@ -258,7 +326,7 @@ cell_palette <-
     )
 ```
 
-# Quality Control
+# 1. Quality control
 
 Quality control is a critical step that ensures only high-quality cells are included in downstream analyses. This section systematically evaluates multiple quality metrics at both the sample and cell level to identify and exclude low-quality cells, cell fragments, doublets, and technical artifacts. The quality metrics examined include:
 
@@ -269,7 +337,7 @@ Quality control is a critical step that ensures only high-quality cells are incl
 
 These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, users can identify cells that should be excluded from the dataset. The actual filtering of cells based on these thresholds is performed during the Data Processing stage, allowing users to review the quality metrics and adjust thresholds as needed before applying filters.
 
-## Read Depth
+## 1.1. Read Depth
 
 First we inspect the read depth per cell. This is a measure of the total number of reads in the cell, and is a good indicator of the quality of the data. The higher the read depth, the better the data quality.
 
@@ -296,7 +364,7 @@ save_plot(
 
 ```
 
-## Connectivity
+## 1.2. Connectivity
 
 Here we inspect the average k-core per cell. The k-core is a measure of the connectivity of the cell, and is another good indicator of the quality of the data. The higher the average k-core, the better the graph connectivity.
 
@@ -361,10 +429,9 @@ save_plot(
 
 ```
 
-## Unspecific Background
+## 1.3. Unspecific Background
 
 In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
-
 
 ```{r}
 #| label: quality_control_isotype_controls
@@ -387,7 +454,7 @@ save_plot(
 )
 ```
 
-## Tau score
+## 1.4. Tau score
 
 The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
 
@@ -407,8 +474,7 @@ save_plot(
 )
 ```
 
-
-## Select cells
+## 1.5. Select cells for downstream analysis
 
 In the following steps, we will determine which cells to retain for downstream analysis. The objective is to remove cells that are likely to represent poor-quality data based on the following criteria:
 
@@ -419,7 +485,7 @@ In the following steps, we will determine which cells to retain for downstream a
 
 We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds will be excluded during the Data Processing stage.
 
-### Define thresholds
+### 1.5.1. Define thresholds
 
 Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
 
@@ -471,7 +537,7 @@ save_plot(
 
 ```
 
-### Molecule Rank plots
+### 1.5.2. Molecule Rank plots
 
 This section generates molecule rank plots that visualize the distribution of UMI counts across cells, ranked by abundance. These plots are essential for evaluating the quality thresholds defined earlier and ensuring they appropriately capture the cell population distribution. The plots display cells ranked by their UMI count (from highest to lowest) on a log-log scale, with threshold lines overlaid to visualize how many cells would be retained or excluded based on the current threshold settings.
 
@@ -646,7 +712,7 @@ save_plot(
 )
 ```
 
-## Select markers for dimensionality reduction (optional)
+## 1.6. Select markers for dimensionality reduction (optional)
 
 This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
 
@@ -723,9 +789,9 @@ selected_markers <-
 
 ```
 
-# Data processing
+# 2. Data processing
 
-## Normalize and scale data
+## 2.1. Normalize and scale data
 
 PNA data are normalized using centered log-ratio (CLR) transformation over margin 2, which normalizes counts per cell by dividing by the geometric mean across all markers for that cell. This normalization approach effectively accounts for differences in sequencing depth between cells while preserving the relative differences in marker abundance within each cell. The CLR transformation is particularly well-suited for compositional data like PNA, where the total signal per cell can vary substantially.
 
@@ -743,7 +809,7 @@ pg_data <-
 
 ```
 
-## Dimensionality reduction
+## 2.2. Dimensionality reduction
 
 Principal Component Analysis (PCA) is performed to extract the main axes of variation in the data. The first 10-20 principal components (PCs) are typically used for downstream analysis, though this number should be adjusted based on the specific dataset and experimental design. As a general guideline, the selected PCs should explain a substantial portion of the total variance while avoiding overfitting to noise. Principal components often capture technical effects, cell states, or experimental conditions, so the number of PCs can be adjusted according to the expected number of cell states or the complexity of the experimental design. The number of PCs is set to 20 by default, but can be adjusted as needed.
 
@@ -821,7 +887,7 @@ save_plot(
 )
 ```
 
-## Data harmonization
+## 2.3. Data harmonization
 
 Data harmonization is an optional step that can be beneficial when experiments contain multiple samples with similar cell types that do not cluster together well due to technical or biological variability. The goal of data harmonization is to align similar cell types across samples so that they cluster together, facilitating the identification of shared cell types between samples even when they exhibit somewhat different protein expression profiles. This approach is particularly useful in experiments with batch effects, technical variability, or biological sources of variation such as donor differences or stimulation-induced perturbations.
 
@@ -884,7 +950,7 @@ save_plot(
 
 ```
 
-## Clustering
+## 2.4. Clustering
 
 Clustering groups cells with similar protein expression profiles into discrete clusters, which can subsequently be annotated as distinct cell types or cell states. This step is essential for identifying and characterizing the cellular composition of the dataset.
 
@@ -938,7 +1004,7 @@ save_plot(
 
 ```
 
-## Marker Distribution on UMAP
+## 2.5. Marker Distribution on UMAP
 
 This section visualizes the distribution of all markers on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
 
@@ -957,9 +1023,9 @@ for (marker in rownames(pg_data)) {
 }
 ```
 
-## Annotation
+## 2.6. Annotation
 
-### Automatic annotation
+### 2.6.1. Automatic annotation
 
 Automatic cell annotation is performed by matching each cell's protein expression profile to annotated cells in a reference peripheral blood mononuclear cell (PBMC) dataset using label transfer methods. This approach provides an initial annotation framework that can accelerate the annotation process.
 
@@ -1123,7 +1189,7 @@ save_plot(
 
 ```
 
-### Discover Cell Types
+### 2.6.2. Discover Cell Types
 
 While automated annotation provides a useful starting point, manual inspection and refinement are essential to ensure accuracy. This section performs differential abundance analysis to identify cluster-specific marker expression patterns, which serve as the foundation for manual cell type identification.
 
@@ -1211,7 +1277,7 @@ save_plot(
 )
 ```
 
-#### Marker abundance visualization
+### 2.6.3. Marker abundance visualization
 
 Here we visualize the abundance of **selected markers** across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
@@ -1304,7 +1370,7 @@ save_plot(
 
 ```
 
-#### Set manual annotation 
+### 2.6.4. Set manual annotation 
 
 This step assigns cell type annotations to each cluster based on the comprehensive analysis performed in the previous sections. The annotations are determined by integrating information from multiple sources: (1) differential abundance analysis identifying cluster-specific markers, (2) marker abundance visualizations on UMAP and per cluster, (3) automated annotation results, and (4) knowledge of established cell type marker expression patterns.
 
@@ -1344,7 +1410,7 @@ pg_data[[]] <-
 
 ```
 
-### Comparison 
+### 2.6.5. Comparison of automatic and manual annotations
 
 Compare automatic and manual annotations. This can help to identify any discrepancies between the two methods, and can be used to refine the manual annotations.
 
@@ -1379,7 +1445,7 @@ save_plot(
 
 ```
 
-# Abundance Distribution
+# 3. Abundance distribution
 
 This section generates comprehensive abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
 
@@ -1442,7 +1508,7 @@ plot_data |>
         # Save per sample plots
         p_abundance_distribution_per_sample <- (p_clr_per_sample + p_count_per_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
         save_plot(
-            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_sample/{.y}_abundance_distribution_per_sample")),
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_sample/{.y}_abundance_distribution_per_sample")),
             width = 12,
             height = 8,
             plot = p_abundance_distribution_per_sample
@@ -1471,7 +1537,7 @@ plot_data |>
         # Save per cell type plots
         p_abundance_distribution_per_celltype <- (p_clr_per_celltype + p_count_per_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
         save_plot(
-            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_cell_type/{.y}_abundance_distribution_per_celltype")),
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type/{.y}_abundance_distribution_per_celltype")),
             width = 12,
             height = 8,
             plot = p_abundance_distribution_per_celltype
@@ -1501,7 +1567,7 @@ plot_data |>
 
         p_abundance_distribution_per_celltype_faceted_by_sample <- (p_clr_per_celltype_faceted_by_sample + p_count_per_celltype_faceted_by_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
         save_plot(
-            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_cell_type_faceted_by_sample/{.y}_abundance_distribution_per_celltype_faceted_by_sample")),
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_sample/{.y}_abundance_distribution_per_celltype_faceted_by_sample")),
             width = 16,
             height = 12,
             plot = p_abundance_distribution_per_celltype_faceted_by_sample
@@ -1531,7 +1597,7 @@ plot_data |>
 
         p_abundance_distribution_per_condition_faceted_by_celltype <- (p_clr_per_condition_faceted_by_celltype + p_count_per_condition_faceted_by_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
         save_plot(
-            filename = glue::glue(here::here("results/02_data_processing/abundance_plots/per_condition_faceted_by_celltype/{.y}_abundance_distribution_per_condition_faceted_by_celltype")),
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_condition_faceted_by_celltype/{.y}_abundance_distribution_per_condition_faceted_by_celltype")),
             width = 16,
             height = 12,
             plot = p_abundance_distribution_per_condition_faceted_by_celltype
@@ -1540,9 +1606,405 @@ plot_data |>
 
 ```
 
-# Statistical testing
 
-## Marker selection
+# 4. Colocalization score
+
+## 4.1. Heatmap of colocalization score
+
+### 4.1.1. Per Sample
+
+Show the colocalization heatmap for the markers expressed in the dataset, separated per sample but in the same order.
+
+```{r}
+#| label: data_processing_raw_colocalization_heatmap
+
+expressed_markers <- unique(unlist(markers_to_test))
+
+proximity_data <- ProximityScores(pg_data,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias")
+) |>
+    filter(marker_1 %in% expressed_markers) |>
+    filter(marker_2 %in% expressed_markers) |>
+    collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+rm(proximity_data)
+gc()
+
+# Create reference heatmap to determine marker ordering
+reference_heatmap <- ColocalizationHeatmap(
+    summary_proximity_data |> filter(sample_alias == "S1_resting"),
+    marker1_col = "marker_1",
+    marker2_col = "marker_2",
+    value_col = "mean_log2_ratio",
+    size_col = "pct_detected",
+    type = "dots",
+    cluster_cols = TRUE,
+    cluster_rows = TRUE,
+    legend_range = c(-1, 1)
+)
+
+marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+# Calculate global scale ranges across all samples
+# This ensures all heatmaps have consistent color and size scales for fair comparison
+global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
+global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+
+# Use symmetric range for value scale (centered around 0) to match legend_range behavior
+# But ensure it covers the actual data range
+max_abs_value <- max(abs(global_value_range))
+global_value_limits <- c(-max_abs_value, max_abs_value)
+
+# Get all unique sample_alias values
+unique_samples <- unique(summary_proximity_data$sample_alias)
+
+# Create heatmaps for each sample using the reference marker order
+# Store plots in a list to combine them later
+sample_heatmaps <- list()
+
+for (sample in unique_samples) {
+    # Filter data for current sample
+    sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+
+    tmp_plot <- ColocalizationHeatmap(
+        sample_data,
+        marker1_col = "marker_1",
+        marker2_col = "marker_2",
+        value_col = "mean_log2_ratio",
+        size_col = "pct_detected",
+        type = "dots",
+        cluster_cols = FALSE,
+        cluster_rows = FALSE,
+        legend_range = global_value_limits # Use global range for consistent scaling
+    ) +
+        ggtitle(glue::glue("Raw colocalization heatmap for {sample}"))
+
+    # Apply the reference marker order to the ggplot object by modifying the scales
+    # This ensures all heatmaps have consistent marker ordering
+    tmp_plot <- tmp_plot +
+        scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+        scale_y_discrete(limits = rev(marker_order), drop = FALSE)
+
+    # Ensure consistent scales across all samples for fair comparison
+    # The legend_range parameter already handles the value scale, but we need to ensure
+    # the size scale is also consistent. Try both fill and color aesthetics in case
+    # ColocalizationHeatmap uses either one
+    plot_layers <- tmp_plot$layers
+    has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+    has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+
+    # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+    if (has_fill) {
+        tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+    }
+    if (has_color && !has_fill) {
+        tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+    }
+
+    # Ensure consistent size scale across all samples
+    tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
+
+    # Save individual plot
+    save_plot(
+        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
+        plot = tmp_plot,
+        width = 10,
+        height = 8,
+        create_dir = TRUE
+    )
+
+    # Store plot for combined visualization
+    sample_heatmaps[[sample]] <- tmp_plot
+}
+
+# Create a combined plot with all samples side by side
+# Use patchwork to combine plots (install with: install.packages("patchwork"))
+combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
+
+# Save the combined plot
+save_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
+    plot = combined_plot,
+    width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
+    height = 16, # Adjust height based on number of samples
+    create_dir = TRUE
+)
+```
+
+### 4.1.2. Per cluster
+
+Show the colocalization heatmap for the markers expressed in the cluster/cell type for that cell type, separated per sample but in the same order.
+
+```{r}
+#| label: data_processing_raw_colocalization_heatmap
+
+cell_types <- unique(pg_data[[]]$cell_annotation)
+
+for (cell_type in cell_types) {
+    expressed_markers <- markers_to_test[[cell_type]]
+    pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
+
+    proximity_data <- ProximityScores(pg_data_cell_type,
+        lazy = TRUE,
+        meta_data_columns = c("sample_alias")
+    ) |>
+        filter(marker_1 %in% expressed_markers) |>
+        filter(marker_2 %in% expressed_markers) |>
+        collect()
+
+    summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+    rm(proximity_data)
+    gc()
+
+    # Create reference heatmap to determine marker ordering
+    reference_heatmap <- ColocalizationHeatmap(
+        summary_proximity_data |> filter(sample_alias == "S1_resting"),
+        marker1_col = "marker_1",
+        marker2_col = "marker_2",
+        value_col = "mean_log2_ratio",
+        size_col = "pct_detected",
+        type = "dots",
+        cluster_cols = TRUE,
+        cluster_rows = TRUE,
+        legend_range = c(-1, 1)
+    )
+
+    marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+    # Calculate global scale ranges across all samples for this cell type
+    # This ensures all heatmaps have consistent color and size scales for fair comparison
+    global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
+    global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+
+    # Use symmetric range for value scale (centered around 0) to match legend_range behavior
+    # But ensure it covers the actual data range
+    max_abs_value <- max(abs(global_value_range))
+    global_value_limits <- c(-max_abs_value, max_abs_value)
+
+    # Get all unique sample_alias values
+    unique_samples <- unique(summary_proximity_data$sample_alias)
+
+    # Create heatmaps for each sample using the reference marker order
+    # Store plots in a list to combine them later
+    sample_heatmaps <- list()
+
+    for (sample in unique_samples) {
+        # Filter data for current sample
+        sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+
+        tmp_plot <- ColocalizationHeatmap(
+            sample_data,
+            marker1_col = "marker_1",
+            marker2_col = "marker_2",
+            value_col = "mean_log2_ratio",
+            size_col = "pct_detected",
+            type = "dots",
+            cluster_cols = FALSE,
+            cluster_rows = FALSE,
+            legend_range = global_value_limits # Use global range for consistent scaling
+        ) +
+            ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
+
+        # Apply the reference marker order to the ggplot object by modifying the scales
+        # This ensures all heatmaps have consistent marker ordering
+        tmp_plot <- tmp_plot +
+            scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+            scale_y_discrete(limits = rev(marker_order), drop = FALSE)
+
+        # Ensure consistent scales across all samples for fair comparison
+        # The legend_range parameter already handles the value scale, but we need to ensure
+        # the size scale is also consistent. Try both fill and color aesthetics in case
+        # ColocalizationHeatmap uses either one
+        plot_layers <- tmp_plot$layers
+        has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+        has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+
+        # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+        if (has_fill) {
+            tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+        }
+        if (has_color && !has_fill) {
+            tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+        }
+
+        # Ensure consistent size scale across all samples
+        tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
+
+        # Save individual plot
+        save_plot(
+            filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
+            plot = tmp_plot,
+            width = 10,
+            height = 8,
+            create_dir = TRUE
+        )
+
+        # Store plot for combined visualization
+        sample_heatmaps[[sample]] <- tmp_plot
+    }
+
+    # Create a combined plot with all samples side by side
+    # Use patchwork to combine plots (install with: install.packages("patchwork"))
+    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
+
+    # Save the combined plot
+    save_plot(
+        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
+        plot = combined_plot,
+        width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
+        height = 16, # Adjust height based on number of samples
+        create_dir = TRUE
+    )
+}
+```
+
+
+## 4.2. Colocalization Score network
+
+### 4.2.1. Per Sample
+
+```{r}
+#| label: colocalization_score_network
+
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+only_positive_mean_log2_ratio <- TRUE
+# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
+metric_threshold <- 0.1
+pct_detected_threshold <- 0.5
+
+proximity_data <- ProximityScores(pg_data,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias")
+) |>
+    filter(marker_1 %in% network_markers) |>
+    filter(marker_2 %in% network_markers) |>
+    collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+rm(proximity_data)
+gc()
+
+# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
+df_net <- summary_proximity_data %>%
+    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+    filter(pct_detected > pct_detected_threshold) %>%
+    mutate(from = marker_1, to = marker_2) %>%
+    select(from, to, mean_log2_ratio, sample_alias)
+
+network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
+    ggraph(layout = "kk") +
+    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+    geom_node_label(aes(label = name), size = 2.5) +
+    scale_edge_color_gradientn(
+        colours = c(
+            "#1F395F", "#647DA3", "#BBC8DA",
+            "#FFFFFF", "#F0BCCD", "#BE5F7D",
+            "#781534"
+        ),
+        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    ) +
+    scale_x_continuous(expand = c(0.2, 0.2)) +
+    scale_y_continuous(expand = c(0.2, 0.2)) +
+    facet_edges(~sample_alias, nrow = 2) +
+    theme(
+        aspect.ratio = 1,
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.spacing = unit(1, "lines")
+    ) +
+    labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
+    guides(edge_width = "none")
+
+save_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
+    plot = network_plot_all_cell_types,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+)
+
+```
+
+
+### 4.2.2. Per Sample
+
+```{r}
+#| label: colocalization_score_network
+
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+cell_type_of_interest <- "CD8 T"
+only_positive_mean_log2_ratio <- TRUE
+# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
+metric_threshold <- 0.1
+pct_detected_threshold <- 0.5
+
+proximity_data <- ProximityScores(pg_data,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias", "cell_annotation")
+) |>
+    filter(cell_annotation == cell_type_of_interest) |>
+    filter(marker_1 %in% network_markers) |>
+    filter(marker_2 %in% network_markers) |>
+    filter(marker_1 != marker_2) |>
+    collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+rm(proximity_data)
+gc()
+
+# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
+df_net <- summary_proximity_data %>%
+    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+    filter(pct_detected > pct_detected_threshold) %>%
+    mutate(from = marker_1, to = marker_2) %>%
+    select(from, to, mean_log2_ratio, sample_alias)
+
+network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
+    ggraph(layout = "kk") +
+    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+    geom_node_label(aes(label = name), size = 2.5) +
+    scale_edge_color_gradientn(
+        colours = c(
+            "#1F395F", "#647DA3", "#BBC8DA",
+            "#FFFFFF", "#F0BCCD", "#BE5F7D",
+            "#781534"
+        ),
+        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    ) +
+    scale_x_continuous(expand = c(0.2, 0.2)) +
+    scale_y_continuous(expand = c(0.2, 0.2)) +
+    facet_edges(~sample_alias, nrow = 2) +
+    theme(
+        aspect.ratio = 1,
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.spacing = unit(1, "lines")
+    ) +
+    labs(
+        edge_color = "Mean\nlog2 ratio",
+        title = glue::glue("Colocalization Score Network {cell_type_of_interest}"),
+        subtitle = glue::glue(
+            "Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}"
+        )
+    ) +
+    guides(edge_width = "none")
+
+save_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
+    plot = network_plot_cell_type_of_interest,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+)
+
+```
+
+
+
+
+# 5. Statistical testing
+
+## 5.1. Marker selection
 
 Select markers to evaluate per cell type, based on:
 
@@ -1552,7 +2014,7 @@ Deviation from background levels (isotypes or ambient negative levels)
 
 Colocalization to isotypes
 
-### Colocalization with isotypes
+## 5.2. Colocalization with isotypes
 
 All filters can be used together or separately, but it's recommended to only use the background_threshold_pct filter. This filter is applied to the fraction of UMI counts which does not depend on the cell size (total number of molecules).
 
@@ -1728,7 +2190,7 @@ save_plot(
 
 ```
 
-## Differential abundance analysis
+## 5.3. Differential abundance analysis
 
 Statistical test (typically Wilcoxon) between conditions
 
@@ -1772,17 +2234,17 @@ differential_abundance_analysis <-
     bind_rows() |>
     mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
-dir.create(here::here("results/03_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here::here("results/05_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
 
 # Save the differential abundance analysis results to a file
-saveRDS(differential_abundance_analysis, here::here("results/03_statistical_testing/abundance/differential_abundance_analysis.rds"))
+saveRDS(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.rds"))
 
 # Save the differential abundance analysis results to a csv file
-write.csv(differential_abundance_analysis, here::here("results/03_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
+write.csv(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
 
 ```    
 
-### Summarizing plots
+### 5.3.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential abundance analysis results:
 
@@ -1838,7 +2300,7 @@ for (target_condition in target_conditions) {
 
     # Create directory name based on target and reference
     comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/03_statistical_testing/differential_abundance_plots", comparison_dir)
+    base_output_dir <- here::here("results/05_statistical_testing/differential_abundance_plots", comparison_dir)
 
     # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
     # This plot helps identify markers that are both significantly different and have large effect sizes
@@ -2002,400 +2464,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-
-## Raw Colocalization Heatmap
-
-### Per Sample
-
-Show the colocalization heatmap for the markers expressed in the dataset, separated per sample but in the same order.
-
-```{r}
-#| label: data_processing_raw_colocalization_heatmap
-
-expressed_markers <- unique(unlist(markers_to_test))
-
-proximity_data <- ProximityScores(pg_data,
-    lazy = TRUE,
-    meta_data_columns = c("sample_alias")
-) |>
-    filter(marker_1 %in% expressed_markers) |>
-    filter(marker_2 %in% expressed_markers) |>
-    collect()
-
-summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
-rm(proximity_data)
-gc()
-
-# Create reference heatmap to determine marker ordering
-reference_heatmap <- ColocalizationHeatmap(
-    summary_proximity_data |> filter(sample_alias == "S1_resting"),
-    marker1_col = "marker_1",
-    marker2_col = "marker_2",
-    value_col = "mean_log2_ratio",
-    size_col = "pct_detected",
-    type = "dots",
-    cluster_cols = TRUE,
-    cluster_rows = TRUE,
-    legend_range = c(-1, 1)
-)
-
-marker_order <- layer_scales(reference_heatmap)$y$range$range
-
-# Calculate global scale ranges across all samples
-# This ensures all heatmaps have consistent color and size scales for fair comparison
-global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
-global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
-
-# Use symmetric range for value scale (centered around 0) to match legend_range behavior
-# But ensure it covers the actual data range
-max_abs_value <- max(abs(global_value_range))
-global_value_limits <- c(-max_abs_value, max_abs_value)
-
-# Get all unique sample_alias values
-unique_samples <- unique(summary_proximity_data$sample_alias)
-
-# Create heatmaps for each sample using the reference marker order
-# Store plots in a list to combine them later
-sample_heatmaps <- list()
-
-for (sample in unique_samples) {
-    # Filter data for current sample
-    sample_data <- summary_proximity_data |> filter(sample_alias == sample)
-
-    tmp_plot <- ColocalizationHeatmap(
-        sample_data,
-        marker1_col = "marker_1",
-        marker2_col = "marker_2",
-        value_col = "mean_log2_ratio",
-        size_col = "pct_detected",
-        type = "dots",
-        cluster_cols = FALSE,
-        cluster_rows = FALSE,
-        legend_range = global_value_limits # Use global range for consistent scaling
-    ) +
-        ggtitle(glue::glue("Raw colocalization heatmap for {sample}"))
-
-    # Apply the reference marker order to the ggplot object by modifying the scales
-    # This ensures all heatmaps have consistent marker ordering
-    tmp_plot <- tmp_plot +
-        scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
-        scale_y_discrete(limits = rev(marker_order), drop = FALSE)
-
-    # Ensure consistent scales across all samples for fair comparison
-    # The legend_range parameter already handles the value scale, but we need to ensure
-    # the size scale is also consistent. Try both fill and color aesthetics in case
-    # ColocalizationHeatmap uses either one
-    plot_layers <- tmp_plot$layers
-    has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-    has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
-
-    # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-    if (has_fill) {
-        tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-    }
-    if (has_color && !has_fill) {
-        tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-    }
-
-    # Ensure consistent size scale across all samples
-    tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
-
-    # Save individual plot
-    save_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
-        plot = tmp_plot,
-        width = 10,
-        height = 8,
-        create_dir = TRUE
-    )
-
-    # Store plot for combined visualization
-    sample_heatmaps[[sample]] <- tmp_plot
-}
-
-# Create a combined plot with all samples side by side
-# Use patchwork to combine plots (install with: install.packages("patchwork"))
-combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
-
-# Save the combined plot
-save_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
-    plot = combined_plot,
-    width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
-    height = 16, # Adjust height based on number of samples
-    create_dir = TRUE
-)
-```
-
-### Per cluster/cell type
-
-Show the colocalization heatmap for the markers expressed in the cluster/cell type for that cell type, separated per sample but in the same order.
-
-```{r}
-#| label: data_processing_raw_colocalization_heatmap
-
-cell_types <- unique(pg_data[[]]$cell_annotation)
-
-for (cell_type in cell_types) {
-    expressed_markers <- markers_to_test[[cell_type]]
-    pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
-
-    proximity_data <- ProximityScores(pg_data_cell_type,
-        lazy = TRUE,
-        meta_data_columns = c("sample_alias")
-    ) |>
-        filter(marker_1 %in% expressed_markers) |>
-        filter(marker_2 %in% expressed_markers) |>
-        collect()
-
-    summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
-    rm(proximity_data)
-    gc()
-
-    # Create reference heatmap to determine marker ordering
-    reference_heatmap <- ColocalizationHeatmap(
-        summary_proximity_data |> filter(sample_alias == "S1_resting"),
-        marker1_col = "marker_1",
-        marker2_col = "marker_2",
-        value_col = "mean_log2_ratio",
-        size_col = "pct_detected",
-        type = "dots",
-        cluster_cols = TRUE,
-        cluster_rows = TRUE,
-        legend_range = c(-1, 1)
-    )
-
-    marker_order <- layer_scales(reference_heatmap)$y$range$range
-
-    # Calculate global scale ranges across all samples for this cell type
-    # This ensures all heatmaps have consistent color and size scales for fair comparison
-    global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
-    global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
-
-    # Use symmetric range for value scale (centered around 0) to match legend_range behavior
-    # But ensure it covers the actual data range
-    max_abs_value <- max(abs(global_value_range))
-    global_value_limits <- c(-max_abs_value, max_abs_value)
-
-    # Get all unique sample_alias values
-    unique_samples <- unique(summary_proximity_data$sample_alias)
-
-    # Create heatmaps for each sample using the reference marker order
-    # Store plots in a list to combine them later
-    sample_heatmaps <- list()
-
-    for (sample in unique_samples) {
-        # Filter data for current sample
-        sample_data <- summary_proximity_data |> filter(sample_alias == sample)
-
-        tmp_plot <- ColocalizationHeatmap(
-            sample_data,
-            marker1_col = "marker_1",
-            marker2_col = "marker_2",
-            value_col = "mean_log2_ratio",
-            size_col = "pct_detected",
-            type = "dots",
-            cluster_cols = FALSE,
-            cluster_rows = FALSE,
-            legend_range = global_value_limits # Use global range for consistent scaling
-        ) +
-            ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
-
-        # Apply the reference marker order to the ggplot object by modifying the scales
-        # This ensures all heatmaps have consistent marker ordering
-        tmp_plot <- tmp_plot +
-            scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
-            scale_y_discrete(limits = rev(marker_order), drop = FALSE)
-
-        # Ensure consistent scales across all samples for fair comparison
-        # The legend_range parameter already handles the value scale, but we need to ensure
-        # the size scale is also consistent. Try both fill and color aesthetics in case
-        # ColocalizationHeatmap uses either one
-        plot_layers <- tmp_plot$layers
-        has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-        has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
-
-        # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-        if (has_fill) {
-            tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-        if (has_color && !has_fill) {
-            tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-
-        # Ensure consistent size scale across all samples
-        tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
-
-        # Save individual plot
-        save_plot(
-            filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
-            plot = tmp_plot,
-            width = 10,
-            height = 8,
-            create_dir = TRUE
-        )
-
-        # Store plot for combined visualization
-        sample_heatmaps[[sample]] <- tmp_plot
-    }
-
-    # Create a combined plot with all samples side by side
-    # Use patchwork to combine plots (install with: install.packages("patchwork"))
-    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
-
-    # Save the combined plot
-    save_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
-        plot = combined_plot,
-        width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
-        height = 16, # Adjust height based on number of samples
-        create_dir = TRUE
-    )
-}
-```
-
-
-
-
-## Colocalization Score network
-
-### Per Sample
-
-```{r}
-#| label: colocalization_score_network
-
-network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
-only_positive_mean_log2_ratio <- TRUE
-# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
-metric_threshold <- 0.1
-pct_detected_threshold <- 0.5
-
-proximity_data <- ProximityScores(pg_data,
-    lazy = TRUE,
-    meta_data_columns = c("sample_alias")
-) |>
-    filter(marker_1 %in% network_markers) |>
-    filter(marker_2 %in% network_markers) |>
-    collect()
-
-summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
-rm(proximity_data)
-gc()
-
-# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
-df_net <- summary_proximity_data %>%
-    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
-    filter(pct_detected > pct_detected_threshold) %>%
-    mutate(from = marker_1, to = marker_2) %>%
-    select(from, to, mean_log2_ratio, sample_alias)
-
-network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
-    ggraph(layout = "kk") +
-    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
-    geom_node_label(aes(label = name), size = 2.5) +
-    scale_edge_color_gradientn(
-        colours = c(
-            "#1F395F", "#647DA3", "#BBC8DA",
-            "#FFFFFF", "#F0BCCD", "#BE5F7D",
-            "#781534"
-        ),
-        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
-    ) +
-    scale_x_continuous(expand = c(0.2, 0.2)) +
-    scale_y_continuous(expand = c(0.2, 0.2)) +
-    facet_edges(~sample_alias, nrow = 2) +
-    theme(
-        aspect.ratio = 1,
-        panel.background = element_rect(fill = "white", color = "black"),
-        panel.spacing = unit(1, "lines")
-    ) +
-    labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
-    guides(edge_width = "none")
-
-save_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
-    plot = network_plot_all_cell_types,
-    width = 12,
-    height = 8,
-    create_dir = TRUE
-)
-
-```
-
-
-### Per Sample
-
-```{r}
-#| label: colocalization_score_network
-
-network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
-cell_type_of_interest <- "CD8 T"
-only_positive_mean_log2_ratio <- TRUE
-# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
-metric_threshold <- 0.1
-pct_detected_threshold <- 0.5
-
-proximity_data <- ProximityScores(pg_data,
-    lazy = TRUE,
-    meta_data_columns = c("sample_alias", "cell_annotation")
-) |>
-    filter(cell_annotation == cell_type_of_interest) |>
-    filter(marker_1 %in% network_markers) |>
-    filter(marker_2 %in% network_markers) |>
-    filter(marker_1 != marker_2) |>
-    collect()
-
-summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
-rm(proximity_data)
-gc()
-
-# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
-df_net <- summary_proximity_data %>%
-    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
-    filter(pct_detected > pct_detected_threshold) %>%
-    mutate(from = marker_1, to = marker_2) %>%
-    select(from, to, mean_log2_ratio, sample_alias)
-
-network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
-    ggraph(layout = "kk") +
-    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
-    geom_node_label(aes(label = name), size = 2.5) +
-    scale_edge_color_gradientn(
-        colours = c(
-            "#1F395F", "#647DA3", "#BBC8DA",
-            "#FFFFFF", "#F0BCCD", "#BE5F7D",
-            "#781534"
-        ),
-        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
-    ) +
-    scale_x_continuous(expand = c(0.2, 0.2)) +
-    scale_y_continuous(expand = c(0.2, 0.2)) +
-    facet_edges(~sample_alias, nrow = 2) +
-    theme(
-        aspect.ratio = 1,
-        panel.background = element_rect(fill = "white", color = "black"),
-        panel.spacing = unit(1, "lines")
-    ) +
-    labs(
-        edge_color = "Mean\nlog2 ratio",
-        title = glue::glue("Colocalization Score Network {cell_type_of_interest}"),
-        subtitle = glue::glue(
-            "Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}"
-        )
-    ) +
-    guides(edge_width = "none")
-
-save_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
-    plot = network_plot_cell_type_of_interest,
-    width = 12,
-    height = 8,
-    create_dir = TRUE
-)
-
-```
-
-## Differential Clustering Analysis
+## 5.4. Differential Clustering Analysis
 
 Statistical test (typically Wilcoxon) between conditions
 
@@ -2437,18 +2506,18 @@ differential_clustering_analysis <-
     bind_rows() |>
     mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
-dir.create(here::here("results/03_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here::here("results/05_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
 
 # Save the differential abundance analysis results to a file
-saveRDS(differential_clustering_analysis, here::here("results/03_statistical_testing/clustering/differential_clustering_analysis.rds"))
+saveRDS(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.rds"))
 
 # Save the differential abundance analysis results to a csv file
-write.csv(differential_clustering_analysis, here::here("results/03_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
+write.csv(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
 
 ```
 
 
-### Summarizing plots
+### 5.4.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential clustering analysis results:
 
@@ -2505,7 +2574,7 @@ for (target_condition in target_conditions) {
 
     # Create directory name based on target and reference
     comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/03_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
+    base_output_dir <- here::here("results/05_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
 
     # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
     # This plot helps identify markers that are both significantly different and have large effect sizes
@@ -2669,7 +2738,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## Differential Colocalization Analysis
+## 5.5. Differential Colocalization Analysis
 
 Statistical test (typically Wilcoxon) between conditions
 
@@ -2711,18 +2780,18 @@ differential_colocalization_analysis <-
     bind_rows() |>
     mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
-dir.create(here::here("results/03_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here::here("results/05_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
 
 # Save the differential abundance analysis results to a file
-saveRDS(differential_colocalization_analysis, here::here("results/03_statistical_testing/colocalization/differential_colocalization_analysis.rds"))
+saveRDS(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"))
 
 # Save the differential abundance analysis results to a csv file
-write.csv(differential_colocalization_analysis, here::here("results/03_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
+write.csv(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
 
 
 ```
 
-### Summarizing plots
+### 5.5.1. Summarizing plots
 
 Here we create summarizing plots for the differential colocalization analysis results:
 
@@ -2751,7 +2820,7 @@ unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
 for (target_condition in target_conditions) {
     # Create directory name based on target and reference
     comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/03_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
+    base_output_dir <- here::here("results/05_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
 
     for (cell_type in unique_cell_types) {
         # Create directory for this cell type
