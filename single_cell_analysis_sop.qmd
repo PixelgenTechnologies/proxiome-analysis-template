@@ -648,7 +648,7 @@ save_plot(
 )
 ```
 
-## Select markers (optional)
+## Select markers for dimensionality reduction (optional)
 
 This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
 
