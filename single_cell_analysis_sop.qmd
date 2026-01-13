@@ -49,6 +49,10 @@ This analysis workflow creates the following folder structure for organizing inp
     │       ├── cell_type_composition/         # Cell type composition plots per sample
     │       ├── cluster_specific_markers/       # Cluster-specific marker analysis
     │       │   └── data_processing_differential_abundance_markers_per_cluster.csv
+    │       ├── gating_strategy/                # Marker gating strategy plots
+    │       │   ├── cd4_subtype_naive_memory_density_scatter
+    │       │   ├── cd4_subtype_naive_memory_density_scatter_w_gates
+    │       │   └── cd4_subtype_umap
     │       └── annotated_seurat_object.rds    # Saved annotated Seurat object
     │
     ├── 03_abundance/                          # Section 3: Abundance distribution analysis
