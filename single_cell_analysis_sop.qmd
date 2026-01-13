@@ -1,7 +1,9 @@
 ---
 title: "Single Cell PNA Analysis SOP"
 subtitle: "v0.1.0" 
-format: html
+format: 
+    html:
+      toc: true
 date: "`r Sys.Date()`"
 editor_options: 
   chunk_output_type: console
@@ -43,6 +45,11 @@ This analysis workflow creates the following folder structure for organizing inp
     │   ├── clustering_plots/                  # Cluster visualization plots
     │   ├── marker_umap_plots/                 # Individual marker UMAP plots
     │   └── annotation_plots/                  # Cell type annotation plots and tables
+    │       ├── automatic_annotation/          # Automatic annotation visualizations (L1, L2)
+    │       ├── cell_type_composition/         # Cell type composition plots per sample
+    │       ├── cluster_specific_markers/       # Cluster-specific marker analysis
+    │       │   └── data_processing_differential_abundance_markers_per_cluster.csv
+    │       └── annotated_seurat_object.rds    # Saved annotated Seurat object
     │
     ├── 03_abundance/                          # Section 3: Abundance distribution analysis
     │   └── abundance_plots/
@@ -82,8 +89,11 @@ This analysis workflow creates the following folder structure for organizing inp
 ```
 
 **Note:** 
+
 - The `{condition}`, `{reference}`, `{cell_type}`, and `{cell_type_of_interest}` placeholders represent dynamically created subdirectories based on your experimental conditions and cell types.
+
 - All plots are saved in both PDF and PNG formats for easy viewing and publication.
+
 - Folder numbering (01-05) corresponds to the analysis sections, ensuring consistent organization throughout the workflow.
 
 # 0. Setup
@@ -696,6 +706,7 @@ annotated_molecule_rank_plot <- pg_data[[]] |>
     theme_minimal(base_size = 18) +
     labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
     theme(
+        aspect.ratio = 1,
         legend.position = "top",
         axis.text.x = element_text(angle = 45, hjust = 1),
         panel.border = element_rect(
@@ -757,7 +768,7 @@ scatter_percentile_cpm_quantiles <- cpm_quantiles |>
 save_plot(
     filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
     plot = scatter_percentile_cpm_quantiles,
-    width = 6,
+    width = 12,
     height = 4
 )
 
@@ -769,7 +780,7 @@ barplot_percentile_cpm_quantiles <- cpm_quantiles |>
     geom_col() +
     scale_y_log10() +
     theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 5)) +
     labs(
         title = "95th percentile of CPM per marker",
         x = "Marker",
@@ -777,7 +788,7 @@ barplot_percentile_cpm_quantiles <- cpm_quantiles |>
     )
 save_plot(
     filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
-    width = 6,
+    width = 12,
     height = 4,
     plot = barplot_percentile_cpm_quantiles
 )
@@ -1067,7 +1078,7 @@ cell_metadata <-
     )) |>
     as_tibble(rownames = "cell_id")
 
-
+# L1 automatic annotation - summarised by cluster
 harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata,
@@ -1091,13 +1102,14 @@ harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |
     theme_bw() +
     theme(panel.grid = element_blank())
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_harmonyumap_l1_annotation_summary"),
+    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
     width = 6,
     height = 4,
     plot = harmony_umap_l1_annotation_summary_plot
 )
 
 
+# L1 automatic annotation - annotated by cell
 harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata,
@@ -1121,13 +1133,44 @@ harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
     theme_bw() +
     theme(panel.grid = element_blank())
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_harmonyumap_l1_annotation"),
+    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
     width = 6,
     height = 4,
     plot = harmony_umap_l1_annotation_plot
 )
 
 
+# L2 automatic annotation - summarised by cluster
+harmony_umap_l2_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
+    as_tibble(rownames = "cell_id") |>
+    left_join(cell_metadata,
+        by = "cell_id"
+    ) |>
+    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation_summary)) +
+    geom_point() +
+    geom_text(
+        data = . %>%
+            group_by(l2_annotation_summary) %>%
+            summarise(
+                harmonyumap_1 = median(harmonyumap_1),
+                harmonyumap_2 = median(harmonyumap_2)
+            ),
+        aes(label = l2_annotation_summary),
+        size = 3,
+        color = "black"
+    ) +
+    coord_fixed() +
+    scale_color_manual(values = cell_palette) +
+    theme_bw() +
+    theme(panel.grid = element_blank())
+save_plot(
+    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
+    width = 6,
+    height = 4,
+    plot = harmony_umap_l2_annotation_summary_plot
+)
+
+# L2 automatic annotation - annotated by cell
 harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
     as_tibble(rownames = "cell_id") |>
     left_join(cell_metadata,
@@ -1151,13 +1194,13 @@ harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
     theme_bw() +
     theme(panel.grid = element_blank())
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_harmonyumap_l2_annotation"),
+    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
     width = 6,
     height = 4,
     plot = harmony_umap_l2_annotation_plot
 )
 
-# cell type composition per sample
+# L1 cell type composition per sample (annotated by cell)
 cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
     group_by(sample_alias, l1_annotation_summary) |>
     count(name = "n_cells") |>
@@ -1174,20 +1217,18 @@ cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_ann
     theme_bw() +
     theme(
         axis.text.x = element_text(angle = 60, hjust = 1)
+    ) +
+    labs(
+        title = "Cell type composition per sample",
+        x = "Sample",
+        y = "Cell type fraction"
     )
-labs(
-    title = "Cell type composition per sample",
-    x = "Sample",
-    y = "Cell type fraction"
-)
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_cell_type_composition_per_sample"),
-    width = 6,
-    height = 4,
+    filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
+    width = 12,
+    height = 8,
     plot = cell_type_composition_per_sample
 )
-
-
 ```
 
 ### 2.6.2. Discover Cell Types
@@ -1222,8 +1263,6 @@ diff_abundant_markers_cluster <-
     as_tibble() |>
     rename(marker = gene)
 
-write_csv(diff_abundant_markers_cluster, here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster.csv"))
-
 # Heatmap of differential abundance markers per cluster
 differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_cluster |>
     group_by(marker) |>
@@ -1241,7 +1280,7 @@ differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_clus
     ) |>
     as.ggplot()
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster"),
+    filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
     width = 10,
     height = 4,
     plot = differential_abundance_markers_per_cluster_heatmap
@@ -1271,11 +1310,14 @@ volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers
     )
 
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_differential_abundance_markers_per_cluster_volcano"),
+    filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster_volcano"),
     width = 8,
     height = 6,
     plot = volcano_plot_differential_abundance_markers_per_cluster
 )
+
+# Write differential abundance markers per cluster to csv
+write_csv(diff_abundant_markers_cluster, here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster.csv"))
 ```
 
 ### 2.6.3. Marker abundance visualization
@@ -1320,7 +1362,7 @@ marker_abundance_harmonyumap_plot <- plot_data |>
         color = "CLR"
     )
 save_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_harmonyumap"),
+    filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_harmonyumap"),
     width = 6,
     height = 4,
     plot = marker_abundance_harmonyumap_plot
@@ -1408,6 +1450,8 @@ pg_data[[]] <-
         cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
     )
 
+# Save annotated Seurat object
+saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
 
 ```
 
@@ -1416,7 +1460,7 @@ pg_data[[]] <-
 Compare automatic and manual annotations. This can help to identify any discrepancies between the two methods, and can be used to refine the manual annotations.
 
 ```{r}
-
+#| label: data_processing_comparison_automatic_manual_annotation
 
 comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
     group_by(seurat_clusters, l1_annotation, cell_annotation) |>
@@ -1448,9 +1492,9 @@ save_plot(
 
 # 3. Abundance distribution
 
-This section generates comprehensive abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
+This section generates  abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
 
-The analysis creates multiple visualization perspectives to facilitate comprehensive exploration:
+The analysis creates multiple visualization perspectives to facilitate  exploration:
 
 - **Per sample**: Shows marker abundance distributions across all samples, useful for identifying sample-specific expression patterns or batch effects
 - **Per cell type**: Displays marker expression within each annotated cell type, helping to identify cell type-specific markers and expression heterogeneity
@@ -1612,9 +1656,13 @@ plot_data |>
 
 ## 4.1. Heatmap of colocalization score
 
+This section generates colocalization heatmaps that visualize the spatial proximity patterns between marker pairs expressed in the dataset. Colocalization scores quantify the extent to which two markers are found in close proximity to each other within cells, providing insights into protein co-localization and potential molecular interactions or co-expression patterns.
+
 ### 4.1.1. Per Sample
 
-Show the colocalization heatmap for the markers expressed in the dataset, separated per sample but in the same order.
+For each sample, a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score)for all expressedmarker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events.
+
+To enable direct comparison across samples, all heatmaps use a consistent marker ordering (determined by hierarchical clustering of a reference sample) and identical color and size scales. This standardization ensures that differences in colocalization patterns between samples reflect true biological or experimental differences rather than visualization artifacts. Individual heatmaps are saved for each sample, and a combined visualization showing all samples side-by-side is also generated to facilitate cross-sample comparison.
 
 ```{r}
 #| label: colocalization_raw_heatmap_per_sample
@@ -1736,7 +1784,9 @@ save_plot(
 
 ### 4.1.2. Per cluster
 
-Show the colocalization heatmap for the markers expressed in the cluster/cell type for that cell type, separated per sample but in the same order.
+This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each sample within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across samples within the same cell type.
+
+The visualization follows the same principles as the per-sample analysis: color intensity represents the mean log2 ratio of observed versus expected colocalization, and dot size indicates the percentage of cells in which the marker pair was detected. All heatmaps for a given cell type use consistent marker ordering and scales to enable direct comparison across samples. Individual heatmaps are saved for each sample-cell type combination, and combined visualizations showing all samples side-by-side are generated for each cell type. Results are organized in separate subdirectories for each cell type to facilitate navigation and interpretation.
 
 ```{r}
 #| label: colocalization_raw_heatmap_per_cell_type
@@ -1864,7 +1914,19 @@ for (cell_type in cell_types) {
 
 ## 4.2. Colocalization Score network
 
-### 4.2.1. Per Sample
+Network visualizations provide an alternative representation of colocalization patterns that can reveal complex relationships and connectivity structures between markers. Unlike heatmaps, which display all pairwise interactions in a matrix format, network graphs focus on the most significant colocalization relationships by filtering based on statistical and biological criteria. This filtering approach helps reduce visual clutter and highlights the most biologically relevant interactions.
+
+In network visualizations, markers are represented as nodes, and colocalization relationships are shown as edges connecting pairs of markers. Edge color encodes the strength of colocalization (mean log2 ratio), while edge width represents the magnitude of the colocalization effect. The network layout algorithm positions nodes to minimize edge crossings and optimize visual clarity, with markers that share similar colocalization patterns tending to cluster together spatially.
+
+The network is constructed by filtering marker pairs based on two key criteria: (1) a minimum colocalization threshold (`metric_threshold`), which can be applied to either positive colocalization only or absolute values, and (2) a minimum detection threshold (`pct_detected_threshold`), ensuring that only marker pairs detected in a sufficient proportion of cells are included. These filters help focus the visualization on robust, biologically meaningful colocalization relationships while reducing noise from weak or rare interactions.
+
+This section provides two complementary analyses: a whole-dataset network visualization that captures global colocalization patterns across all cell types, and cell type-specific network visualizations that reveal how colocalization patterns differ between cell types. Users should select a focused set of markers of interest (`network_markers`) for network visualization, as including too many markers can make the network difficult to interpret.
+
+### 4.2.1. All Cell Types
+
+This section generates network visualizations that capture colocalization patterns across all cell types in the dataset, with separate network plots created for each sample. This whole-dataset approach provides a global view of marker colocalization relationships and enables comparison of how these relationships vary across samples. The analysis includes all cells regardless of cell type annotation, making it useful for identifying sample-wide colocalization patterns and detecting potential batch effects or experimental condition-specific changes.
+
+Users should specify a focused set of `network_markers` for visualization, as network graphs become difficult to interpret with too many nodes. The filtering thresholds (`metric_threshold` and `pct_detected_threshold`) help focus the visualization on the most robust colocalization relationships. The `only_positive_mean_log2_ratio` parameter can be set to filter for only positive colocalization (markers that co-occur more frequently than expected) or to include both positive and negative colocalization relationships.
 
 ```{r}
 #| label: colocalization_score_network_all_cell_types
@@ -1928,7 +1990,11 @@ save_plot(
 ```
 
 
-### 4.2.2. Per Sample
+### 4.2.2. Per Cell Type
+
+This section generates cell type-specific network visualizations, analyzing colocalization patterns within a single cell type of interest. By focusing on a specific cell type, this analysis can reveal cell type-specific colocalization signatures that may be masked in whole-dataset analyses. The network visualization helps identify which markers form strong colocalization relationships within the selected cell type and how these relationships vary across samples.
+
+Users should specify the `cell_type_of_interest` variable to select which cell type to analyze. The same filtering criteria and visualization principles apply as in the all-cell-types analysis, but the proximity data is filtered to include only cells belonging to the specified cell type. This enables identification of cell type-specific marker interactions and comparison of how colocalization networks differ between cell types.
 
 ```{r}
 #| label: colocalization_score_network_per_cell_type
@@ -2193,7 +2259,13 @@ save_plot(
 
 ## 5.3. Differential abundance analysis
 
-Statistical test (typically Wilcoxon) between conditions
+Differential abundance analysis identifies markers that exhibit statistically significant differences in expression levels between experimental conditions. This analysis is essential for understanding how experimental treatments, disease states, or other conditions affect protein expression patterns within specific cell types.
+
+The analysis is performed separately for each annotated cell type, comparing marker abundance between a target condition (e.g., stimulated, treated) and a reference condition (e.g., resting, control). For each marker within each cell type, a statistical test (typically the Wilcoxon rank-sum test, also known as the Mann-Whitney U test) is used to assess whether the distribution of marker abundance differs significantly between conditions. The Wilcoxon test is a non-parametric test that does not assume normal distribution of the data, making it robust for single-cell data which often exhibits non-normal distributions and high variability.
+
+The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using the false discovery rate (FDR) method to control for the large number of statistical tests performed across multiple markers and cell types.
+
+Results are organized by cell type and include both the raw statistical outputs and summary visualizations. Markers with significant differences (typically p_adj < 0.05) and large effect sizes are of particular biological interest, as they represent markers whose expression is substantially altered by the experimental condition. This analysis enables identification of condition-specific markers, understanding of cellular responses to treatments, and discovery of biomarkers associated with different experimental states.
 
 ```{r}
 #| label: statistical_testing_differential_abundance
