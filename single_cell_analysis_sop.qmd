@@ -7,8 +7,9 @@ editor_options:
   chunk_output_type: console
 execute:
   dev: ragg_png
+  eval: false
   execute-dir: dir
-  echo: false
+  echo: true
   warning: false
   message: false
 ---
@@ -1616,7 +1617,7 @@ plot_data |>
 Show the colocalization heatmap for the markers expressed in the dataset, separated per sample but in the same order.
 
 ```{r}
-#| label: data_processing_raw_colocalization_heatmap
+#| label: colocalization_raw_heatmap_per_sample
 
 expressed_markers <- unique(unlist(markers_to_test))
 
@@ -1738,7 +1739,7 @@ save_plot(
 Show the colocalization heatmap for the markers expressed in the cluster/cell type for that cell type, separated per sample but in the same order.
 
 ```{r}
-#| label: data_processing_raw_colocalization_heatmap
+#| label: colocalization_raw_heatmap_per_cell_type
 
 cell_types <- unique(pg_data[[]]$cell_annotation)
 
@@ -1866,7 +1867,7 @@ for (cell_type in cell_types) {
 ### 4.2.1. Per Sample
 
 ```{r}
-#| label: colocalization_score_network
+#| label: colocalization_score_network_all_cell_types
 
 network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
 only_positive_mean_log2_ratio <- TRUE
@@ -1930,7 +1931,7 @@ save_plot(
 ### 4.2.2. Per Sample
 
 ```{r}
-#| label: colocalization_score_network
+#| label: colocalization_score_network_per_cell_type
 
 network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
 cell_type_of_interest <- "CD8 T"
