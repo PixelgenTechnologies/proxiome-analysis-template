@@ -1490,6 +1490,146 @@ save_plot(
 
 ```
 
+### 2.6.6. Alternative: Marker gating 
+
+Marker gating provides an alternative approach to cell annotation that is analogous to flow cytometry gating strategies. This method uses density scatter plots to visualize the co-expression of two markers, allowing users to identify distinct cell populations based on marker expression patterns and define gates (thresholds) to classify cells.
+
+The `DensityScatterPlot()` function creates a two-dimensional density plot showing the relationship between two markers, where each axis represents the expression level (typically CLR-normalized values) of one marker. Dense regions in the plot represent cell populations with similar marker expression profiles, while sparse regions indicate transitions between populations or rare cell types.
+
+**How to use marker gating for annotation:**
+
+1. **Select marker pairs**: Choose pairs of markers that are known to distinguish cell types of interest. For example:
+   - CD3e vs CD4: Distinguishes T cells (CD3e+) and CD4+ T cells (CD3e+ CD4+)
+   - CD3e vs CD8: Distinguishes T cells and CD8+ T cells
+   - CD19 vs CD20: Identifies B cells
+   - CD14 vs CD16: Distinguishes monocyte subsets
+
+2. **Visualize marker pairs**: Generate density scatter plots for relevant marker combinations to identify distinct cell populations and their expression boundaries.
+
+3. **Define gates**: Based on the density patterns, identify threshold values for each marker that separate different cell populations. These thresholds can be used to classify cells into categories.
+
+4. **Apply gates to clusters**: Use the identified marker expression thresholds to validate or refine cluster annotations. Clusters that don't match expected marker expression patterns may need re-examination.
+
+5. **Compare with other annotation methods**: Cross-reference gating-based annotations with automated annotation results, differential abundance analysis, and UMAP visualizations to ensure consistency.
+
+This gating approach is particularly useful for validating annotations, identifying misclassified clusters, and understanding marker expression relationships. It complements the cluster-based annotation approach by providing a marker-centric perspective on cell type identification.
+
+Below is an example of how to use the gating strategy to annotate CD4 T cell subtypes.
+
+```{r}
+#| label: data_processing_gating_strategy
+
+# Define CD4 subtypes using memory/naive markers
+# Naive CD4 T: CD45RA+ (high), CD45RO- (low), typically CCR7+ and CD62L+
+# Memory CD4 T: CD45RA- (low), CD45RO+ (high)
+# Note: Thresholds should be adjusted based on your data distribution
+cd4_subtype_markers <- c("CD45RA", "CD45RO")
+
+# subset to CD4 T cells: only these will be used for the gating strategy
+pg_data_cd4_t <- subset(pg_data, subset = cell_annotation == "CD4 T")
+
+# Create density scatter plot to distinguish CD4 subtypes
+# CD45RA vs CD45RO is a classic combination for naive vs memory distinction
+# CD4 T cell subtypes: Naive (CD45RA+ CD45RO-) vs Memory (CD45RA- CD45RO+)
+cd4_subtype_density_plot <- DensityScatterPlot(
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO"
+) +
+    labs(
+        title = "CD4 T Cell Subtypes: Naive vs Memory",
+        subtitle = "Naive: CD45RA+ CD45RO- | Memory: CD45RA- CD45RO+"
+    )
+save_plot(
+    filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter"),
+    width = 8,
+    height = 6,
+    plot = cd4_subtype_density_plot,
+    create_dir = TRUE
+)
+
+# Define gates for CD4 subtypes
+# Naive CD4 T cells: High CD45RA, Low CD45RO
+naive_cd4_gate <- data.frame(
+    xmin = 2.0, # CD45RA threshold (adjust based on data)
+    xmax = 6.5,
+    ymin = 0,
+    ymax = 1.5 # CD45RO threshold (adjust based on data)
+)
+# Create plot with gates
+cd4_subtype_density_plot_naive_cd4_gate <- DensityScatterPlot(
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
+    plot_gate = naive_cd4_gate
+) +
+    labs(
+        title = "CD4 T Cell Subtypes with Gates",
+        subtitle = "Gate 1: Naive CD4 T (CD45RA+ CD45RO-)"
+    )
+
+# Define gate for Memory CD4 T cells: Low CD45RA, High CD45RO
+memory_cd4_gate <- data.frame(
+    xmin = 0,
+    xmax = 2.5, # CD45RA threshold (adjust based on data)
+    ymin = 2.0, # CD45RO threshold (adjust based on data)
+    ymax = 5
+)
+cd4_subtype_density_plot_memory_cd4_gate <- DensityScatterPlot(
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
+    plot_gate = memory_cd4_gate
+) +
+    labs(
+        title = "CD4 T Cell Subtypes with Gates",
+        subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
+    )
+save_plot(
+    filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter_w_gates"),
+    width = 16,
+    height = 6,
+    plot = cd4_subtype_density_plot_naive_cd4_gate + cd4_subtype_density_plot_memory_cd4_gate,
+    create_dir = TRUE
+)
+
+# Classify CD4 cells into subtypes
+cd4_cell_data <- FetchData(pg_data_cd4_t, vars = c("CD45RA", "CD45RO", "CD4", "CD3e"))
+
+# Define subtypes based on marker expression thresholds
+# Adjust thresholds based on your data distribution
+
+cd4_subtype_classification <- cd4_cell_data |>
+    mutate(
+        cd4_subtype = case_when(
+            CD45RA > naive_cd4_gate$xmin & CD45RA < naive_cd4_gate$xmax & CD45RO > naive_cd4_gate$ymin & CD45RO < naive_cd4_gate$ymax ~ "Naive CD4 T",
+            CD45RA > memory_cd4_gate$xmin & CD45RA < memory_cd4_gate$xmax & CD45RO > memory_cd4_gate$ymin & CD45RO < memory_cd4_gate$ymax ~ "Memory CD4 T",
+            TRUE ~ "CD4 T (other)"
+        )
+    )
+
+# Add subtype annotation to pg_data
+pg_data$cd4_subtype <- pg_data$cell_annotation
+pg_data$cd4_subtype[rownames(cd4_subtype_classification)] <- cd4_subtype_classification$cd4_subtype
+
+# Visualize CD4 subtypes on UMAP
+cd4_subtype_umap <- DimPlot(
+    pg_data,
+    group.by = "cd4_subtype",
+    reduction = "harmony_umap"
+) +
+    theme(aspect.ratio = 1) +
+    labs(title = "CD4 T Cell Subtypes on UMAP")
+
+save_plot(
+    filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_umap"),
+    width = 8,
+    height = 6,
+    plot = cd4_subtype_umap,
+    create_dir = TRUE
+)
+```
+
 # 3. Abundance distribution
 
 This section generates  abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
