@@ -1660,7 +1660,7 @@ This section generates colocalization heatmaps that visualize the spatial proxim
 
 ### 4.1.1. Per Sample
 
-For each sample, a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score)for all expressedmarker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events.
+For each sample, a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score) for all expressed marker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events.
 
 To enable direct comparison across samples, all heatmaps use a consistent marker ordering (determined by hierarchical clustering of a reference sample) and identical color and size scales. This standardization ensures that differences in colocalization patterns between samples reflect true biological or experimental differences rather than visualization artifacts. Individual heatmaps are saved for each sample, and a combined visualization showing all samples side-by-side is also generated to facilitate cross-sample comparison.
 
@@ -1695,6 +1695,18 @@ reference_heatmap <- ColocalizationHeatmap(
 )
 
 marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+# Calculate number of markers for dynamic plot sizing
+n_markers <- length(marker_order)
+
+# Calculate plot dimensions based on number of markers
+# Base size + scaling factor to ensure readability across different marker counts
+# Minimum size ensures small marker sets are still readable, scaling factor accommodates larger sets
+base_width <- 6
+base_height <- 6
+marker_scaling_factor <- 0.15 # Additional inches per marker
+plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
+plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
 
 # Calculate global scale ranges across all samples
 # This ensures all heatmaps have consistent color and size scales for fair comparison
@@ -1755,12 +1767,12 @@ for (sample in unique_samples) {
     # Ensure consistent size scale across all samples
     tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
 
-    # Save individual plot
+    # Save individual plot with dimensions scaled to number of markers
     save_plot(
         filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
         plot = tmp_plot,
-        width = 10,
-        height = 8,
+        width = plot_width,
+        height = plot_height,
         create_dir = TRUE
     )
 
@@ -1770,14 +1782,22 @@ for (sample in unique_samples) {
 
 # Create a combined plot with all samples side by side
 # Use patchwork to combine plots (install with: install.packages("patchwork"))
-combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
+n_samples <- length(unique_samples)
+n_rows <- 2
+n_cols <- ceiling(n_samples / n_rows)
+combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = n_rows)
+
+# Calculate combined plot dimensions: scale width by number of columns, height by number of rows
+# Each subplot maintains its aspect ratio while accommodating multiple samples
+combined_width <- plot_width * n_cols
+combined_height <- plot_height * n_rows
 
 # Save the combined plot
 save_plot(
     filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
     plot = combined_plot,
-    width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
-    height = 16, # Adjust height based on number of samples
+    width = combined_width,
+    height = combined_height,
     create_dir = TRUE
 )
 ```
@@ -1823,6 +1843,18 @@ for (cell_type in cell_types) {
     )
 
     marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+    # Calculate number of markers for dynamic plot sizing
+    n_markers <- length(marker_order)
+
+    # Calculate plot dimensions based on number of markers
+    # Base size + scaling factor to ensure readability across different marker counts
+    # Minimum size ensures small marker sets are still readable, scaling factor accommodates larger sets
+    base_width <- 6
+    base_height <- 6
+    marker_scaling_factor <- 0.15 # Additional inches per marker
+    plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
+    plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
 
     # Calculate global scale ranges across all samples for this cell type
     # This ensures all heatmaps have consistent color and size scales for fair comparison
@@ -1883,12 +1915,12 @@ for (cell_type in cell_types) {
         # Ensure consistent size scale across all samples
         tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
 
-        # Save individual plot
+        # Save individual plot with dimensions scaled to number of markers
         save_plot(
             filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
             plot = tmp_plot,
-            width = 10,
-            height = 8,
+            width = plot_width,
+            height = plot_height,
             create_dir = TRUE
         )
 
@@ -1898,14 +1930,22 @@ for (cell_type in cell_types) {
 
     # Create a combined plot with all samples side by side
     # Use patchwork to combine plots (install with: install.packages("patchwork"))
-    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = 2)
+    n_samples <- length(unique_samples)
+    n_rows <- 2
+    n_cols <- ceiling(n_samples / n_rows)
+    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = n_rows)
+
+    # Calculate combined plot dimensions: scale width by number of columns, height by number of rows
+    # Each subplot maintains its aspect ratio while accommodating multiple samples
+    combined_width <- plot_width * n_cols
+    combined_height <- plot_height * n_rows
 
     # Save the combined plot
     save_plot(
         filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
         plot = combined_plot,
-        width = 8 * length(unique_samples) / 2, # Adjust width based on number of samples
-        height = 16, # Adjust height based on number of samples
+        width = combined_width,
+        height = combined_height,
         create_dir = TRUE
     )
 }
@@ -2539,7 +2579,9 @@ for (target_condition in target_conditions) {
 
 ## 5.4. Differential Clustering Analysis
 
-Statistical test (typically Wilcoxon) between conditions
+Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
+
+The analysis is performed separately for each cell type, comparing clustering patterns between target and reference conditions. A statistical test (typically the Wilcoxon rank-sum test) is used to assess whether the distribution of clustering scores (log2 ratio of observed versus expected self-proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
 
 ```{r}
 #| label: statistical_testing_differential_proximity
@@ -2813,7 +2855,8 @@ for (target_condition in target_conditions) {
 
 ## 5.5. Differential Colocalization Analysis
 
-Statistical test (typically Wilcoxon) between conditions
+Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
+
 
 ```{r}
 #| label: statistical_testing_differential_colocalization
