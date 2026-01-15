@@ -736,7 +736,7 @@ save_plot(
 )
 ```
 
-## 1.4- Select markers for dimensionality reduction (optional)
+## 1.4. Select markers for dimensionality reduction (optional)
 
 This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
 
@@ -2270,191 +2270,15 @@ save_plot(
 
 ## 5.1. Marker selection
 
-Select markers to evaluate per cell type, based on:
-
-Abundance level and variance (e.g. mean vs standard deviation)
-
-Deviation from background levels (isotypes or ambient negative levels)
-
-Colocalization to isotypes
-
-## 5.2. Colocalization with isotypes
-
-All filters can be used together or separately, but it's recommended to only use the background_threshold_pct filter. This filter is applied to the fraction of UMI counts which does not depend on the cell size (total number of molecules).
-
-The filters are applied in the following order:
-
-Remove protein pairs with a minimum UMI count fraction below background_threshold_pct
-
-Remove protein pairs with a minimum UMI count below background_threshold_count
-
-Remove protein pairs detected in fewer than min_cells_count cells
-
 ```{r}
 #| label: statistical_testing_marker_selection
 
-cell_annotation_column <-
-    "l1_annotation_summary"
-isotype_markers <-
-    c("mIgG1", "mIgG2a", "mIgG2b")
-
-abundance_data <-
-    LayerData(pg_data, "data") |>
-    as_tibble(rownames = "marker") |>
-    pivot_longer(-marker,
-        names_to = "component",
-        values_to = "CLR"
-    ) |>
-    left_join(
-        FetchData(pg_data, c("sample_alias", cell_annotation_column)) |>
-            as_tibble(rownames = "component"),
-        by = "component"
-    )
-
-# Recalculate colocalization scores between each marker and any control
-marker_isotype_coloc <-
-    ProximityScores(pg_data,
-        lazy = TRUE,
-        add_marker_proportions = TRUE,
-        meta_data_columns = c("sample_alias", cell_annotation_column)
-    ) |>
-    filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |>
-    mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |>
-    group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    collect()
-
-
-marker_isotype_coloc |>
-    left_join(abundance_data) |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_point(size = 0.1) +
-    geom_hline(yintercept = 0) +
-    facet_wrap(~sample_alias) +
-    theme_bw() +
-    scale_color_manual(values = c("black", "orangered")) +
-    labs(
-        title = "Marker colocalization with isotypes",
-        x = "CLR abundance",
-        y = "Log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc",
-    width = 6,
-    height = 4
-)
-
-marker_isotype_coloc |>
-    group_by(sample_alias, marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    ungroup() |>
-    left_join(
-        abundance_data |>
-            group_by(marker, sample_alias) |>
-            summarise(CLR = mean(CLR)),
-        by = c("marker", "sample_alias")
-    ) |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_hline(yintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_wrap(~sample_alias) +
-    scale_color_manual(values = c("black", "orangered")) +
-    theme_bw() +
-    labs(
-        title = "Marker colocalization with isotypes per sample",
-        x = "Mean CLR abundance",
-        y = "Sample-wide log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
-    width = 8,
-    height = 6
-)
-
-
-plot_data <-
-    marker_isotype_coloc |>
-    group_by(sample_alias, !!sym(cell_annotation_column), marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    ungroup() |>
-    left_join(
-        abundance_data |>
-            group_by(marker, sample_alias, !!sym(cell_annotation_column)) |>
-            summarise(CLR = mean(CLR)),
-        by = c("marker", "sample_alias", cell_annotation_column)
-    )
-
-plot_data |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_hline(yintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_grid(
-        rows = vars(!!sym(cell_annotation_column)),
-        cols = vars(sample_alias)
-    ) +
-    scale_color_manual(values = c("black", "orangered")) +
-    theme_bw() +
-    labs(
-        title = "Marker colocalization with isotypes per cluster",
-        x = "Mean CLR abundance",
-        y = "Cluster-wide log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
-    width = 8,
-    height = 6
-)
-
-plot_data |>
-    group_by(marker) |>
-    filter(any(log2_ratio > log2(1.5))) |>
-    mutate(total_log2_ratio = sum(log2_ratio)) |>
-    arrange(desc(total_log2_ratio)) |>
-    ungroup() |>
-    mutate(marker = factor(marker,
-        levels = unique(marker)
-    )) |>
-    ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
-    geom_tile() +
-    scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-    coord_fixed() +
-    facet_grid(sample_alias ~ .) +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    labs(
-        title = "Marker colocalization with isotypes per cluster",
-        x = "Marker",
-        y = "Cluster"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
-    width = 12,
-    height = 6
-)
 
 ```
 
-## 5.3. Differential abundance analysis
+
+
+## 5.2. Differential abundance analysis
 
 Differential abundance analysis identifies markers that exhibit statistically significant differences in expression levels between experimental conditions. This analysis is essential for understanding how experimental treatments, disease states, or other conditions affect protein expression patterns within specific cell types.
 
@@ -2514,7 +2338,7 @@ write.csv(differential_abundance_analysis, here::here("results/05_statistical_te
 
 ```    
 
-### 5.3.1. Summarizing plots
+### 5.2.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential abundance analysis results:
 
@@ -2734,7 +2558,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.4. Differential Clustering Analysis
+## 5.3. Differential Clustering Analysis
 
 Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
 
@@ -2789,7 +2613,7 @@ write.csv(differential_clustering_analysis, here::here("results/05_statistical_t
 ```
 
 
-### 5.4.1. Summarizing plots
+### 5.3.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential clustering analysis results:
 
@@ -3010,7 +2834,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.5. Differential Colocalization Analysis
+## 5.4. Differential Colocalization Analysis
 
 Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
 
@@ -3064,7 +2888,7 @@ write.csv(differential_colocalization_analysis, here::here("results/05_statistic
 
 ```
 
-### 5.5.1. Summarizing plots
+### 5.4.1. Summarizing plots
 
 Here we create summarizing plots for the differential colocalization analysis results:
 
