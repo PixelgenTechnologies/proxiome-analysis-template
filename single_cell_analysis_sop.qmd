@@ -401,52 +401,6 @@ save_plot(
 
 ```
 
-## Unspecific Background
-
-In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
-
-
-```{r}
-#| label: quality_control_isotype_controls
-
-isotype_fraction_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "isotype_fraction",
-    palette = sample_palette,
-    data_cutoff = 1
-)
-
-save_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
-    ),
-    plot = isotype_fraction_plot,
-    width = 10,
-    height = 8
-)
-```
-
-## Tau score
-
-The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
-
-```{r}
-#| label: quality_control_tau_score
-
-tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
-
-save_plot(
-    filename = here::here(
-        "results/01_quality_control/tau_plots/quality_control_tau_score"
-    ),
-    plot = tau_score_plot,
-    width = 10,
-    height = 8,
-    create_dir = TRUE
-)
-```
-
 
 ## Select cells
 
@@ -469,7 +423,13 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 # Define threshold for minimum molecule counts per cell
 n_umi_min_threshold <- 15000
 n_umi_max_threshold <- 200000
-isotype_fraction_threshold <- 0.005
+isotype_fraction_threshold <- 0.0025
+```
+
+### Filter by size 
+
+```{r}
+#| label: quality_control_select_cells
 
 # Plot to visualize thresholds as a violin plot
 n_umi_plot <- create_violin_plot(
@@ -499,13 +459,6 @@ save_plot(
     width = 10,
     height = 8
 )
-
-```
-
-### Molecule Rank plots
-
-```{r}
-#| label: quality_control_select_cells
 
 # Combined molecule rank plots
 molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_alias") +
@@ -673,6 +626,56 @@ save_plot(
 )
 ```
 
+### Unspecific Background
+
+In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
+
+
+```{r}
+#| label: quality_control_isotype_controls
+
+isotype_fraction_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_alias",
+    var_y = "isotype_fraction",
+    palette = sample_palette,
+    data_cutoff = 1
+) +
+  geom_hline(
+    yintercept = isotype_fraction_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) 
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
+    ),
+    plot = isotype_fraction_plot,
+    width = 10,
+    height = 8
+)
+```
+
+### Tau score
+
+The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
+
+```{r}
+#| label: quality_control_tau_score
+
+tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/tau_plots/quality_control_tau_score"
+    ),
+    plot = tau_score_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
+)
+```
 ## Select markers (optional)
 
 In this step we select markers that we believe are positive in at least one cell population in the dataset. There is not a single correct way to do this, and the selection criteria will depend on the dataset and experimental design. 
@@ -763,6 +766,11 @@ Next, we perform Z-score scaling of the normalized data per marker, which center
 
 pg_data <-
     pg_data |>
+  # Subset cells
+  subset(tau_type == "normal") |> 
+  subset(n_umi > n_umi_min_threshold & 
+           n_umi < n_umi_max_threshold) |> 
+  subset(isotype_fraction < isotype_fraction_threshold) |>
     # Data normalization
     NormalizeData(normalization.method = "CLR", margin = 2) |>
     # Z score scaling
@@ -1397,184 +1405,6 @@ Select markers to evaluate per cell type, based on:
 Abundance level and variance (e.g. mean vs standard deviation)
 
 Deviation from background levels (isotypes or ambient negative levels)
-
-Colocalization to isotypes
-
-### Colocalization with isotypes
-
-All filters can be used together or separately, but it's recommended to only use the background_threshold_pct filter. This filter is applied to the fraction of UMI counts which does not depend on the cell size (total number of molecules).
-
-The filters are applied in the following order:
-
-Remove protein pairs with a minimum UMI count fraction below background_threshold_pct
-
-Remove protein pairs with a minimum UMI count below background_threshold_count
-
-Remove protein pairs detected in fewer than min_cells_count cells
-
-```{r}
-#| label: statistical_testing_marker_selection
-
-cell_annotation_column <-
-    "l1_annotation_summary"
-isotype_markers <-
-    c("mIgG1", "mIgG2a", "mIgG2b")
-
-abundance_data <-
-    LayerData(pg_data, "data") |>
-    as_tibble(rownames = "marker") |>
-    pivot_longer(-marker,
-        names_to = "component",
-        values_to = "CLR"
-    ) |>
-    left_join(
-        FetchData(pg_data, c("sample_alias", cell_annotation_column)) |>
-            as_tibble(rownames = "component"),
-        by = "component"
-    )
-
-# Recalculate colocalization scores between each marker and any control
-marker_isotype_coloc <-
-    ProximityScores(pg_data,
-        lazy = TRUE,
-        add_marker_proportions = TRUE,
-        meta_data_columns = c("sample_alias", cell_annotation_column)
-    ) |>
-    filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |>
-    mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |>
-    group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    collect()
-
-
-marker_isotype_coloc |>
-    left_join(abundance_data) |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_point(size = 0.1) +
-    geom_hline(yintercept = 0) +
-    facet_wrap(~sample_alias) +
-    theme_bw() +
-    scale_color_manual(values = c("black", "orangered")) +
-    labs(
-        title = "Marker colocalization with isotypes",
-        x = "CLR abundance",
-        y = "Log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc",
-    width = 6,
-    height = 4
-)
-
-marker_isotype_coloc |>
-    group_by(sample_alias, marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    ungroup() |>
-    left_join(
-        abundance_data |>
-            group_by(marker, sample_alias) |>
-            summarise(CLR = mean(CLR)),
-        by = c("marker", "sample_alias")
-    ) |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_hline(yintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_wrap(~sample_alias) +
-    scale_color_manual(values = c("black", "orangered")) +
-    theme_bw() +
-    labs(
-        title = "Marker colocalization with isotypes per sample",
-        x = "Mean CLR abundance",
-        y = "Sample-wide log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
-    width = 8,
-    height = 6
-)
-
-
-plot_data <-
-    marker_isotype_coloc |>
-    group_by(sample_alias, !!sym(cell_annotation_column), marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    ungroup() |>
-    left_join(
-        abundance_data |>
-            group_by(marker, sample_alias, !!sym(cell_annotation_column)) |>
-            summarise(CLR = mean(CLR)),
-        by = c("marker", "sample_alias", cell_annotation_column)
-    )
-
-plot_data |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_hline(yintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_grid(
-        rows = vars(!!sym(cell_annotation_column)),
-        cols = vars(sample_alias)
-    ) +
-    scale_color_manual(values = c("black", "orangered")) +
-    theme_bw() +
-    labs(
-        title = "Marker colocalization with isotypes per cluster",
-        x = "Mean CLR abundance",
-        y = "Cluster-wide log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
-    width = 8,
-    height = 6
-)
-
-plot_data |>
-    group_by(marker) |>
-    filter(any(log2_ratio > log2(1.5))) |>
-    mutate(total_log2_ratio = sum(log2_ratio)) |>
-    arrange(desc(total_log2_ratio)) |>
-    ungroup() |>
-    mutate(marker = factor(marker,
-        levels = unique(marker)
-    )) |>
-    ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
-    geom_tile() +
-    scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-    coord_fixed() +
-    facet_grid(sample_alias ~ .) +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    labs(
-        title = "Marker colocalization with isotypes per cluster",
-        x = "Marker",
-        y = "Cluster"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
-    width = 12,
-    height = 6
-)
-
-```
 
 ## Differential abundance analysis
 
