@@ -2271,10 +2271,11 @@ save_plot(
 
 ## 5.1. Marker selection
 
-Backround score regression
+When performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
 
-Fitting a background score to isotype abundance
+To identify such markers, we employ Partial Least Squares (PLS) regression, which allows us to model the relationship between isotype marker abundance and overall background signal in the dataset. The analysis is conducted separately for each cell type, allowing us to capture cell type-specific background patterns. The PLS model is fitted using isotype markers as predictors, and results in a background score describing the background level in each cell. Additionally, we obtain background loadings that indicate the contribution of each marker to the background signal. If a marker has a positive loading, it suggests that the marker is strongly associated with background signal in that cell type. For each cell type, we keep markers that either have a very high abundance (mean CLR > 10 isotype CLR std) or have medium abundance (mean CLR > 3 isotype CLR std) and a background PLS loading below 0.05. The markers that are retained in any condition will be used for downstream statistical testing.
 
+We utilize the `isotype_pls` function from the `PixelgenR` package to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
 
 ```{r}
 #| label: statistical_testing_marker_selection
