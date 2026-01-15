@@ -117,6 +117,7 @@ library(harmony)
 library(ComplexHeatmap)
 library(ggplotify)
 library(here)
+library(Matrix)
 
 # Anchor the project root directory
 here::i_am("single_cell_analysis_sop.qmd")
@@ -2270,9 +2271,256 @@ save_plot(
 
 ## 5.1. Marker selection
 
+Backround score regression
+
+Fitting a background score to isotype abundance
+
+
 ```{r}
 #| label: statistical_testing_marker_selection
 
+cell_annotation_column <-
+    "l1_annotation_summary"
+isotype_markers <-
+    c("mIgG1", "mIgG2a", "mIgG2b")
+
+
+cell_data <- 
+  FetchData(
+    pg_data, vars = c(cell_annotation_column)
+  ) |> 
+  as_tibble(rownames = "component") |>
+  group_by(cell_type = !!sym(cell_annotation_column)) 
+
+pls_fit_celltype <-
+  cell_data |> 
+  group_split() |> 
+  set_names(group_keys(cell_data)$cell_type) |> 
+  lapply(function(cells) {
+    
+    pg_data |> 
+      subset(cells = cells$component) %>%
+      isotype_pls(isotype_markers,
+                  model_mat = with(.[[]], model.matrix(~ sample_alias)), 
+                  layer = "scale.data",
+                  remove_covariates = TRUE)
+  })
+    
+
+# Background scores 
+
+bg_scores <- 
+  pls_fit_celltype |> 
+  lapply(function(x) enframe(x$scores, "component", "bg_score")) |> 
+  bind_rows() 
+
+pg_data[[]] <- 
+  pg_data[[]] |>
+  as_tibble(rownames = "component") |>
+  left_join(bg_scores, by = "component") |>
+  column_to_rownames("component") 
+
+isotype_background_score_featureplot <-
+  FeaturePlot(
+    pg_data,
+    features = "bg_score"
+  ) + 
+  scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(title = "Isotype background score")
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_featureplot"),
+  plot = isotype_background_score_featureplot,
+  width = 6,
+  height = 5,
+  create_dir = TRUE
+)
+
+# Background loadings
+
+bg_loadings <- 
+  pls_fit_celltype %>%
+  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |> 
+  bind_rows(.id = cell_annotation_column)
+  
+bg_loadings |>
+  arrange(-bg_loading) |> 
+  mutate(marker = factor(marker, levels = unique(marker))) |> 
+  ggplot(aes(marker, !!sym(cell_annotation_column), fill = bg_loading)) +
+  geom_tile() +
+  
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(
+    title = "PLS loadings for isotype markers",
+    x = "Marker",
+    fill = "PLS loading",
+    y = "Cell type"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_loading_heatmap"),
+  width = 15,
+  height = 6,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+
+
+
+FetchData(pg_data, vars = isotype_markers, 
+          layer = "data") |> 
+  as_tibble(rownames = "component") |> 
+  left_join(bg_scores, by = c("component")) |> 
+  pivot_longer(
+    cols = all_of(isotype_markers),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |>
+  
+  ggplot(aes(abundance, bg_score)) +
+  geom_point(size = 0.1) +
+  geom_smooth(method = "lm") +
+  geom_text(data = . %>%
+              group_by(marker) %>%
+              summarise(cor = cor(abundance, bg_score)) ,
+            aes(label = paste0("r = ", round(cor, 2))),
+            x = Inf, y = -Inf,
+            hjust = 1.1, vjust = -0.5,
+            size = 3
+  ) +
+  facet_grid(~marker, scales = "free_x") +
+  theme_bw() +
+  labs(
+    title = "Background score vs isotype marker abundance",
+    x = "Marker abundance (CLR)",
+    y = "Background score"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
+  width = 12,
+  height = 5,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+isotype_levels <- 
+  FetchData(pg_data, c("condition", cell_annotation_column, 
+                       isotype_markers)) |> 
+  as_tibble(rownames = "component") |> 
+  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |> 
+  group_by(condition, !!sym(cell_annotation_column)) |> 
+  summarise(
+    mean_isotype = mean(max_isotype),
+    sd_isotype = sd(max_isotype)
+  ) |> 
+  ungroup()
+
+abundance_data_per_celltype <- 
+  FetchData(pg_data, c("condition", cell_annotation_column,
+                       rownames(pg_data))) |> 
+  as_tibble(rownames = "component") |> 
+  pivot_longer(
+    cols = all_of(rownames(pg_data)),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |> 
+  group_by(condition, !!sym(cell_annotation_column), marker) |> 
+  summarise(
+    mean_abundance = mean(abundance),
+    sd_abundance = sd(abundance),
+    n_cells = n()
+  ) |> 
+  ungroup() |> 
+  left_join(isotype_levels, 
+            by = c("condition", 
+                   cell_annotation_column)) |> 
+  left_join(bg_loadings, 
+            by = c("marker", 
+                   cell_annotation_column)) |>
+  mutate(
+    is_low = mean_abundance < mean_isotype + 3 * sd_isotype, 
+    is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
+    is_noisy = bg_loading > 0.05,
+    passed_filter = case_when(
+      is_low ~ "Not passed",
+      is_high ~ "Passed",
+      is_noisy ~ "Not passed",
+      TRUE ~ "Passed"
+    )
+  )
+
+abundance_data_per_celltype |> 
+  mutate(cell_annotation = !!sym(cell_annotation_column)) |>
+  ggplot(aes((mean_abundance - mean_isotype) / sd_isotype, bg_loading,
+             color = passed_filter)) +
+  geom_hline(yintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker), size = 2) +
+  facet_grid(condition~cell_annotation) +
+  theme_bw() +
+  labs(
+    title = "Marker mean abundance vs PLS loading",
+    x = "Mean abundance (CLR)",
+    y = "PLS loading"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/marker_selection_scatterplot"),
+  width = 15,
+  height = 10,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+markers_per_cell_type <-
+  abundance_data_per_celltype |> 
+  filter(passed_filter == "Passed") |> 
+  select(condition, cell_type = !!sym(cell_annotation_column), marker) |> 
+  distinct() |> 
+  group_by(cell_type)
+  
+abundance_data_per_celltype |> 
+  mutate(cell_type = !!sym(cell_annotation_column)) |>
+  filter(passed_filter == "Passed") |>
+  ggplot(aes(marker, condition)) +
+  geom_tile() +
+  facet_grid(cell_type ~ .) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "Cherry")) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Selected markers per cell type",
+    x = "Marker",
+    y = "Condition",
+    fill = "Mean abundance (CLR)"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/selected_markers_heatmap"),
+  width = 12,
+  height = 8,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+markers_per_cell_type |> 
+  write_csv(here::here("results/05_statistical_testing/isotype_background_score/selected_markers.csv"))
+
+markers_to_test <-
+  markers_per_cell_type |>
+  group_split() |> 
+  set_names(group_keys(markers_per_condition)$cell_type) |> 
+  lapply(function(df) unique(df$marker))
 
 ```
 
@@ -2287,22 +2535,6 @@ The analysis is performed separately for each annotated cell type, comparing mar
 The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using the false discovery rate (FDR) method to control for the large number of statistical tests performed across multiple markers and cell types.
 
 Results are organized by cell type and include both the raw statistical outputs and summary visualizations. Markers with significant differences (typically p_adj < 0.05) and large effect sizes are of particular biological interest, as they represent markers whose expression is substantially altered by the experimental condition. This analysis enables identification of condition-specific markers, understanding of cellular responses to treatments, and discovery of biomarkers associated with different experimental states.
-
-```{r}
-#| label: statistical_testing_differential_abundance
-
-## REMOVE THIS CHUNK AFTER TESTING
-
-# Select 10 random markers to test for each cell type [TESTING]
-markers_to_test <- lapply(unique(pg_data[[]]$cell_annotation), function(x) {
-    sample(rownames(pg_data), size = 10)
-})
-names(markers_to_test) <- unique(pg_data[[]]$cell_annotation)
-
-# create an additional condition factor to test multiple comparisons
-pg_data$condition <- ifelse(pg_data$sample_alias == "S6_PHA", "PMA", pg_data$condition)
-```
-
 
 ```{r}
 
