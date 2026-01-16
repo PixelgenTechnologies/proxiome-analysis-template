@@ -1714,7 +1714,7 @@ isotype_background_score_featureplot <-
   labs(title = "Isotype background score")
 
 save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_featureplot"),
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_featureplot"),
   plot = isotype_background_score_featureplot,
   width = 6,
   height = 5,
@@ -1747,7 +1747,7 @@ bg_loadings |>
   )
 
 save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_loading_heatmap"),
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_loading_heatmap"),
   width = 15,
   height = 6,
   plot = last_plot(),
@@ -1787,7 +1787,7 @@ FetchData(pg_data, vars = isotype_markers,
   )
 
 save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
   width = 12,
   height = 5,
   plot = last_plot(),
@@ -1856,7 +1856,7 @@ abundance_data_per_celltype |>
   )
 
 save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/marker_selection_scatterplot"),
+  filename = here::here("results/02_data_processing/isotype_background_score/marker_selection_scatterplot"),
   width = 15,
   height = 10,
   plot = last_plot(),
@@ -1891,7 +1891,7 @@ abundance_data_per_celltype |>
   )
 
 save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/selected_markers_heatmap"),
+  filename = here::here("results/02_data_processing/isotype_background_score/selected_markers_heatmap"),
   width = 12,
   height = 8,
   plot = last_plot(),
@@ -1899,7 +1899,7 @@ save_plot(
 )
 
 markers_per_cell_type |> 
-  write_csv(here::here("results/05_statistical_testing/isotype_background_score/selected_markers.csv"))
+  write_csv(here::here("results/02_data_processing/isotype_background_score/selected_markers.csv"))
 
 markers_to_test <-
   markers_per_cell_type |>
