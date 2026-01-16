@@ -2250,7 +2250,11 @@ for (cell_type in cell_types) {
 
     # Create reference heatmap to determine marker ordering
     reference_heatmap <- ColocalizationHeatmap(
-        summary_proximity_data |> filter(sample_alias == "S1_resting"),
+        summary_proximity_data |> 
+          group_by(marker_1, marker_2) |> 
+          summarise(mean_log2_ratio = mean(mean_log2_ratio, na.rm = TRUE),
+                    pct_detected = mean(pct_detected, na.rm = TRUE), 
+                    .groups = "drop"), 
         marker1_col = "marker_1",
         marker2_col = "marker_2",
         value_col = "mean_log2_ratio",
