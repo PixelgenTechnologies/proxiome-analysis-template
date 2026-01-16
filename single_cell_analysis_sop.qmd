@@ -1,5 +1,5 @@
 ---
-title: "Single Cell PNA Analysis SOP"
+title: "Proxiome Analysis SOP"
 subtitle: "v0.1.0" 
 format: 
     html:
@@ -117,9 +117,14 @@ library(harmony)
 library(ComplexHeatmap)
 library(ggplotify)
 library(here)
+library(Matrix)
+library(ggraph)
 
 # Anchor the project root directory
 here::i_am("single_cell_analysis_sop.qmd")
+
+# Set global options for saving plots
+options(save_plot.overwrite = FALSE)
 
 # Load helper functions
 source("scripts/helpers.R")
@@ -444,52 +449,9 @@ save_plot(
 
 ```
 
-## 1.3. Unspecific Background
 
-In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
 
-```{r}
-#| label: quality_control_isotype_controls
-
-isotype_fraction_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "isotype_fraction",
-    palette = sample_palette,
-    data_cutoff = 1
-)
-
-save_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
-    ),
-    plot = isotype_fraction_plot,
-    width = 10,
-    height = 8
-)
-```
-
-## 1.4. Tau score
-
-The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
-
-```{r}
-#| label: quality_control_tau_score
-
-tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
-
-save_plot(
-    filename = here::here(
-        "results/01_quality_control/tau_plots/quality_control_tau_score"
-    ),
-    plot = tau_score_plot,
-    width = 10,
-    height = 8,
-    create_dir = TRUE
-)
-```
-
-## 1.5. Select cells for downstream analysis
+## 1.3. Select cells for downstream analysis
 
 In the following steps, we will determine which cells to retain for downstream analysis. The objective is to remove cells that are likely to represent poor-quality data based on the following criteria:
 
@@ -500,7 +462,7 @@ In the following steps, we will determine which cells to retain for downstream a
 
 We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds will be excluded during the Data Processing stage.
 
-### 1.5.1. Define thresholds
+### 1.3.1. Define thresholds
 
 Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
 
@@ -514,7 +476,7 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 # Define threshold for minimum molecule counts per cell
 n_umi_min_threshold <- 15000
 n_umi_max_threshold <- 200000
-isotype_fraction_threshold <- 0.005
+isotype_fraction_threshold <- 0.0025
 ```
 
 
@@ -552,7 +514,7 @@ save_plot(
 
 ```
 
-### 1.5.2. Molecule Rank plots
+### 1.3.2. Cell size filtering
 
 This section generates molecule rank plots that visualize the distribution of UMI counts across cells, ranked by abundance. These plots are essential for evaluating the quality thresholds defined earlier and ensuring they appropriately capture the cell population distribution. The plots display cells ranked by their UMI count (from highest to lowest) on a log-log scale, with threshold lines overlaid to visualize how many cells would be retained or excluded based on the current threshold settings.
 
@@ -728,7 +690,58 @@ save_plot(
 )
 ```
 
-## 1.6. Select markers for dimensionality reduction (optional)
+### 1.3.3. Unspecific Background filtering
+
+In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
+
+```{r}
+#| label: quality_control_isotype_controls
+
+isotype_fraction_plot <- create_violin_plot(
+    data = pg_data,
+    var_x = "sample_alias",
+    var_y = "isotype_fraction",
+    palette = sample_palette,
+    data_cutoff = 1
+) +
+  geom_hline(
+    yintercept = isotype_fraction_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) 
+
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
+    ),
+    plot = isotype_fraction_plot,
+    width = 10,
+    height = 8
+)
+```
+
+### 1.3.4. Tau score filtering
+
+The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
+
+```{r}
+#| label: quality_control_tau_score
+
+tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
+
+save_plot(
+    filename = here::here(
+        "results/01_quality_control/tau_plots/quality_control_tau_score"
+    ),
+    plot = tau_score_plot,
+    width = 10,
+    height = 8,
+    create_dir = TRUE
+)
+```
+
+## 1.4. Select markers for dimensionality reduction (optional)
 
 This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
 
@@ -817,11 +830,16 @@ Following normalization, the data are Z-score scaled per marker. This transforma
 #| label: data_processing_normalize_scale
 
 pg_data <-
-    pg_data |>
-    # Data normalization
-    NormalizeData(normalization.method = "CLR", margin = 2) |>
-    # Z score scaling
-    ScaleData()
+  pg_data |>
+  # Filter cells based on quality control thresholds
+  subset(tau_type == "normal") |> 
+  subset(n_umi > n_umi_min_threshold & 
+           n_umi < n_umi_max_threshold) |> 
+  subset(isotype_fraction < isotype_fraction_threshold) |>
+  # Data normalization
+  NormalizeData(normalization.method = "CLR", margin = 2) |>
+  # Z score scaling
+  ScaleData()
 
 ```
 
@@ -1634,6 +1652,263 @@ save_plot(
 )
 ```
 
+
+### 2.6.7. Marker selection per cell type
+
+When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
+
+To identify such markers, we employ Partial Least Squares (PLS) regression, which allows us to model the relationship between isotype marker abundance and overall background signal in the dataset. The analysis is conducted separately for each cell type, allowing us to capture cell type-specific background patterns. The PLS model is fitted using isotype markers as predictors, and results in a background score describing the background level in each cell. Additionally, we obtain background loadings that indicate the contribution of each marker to the background signal. If a marker has a positive loading, it suggests that the marker is strongly associated with background signal in that cell type. For each cell type, we keep markers that either have a very high abundance (mean CLR > 10 isotype CLR std) or have medium abundance (mean CLR > 3 isotype CLR std) and a background PLS loading below 0.05. The markers that are retained in any condition will be used for downstream statistical testing.
+
+We utilize the `isotype_pls` helper function to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
+
+```{r}
+#| label: statistical_testing_marker_selection
+
+cell_annotation_column <-
+    "l1_annotation_summary"
+isotype_markers <-
+    c("mIgG1", "mIgG2a", "mIgG2b")
+
+
+cell_data <- 
+  FetchData(
+    pg_data, vars = c(cell_annotation_column)
+  ) |> 
+  as_tibble(rownames = "component") |>
+  group_by(cell_type = !!sym(cell_annotation_column)) 
+
+pls_fit_celltype <-
+  cell_data |> 
+  group_split() |> 
+  set_names(group_keys(cell_data)$cell_type) |> 
+  lapply(function(cells) {
+    
+    pg_data |> 
+      subset(cells = cells$component) %>%
+      isotype_pls(isotype_markers,
+                  model_mat = with(.[[]], model.matrix(~ sample_alias)), 
+                  layer = "scale.data",
+                  remove_covariates = TRUE)
+  })
+    
+
+# Background scores 
+
+bg_scores <- 
+  pls_fit_celltype |> 
+  lapply(function(x) enframe(x$scores, "component", "bg_score")) |> 
+  bind_rows() 
+
+pg_data[[]] <- 
+  pg_data[[]] |>
+  as_tibble(rownames = "component") |>
+  left_join(bg_scores, by = "component") |>
+  column_to_rownames("component") 
+
+isotype_background_score_featureplot <-
+  FeaturePlot(
+    pg_data,
+    features = "bg_score"
+  ) + 
+  scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(title = "Isotype background score")
+
+save_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_featureplot"),
+  plot = isotype_background_score_featureplot,
+  width = 6,
+  height = 5,
+  create_dir = TRUE
+)
+
+# Background loadings
+
+bg_loadings <- 
+  pls_fit_celltype %>%
+  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |> 
+  bind_rows(.id = cell_annotation_column)
+  
+bg_loadings |>
+  arrange(-bg_loading) |> 
+  mutate(marker = factor(marker, levels = unique(marker))) |> 
+  ggplot(aes(marker, !!sym(cell_annotation_column), fill = bg_loading)) +
+  geom_tile() +
+  
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(
+    title = "PLS loadings for isotype markers",
+    x = "Marker",
+    fill = "PLS loading",
+    y = "Cell type"
+  )
+
+save_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_loading_heatmap"),
+  width = 15,
+  height = 6,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+
+
+
+FetchData(pg_data, vars = isotype_markers, 
+          layer = "data") |> 
+  as_tibble(rownames = "component") |> 
+  left_join(bg_scores, by = c("component")) |> 
+  pivot_longer(
+    cols = all_of(isotype_markers),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |>
+  
+  ggplot(aes(abundance, bg_score)) +
+  geom_point(size = 0.1) +
+  geom_smooth(method = "lm") +
+  geom_text(data = . %>%
+              group_by(marker) %>%
+              summarise(cor = cor(abundance, bg_score)) ,
+            aes(label = paste0("r = ", round(cor, 2))),
+            x = Inf, y = -Inf,
+            hjust = 1.1, vjust = -0.5,
+            size = 3
+  ) +
+  facet_grid(~marker, scales = "free_x") +
+  theme_bw() +
+  labs(
+    title = "Background score vs isotype marker abundance",
+    x = "Marker abundance (CLR)",
+    y = "Background score"
+  )
+
+save_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
+  width = 12,
+  height = 5,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+isotype_levels <- 
+  FetchData(pg_data, c("condition", cell_annotation_column, 
+                       isotype_markers)) |> 
+  as_tibble(rownames = "component") |> 
+  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |> 
+  group_by(condition, !!sym(cell_annotation_column)) |> 
+  summarise(
+    mean_isotype = mean(max_isotype),
+    sd_isotype = sd(max_isotype)
+  ) |> 
+  ungroup()
+
+abundance_data_per_celltype <- 
+  FetchData(pg_data, c("condition", cell_annotation_column,
+                       rownames(pg_data))) |> 
+  as_tibble(rownames = "component") |> 
+  pivot_longer(
+    cols = all_of(rownames(pg_data)),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |> 
+  group_by(condition, !!sym(cell_annotation_column), marker) |> 
+  summarise(
+    mean_abundance = mean(abundance),
+    sd_abundance = sd(abundance),
+    n_cells = n()
+  ) |> 
+  ungroup() |> 
+  left_join(isotype_levels, 
+            by = c("condition", 
+                   cell_annotation_column)) |> 
+  left_join(bg_loadings, 
+            by = c("marker", 
+                   cell_annotation_column)) |>
+  mutate(
+    is_low = mean_abundance < mean_isotype + 3 * sd_isotype, 
+    is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
+    is_noisy = bg_loading > 0.05,
+    passed_filter = case_when(
+      is_low ~ "Not passed",
+      is_high ~ "Passed",
+      is_noisy ~ "Not passed",
+      TRUE ~ "Passed"
+    )
+  )
+
+abundance_data_per_celltype |> 
+  mutate(cell_annotation = !!sym(cell_annotation_column)) |>
+  ggplot(aes((mean_abundance - mean_isotype) / sd_isotype, bg_loading,
+             color = passed_filter)) +
+  geom_hline(yintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker), size = 2) +
+  facet_grid(condition~cell_annotation) +
+  theme_bw() +
+  labs(
+    title = "Marker mean abundance vs PLS loading",
+    x = "Mean abundance (CLR)",
+    y = "PLS loading"
+  )
+
+save_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/marker_selection_scatterplot"),
+  width = 15,
+  height = 10,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+markers_per_cell_type <-
+  abundance_data_per_celltype |> 
+  filter(passed_filter == "Passed") |> 
+  select(condition, cell_type = !!sym(cell_annotation_column), marker) |> 
+  distinct() |> 
+  group_by(cell_type)
+  
+abundance_data_per_celltype |> 
+  mutate(cell_type = !!sym(cell_annotation_column)) |>
+  filter(passed_filter == "Passed") |>
+  ggplot(aes(marker, condition)) +
+  geom_tile() +
+  facet_grid(cell_type ~ .) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "Cherry")) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Selected markers per cell type",
+    x = "Marker",
+    y = "Condition",
+    fill = "Mean abundance (CLR)"
+  )
+
+save_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/selected_markers_heatmap"),
+  width = 12,
+  height = 8,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+markers_per_cell_type |> 
+  write_csv(here::here("results/02_data_processing/isotype_background_score/selected_markers.csv"))
+
+markers_to_test <-
+  markers_per_cell_type |>
+  group_split() |> 
+  set_names(group_keys(markers_per_cell_type)$cell_type) |> 
+  lapply(function(df) unique(df$marker))
+
+```
+
 # 3. Abundance distribution
 
 This section generates  abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
@@ -1975,7 +2250,11 @@ for (cell_type in cell_types) {
 
     # Create reference heatmap to determine marker ordering
     reference_heatmap <- ColocalizationHeatmap(
-        summary_proximity_data |> filter(sample_alias == "S1_resting"),
+        summary_proximity_data |> 
+          group_by(marker_1, marker_2) |> 
+          summarise(mean_log2_ratio = mean(mean_log2_ratio, na.rm = TRUE),
+                    pct_detected = mean(pct_detected, na.rm = TRUE), 
+                    .groups = "drop"), 
         marker1_col = "marker_1",
         marker2_col = "marker_2",
         value_col = "mean_log2_ratio",
@@ -2018,10 +2297,17 @@ for (cell_type in cell_types) {
     sample_heatmaps <- list()
 
     for (sample in unique_samples) {
+      
         # Filter data for current sample
-        sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+        sample_data <- 
+          summary_proximity_data |> 
+          filter(sample_alias == sample)
 
-        tmp_plot <- ColocalizationHeatmap(
+        if (n_distinct(c(sample_data$marker_1, 
+                         sample_data$marker_2)) >= 2) {
+          
+          
+          tmp_plot <- ColocalizationHeatmap(
             sample_data,
             marker1_col = "marker_1",
             marker2_col = "marker_2",
@@ -2031,42 +2317,50 @@ for (cell_type in cell_types) {
             cluster_cols = FALSE,
             cluster_rows = FALSE,
             legend_range = global_value_limits # Use global range for consistent scaling
-        ) +
+          ) +
             ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
-
-        # Apply the reference marker order to the ggplot object by modifying the scales
-        # This ensures all heatmaps have consistent marker ordering
-        tmp_plot <- tmp_plot +
+          
+          # Apply the reference marker order to the ggplot object by modifying the scales
+          # This ensures all heatmaps have consistent marker ordering
+          tmp_plot <- tmp_plot +
             scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
             scale_y_discrete(limits = rev(marker_order), drop = FALSE)
-
-        # Ensure consistent scales across all samples for fair comparison
-        # The legend_range parameter already handles the value scale, but we need to ensure
-        # the size scale is also consistent. Try both fill and color aesthetics in case
-        # ColocalizationHeatmap uses either one
-        plot_layers <- tmp_plot$layers
-        has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-        has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
-
-        # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-        if (has_fill) {
+          
+          # Ensure consistent scales across all samples for fair comparison
+          # The legend_range parameter already handles the value scale, but we need to ensure
+          # the size scale is also consistent. Try both fill and color aesthetics in case
+          # ColocalizationHeatmap uses either one
+          plot_layers <- tmp_plot$layers
+          has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+          has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+          
+          # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+          if (has_fill) {
             tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-        if (has_color && !has_fill) {
+          }
+          if (has_color && !has_fill) {
             tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-
-        # Ensure consistent size scale across all samples
-        tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
-
-        # Save individual plot with dimensions scaled to number of markers
-        save_plot(
+          }
+          
+          # Ensure consistent size scale across all samples
+          tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
+          
+          # Save individual plot with dimensions scaled to number of markers
+          save_plot(
             filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
             plot = tmp_plot,
             width = plot_width,
             height = plot_height,
             create_dir = TRUE
-        )
+          )
+        } else {
+          # Create an empty plot with a message indicating insufficient markers
+          tmp_plot <- ggplot() +
+            theme_void() +
+            geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {sample}"))) +
+            xlim(-1, 1) +
+            ylim(-1, 1)
+        }
 
         # Store plot for combined visualization
         sample_heatmaps[[sample]] <- tmp_plot
@@ -2093,6 +2387,7 @@ for (cell_type in cell_types) {
         create_dir = TRUE
     )
 }
+
 ```
 
 
@@ -2255,193 +2550,7 @@ save_plot(
 
 # 5. Statistical testing
 
-## 5.1. Marker selection
-
-Select markers to evaluate per cell type, based on:
-
-Abundance level and variance (e.g. mean vs standard deviation)
-
-Deviation from background levels (isotypes or ambient negative levels)
-
-Colocalization to isotypes
-
-## 5.2. Colocalization with isotypes
-
-All filters can be used together or separately, but it's recommended to only use the background_threshold_pct filter. This filter is applied to the fraction of UMI counts which does not depend on the cell size (total number of molecules).
-
-The filters are applied in the following order:
-
-Remove protein pairs with a minimum UMI count fraction below background_threshold_pct
-
-Remove protein pairs with a minimum UMI count below background_threshold_count
-
-Remove protein pairs detected in fewer than min_cells_count cells
-
-```{r}
-#| label: statistical_testing_marker_selection
-
-cell_annotation_column <-
-    "l1_annotation_summary"
-isotype_markers <-
-    c("mIgG1", "mIgG2a", "mIgG2b")
-
-abundance_data <-
-    LayerData(pg_data, "data") |>
-    as_tibble(rownames = "marker") |>
-    pivot_longer(-marker,
-        names_to = "component",
-        values_to = "CLR"
-    ) |>
-    left_join(
-        FetchData(pg_data, c("sample_alias", cell_annotation_column)) |>
-            as_tibble(rownames = "component"),
-        by = "component"
-    )
-
-# Recalculate colocalization scores between each marker and any control
-marker_isotype_coloc <-
-    ProximityScores(pg_data,
-        lazy = TRUE,
-        add_marker_proportions = TRUE,
-        meta_data_columns = c("sample_alias", cell_annotation_column)
-    ) |>
-    filter(marker_1 %in% isotype_markers | marker_2 %in% isotype_markers) |>
-    mutate(marker = ifelse(marker_1 %in% isotype_markers, marker_2, marker_1)) |>
-    group_by(sample_alias, !!sym(cell_annotation_column), component, marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    collect()
-
-
-marker_isotype_coloc |>
-    left_join(abundance_data) |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_point(size = 0.1) +
-    geom_hline(yintercept = 0) +
-    facet_wrap(~sample_alias) +
-    theme_bw() +
-    scale_color_manual(values = c("black", "orangered")) +
-    labs(
-        title = "Marker colocalization with isotypes",
-        x = "CLR abundance",
-        y = "Log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc",
-    width = 6,
-    height = 4
-)
-
-marker_isotype_coloc |>
-    group_by(sample_alias, marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    ungroup() |>
-    left_join(
-        abundance_data |>
-            group_by(marker, sample_alias) |>
-            summarise(CLR = mean(CLR)),
-        by = c("marker", "sample_alias")
-    ) |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_hline(yintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_wrap(~sample_alias) +
-    scale_color_manual(values = c("black", "orangered")) +
-    theme_bw() +
-    labs(
-        title = "Marker colocalization with isotypes per sample",
-        x = "Mean CLR abundance",
-        y = "Sample-wide log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample",
-    width = 8,
-    height = 6
-)
-
-
-plot_data <-
-    marker_isotype_coloc |>
-    group_by(sample_alias, !!sym(cell_annotation_column), marker) |>
-    summarise(
-        join_count = sum(join_count),
-        join_count_expected_mean = sum(join_count_expected_mean)
-    ) |>
-    mutate(log2_ratio = log2((join_count + 1) / (join_count_expected_mean + 1))) |>
-    ungroup() |>
-    left_join(
-        abundance_data |>
-            group_by(marker, sample_alias, !!sym(cell_annotation_column)) |>
-            summarise(CLR = mean(CLR)),
-        by = c("marker", "sample_alias", cell_annotation_column)
-    )
-
-plot_data |>
-    ggplot(aes(CLR, log2_ratio, color = log2_ratio > log2(1.5))) +
-    geom_hline(yintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_grid(
-        rows = vars(!!sym(cell_annotation_column)),
-        cols = vars(sample_alias)
-    ) +
-    scale_color_manual(values = c("black", "orangered")) +
-    theme_bw() +
-    labs(
-        title = "Marker colocalization with isotypes per cluster",
-        x = "Mean CLR abundance",
-        y = "Cluster-wide log2 ratio of observed vs expected colocalization"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_per_sample_cluster",
-    width = 8,
-    height = 6
-)
-
-plot_data |>
-    group_by(marker) |>
-    filter(any(log2_ratio > log2(1.5))) |>
-    mutate(total_log2_ratio = sum(log2_ratio)) |>
-    arrange(desc(total_log2_ratio)) |>
-    ungroup() |>
-    mutate(marker = factor(marker,
-        levels = unique(marker)
-    )) |>
-    ggplot(aes(marker, seurat_clusters, fill = log2_ratio)) +
-    geom_tile() +
-    scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-    coord_fixed() +
-    facet_grid(sample_alias ~ .) +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    labs(
-        title = "Marker colocalization with isotypes per cluster",
-        x = "Marker",
-        y = "Cluster"
-    )
-save_plot(
-    filename = "statistical_testing_marker_selection_marker_isotype_coloc_heatmap",
-    width = 12,
-    height = 6
-)
-
-```
-
-## 5.3. Differential abundance analysis
+## 5.1. Differential abundance analysis
 
 Differential abundance analysis identifies markers that exhibit statistically significant differences in expression levels between experimental conditions. This analysis is essential for understanding how experimental treatments, disease states, or other conditions affect protein expression patterns within specific cell types.
 
@@ -2450,22 +2559,6 @@ The analysis is performed separately for each annotated cell type, comparing mar
 The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using the false discovery rate (FDR) method to control for the large number of statistical tests performed across multiple markers and cell types.
 
 Results are organized by cell type and include both the raw statistical outputs and summary visualizations. Markers with significant differences (typically p_adj < 0.05) and large effect sizes are of particular biological interest, as they represent markers whose expression is substantially altered by the experimental condition. This analysis enables identification of condition-specific markers, understanding of cellular responses to treatments, and discovery of biomarkers associated with different experimental states.
-
-```{r}
-#| label: statistical_testing_differential_abundance
-
-## REMOVE THIS CHUNK AFTER TESTING
-
-# Select 10 random markers to test for each cell type [TESTING]
-markers_to_test <- lapply(unique(pg_data[[]]$cell_annotation), function(x) {
-    sample(rownames(pg_data), size = 10)
-})
-names(markers_to_test) <- unique(pg_data[[]]$cell_annotation)
-
-# create an additional condition factor to test multiple comparisons
-pg_data$condition <- ifelse(pg_data$sample_alias == "S6_PHA", "PMA", pg_data$condition)
-```
-
 
 ```{r}
 
@@ -2501,7 +2594,7 @@ write.csv(differential_abundance_analysis, here::here("results/05_statistical_te
 
 ```    
 
-### 5.3.1. Summarizing plots
+### 5.1.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential abundance analysis results:
 
@@ -2557,7 +2650,7 @@ for (target_condition in target_conditions) {
 
     # Create directory name based on target and reference
     comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/05_statistical_testing/differential_abundance_plots", comparison_dir)
+    base_output_dir <- here::here("results/05_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
 
     # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
     # This plot helps identify markers that are both significantly different and have large effect sizes
@@ -2721,7 +2814,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.4. Differential Clustering Analysis
+## 5.2. Differential Clustering Analysis
 
 Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
 
@@ -2776,7 +2869,7 @@ write.csv(differential_clustering_analysis, here::here("results/05_statistical_t
 ```
 
 
-### 5.4.1. Summarizing plots
+### 5.2.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential clustering analysis results:
 
@@ -2997,7 +3090,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.5. Differential Colocalization Analysis
+## 5.3. Differential Colocalization Analysis
 
 Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
 
@@ -3051,7 +3144,7 @@ write.csv(differential_colocalization_analysis, here::here("results/05_statistic
 
 ```
 
-### 5.5.1. Summarizing plots
+### 5.3.1. Summarizing plots
 
 Here we create summarizing plots for the differential colocalization analysis results:
 

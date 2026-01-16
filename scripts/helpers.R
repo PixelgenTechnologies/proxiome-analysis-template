@@ -145,16 +145,94 @@ save_plot <-
     width = 10,
     height = 10,
     create_dir = TRUE,
-    file_formats = c("png", "pdf")
+    file_formats = c("png", "pdf"),
+    overwrite = getOption("save_plot.overwrite", FALSE)
   ) {
     for (format in file_formats) {
+
+      out_file <- paste0(filename, ".", format)
+
+      if (file.exists(out_file) && !overwrite) {
+        message("Skipping existing file: ", out_file)
+        next
+      }
+
       ggsave(
-        filename = file.path(paste0(filename, ".", format)),
+        filename = out_file,
         plot = plot,
         width = width,
         height = height,
-        create.dir = create_dir
+        create.dir = create_dir,
+        limitsize = FALSE
       )
     }
     invisible(NULL)
+  }
+
+#' Partial Least Squares Regression for background factor regression
+#'
+#' This function performs Partial Least Squares (PLS) regression to model and extract
+#' a background factor using isotype controls from single-cell data. It can optionally
+#' residualize the data against covariates before fitting the PLS model.
+#'
+#' @param pg_data A PNA object containing single-cell data.
+#' @param isotype_markers A character vector of isotype control marker names.
+#' @param model_mat An optional matrix of covariates for residualization (cells × covariates).
+#' @param remove_covariates Logical; if TRUE, residualizes data against model_mat before PLS.
+#' @param layer String; the data layer in pg_data to use (default is "scale.data").
+#'
+#' @return A list containing the PLS model, scores, and loadings.
+isotype_pls <-
+  function(pg_data, isotype_markers, model_mat = NULL, remove_covariates = FALSE, layer = "scale.data") {
+
+    library(pls)
+
+    residualize <- function(M, covariates) {
+      Q <- qr(covariates)
+      M - covariates %*% qr.coef(Q, M)
+    }
+
+    # transpose to cells × features
+    X <-
+      pg_data |>
+      LayerData(layer = layer) |>
+      t() |>
+      as.matrix()
+
+    # Residualize X
+    if (remove_covariates) X <- residualize(X, model_mat)
+
+    X_no_isotype <-
+      X[, !colnames(X) %in% isotype_markers]
+    X_isotype <-
+      X[, colnames(X) %in% isotype_markers]
+
+    model <-
+      plsr(
+        X_isotype ~ X_no_isotype,
+        ncomp = 1,
+        scale = FALSE,
+        validation = "none",
+        segments = 10
+      )
+
+    score <-
+      scores(model)[, 1]
+
+    loadings <-
+      loadings(model)[, 1]
+
+    if (cor(score, rowMeans(X_isotype)) < 0) {
+      score <- -score
+      loadings <- -loadings
+    }
+
+    return(
+      list(
+        model = model,
+        scores = score,
+        loadings = loadings
+      )
+    )
+
   }
