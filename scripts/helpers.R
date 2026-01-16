@@ -145,11 +145,20 @@ save_plot <-
     width = 10,
     height = 10,
     create_dir = TRUE,
-    file_formats = c("png", "pdf")
+    file_formats = c("png", "pdf"),
+    overwrite = getOption("save_plot.overwrite", FALSE)
   ) {
     for (format in file_formats) {
+
+      out_file <- paste0(filename, ".", format)
+
+      if (file.exists(out_file) && !overwrite) {
+        message("Skipping existing file: ", out_file)
+        next
+      }
+
       ggsave(
-        filename = file.path(paste0(filename, ".", format)),
+        filename = out_file,
         plot = plot,
         width = width,
         height = height,
