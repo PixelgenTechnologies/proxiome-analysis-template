@@ -1648,6 +1648,263 @@ save_plot(
 )
 ```
 
+
+### 2.6.7. Marker selection per cell type
+
+When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
+
+To identify such markers, we employ Partial Least Squares (PLS) regression, which allows us to model the relationship between isotype marker abundance and overall background signal in the dataset. The analysis is conducted separately for each cell type, allowing us to capture cell type-specific background patterns. The PLS model is fitted using isotype markers as predictors, and results in a background score describing the background level in each cell. Additionally, we obtain background loadings that indicate the contribution of each marker to the background signal. If a marker has a positive loading, it suggests that the marker is strongly associated with background signal in that cell type. For each cell type, we keep markers that either have a very high abundance (mean CLR > 10 isotype CLR std) or have medium abundance (mean CLR > 3 isotype CLR std) and a background PLS loading below 0.05. The markers that are retained in any condition will be used for downstream statistical testing.
+
+We utilize the `isotype_pls` function from the `PixelgenR` package to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
+
+```{r}
+#| label: statistical_testing_marker_selection
+
+cell_annotation_column <-
+    "l1_annotation_summary"
+isotype_markers <-
+    c("mIgG1", "mIgG2a", "mIgG2b")
+
+
+cell_data <- 
+  FetchData(
+    pg_data, vars = c(cell_annotation_column)
+  ) |> 
+  as_tibble(rownames = "component") |>
+  group_by(cell_type = !!sym(cell_annotation_column)) 
+
+pls_fit_celltype <-
+  cell_data |> 
+  group_split() |> 
+  set_names(group_keys(cell_data)$cell_type) |> 
+  lapply(function(cells) {
+    
+    pg_data |> 
+      subset(cells = cells$component) %>%
+      isotype_pls(isotype_markers,
+                  model_mat = with(.[[]], model.matrix(~ sample_alias)), 
+                  layer = "scale.data",
+                  remove_covariates = TRUE)
+  })
+    
+
+# Background scores 
+
+bg_scores <- 
+  pls_fit_celltype |> 
+  lapply(function(x) enframe(x$scores, "component", "bg_score")) |> 
+  bind_rows() 
+
+pg_data[[]] <- 
+  pg_data[[]] |>
+  as_tibble(rownames = "component") |>
+  left_join(bg_scores, by = "component") |>
+  column_to_rownames("component") 
+
+isotype_background_score_featureplot <-
+  FeaturePlot(
+    pg_data,
+    features = "bg_score"
+  ) + 
+  scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(title = "Isotype background score")
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_featureplot"),
+  plot = isotype_background_score_featureplot,
+  width = 6,
+  height = 5,
+  create_dir = TRUE
+)
+
+# Background loadings
+
+bg_loadings <- 
+  pls_fit_celltype %>%
+  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |> 
+  bind_rows(.id = cell_annotation_column)
+  
+bg_loadings |>
+  arrange(-bg_loading) |> 
+  mutate(marker = factor(marker, levels = unique(marker))) |> 
+  ggplot(aes(marker, !!sym(cell_annotation_column), fill = bg_loading)) +
+  geom_tile() +
+  
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(
+    title = "PLS loadings for isotype markers",
+    x = "Marker",
+    fill = "PLS loading",
+    y = "Cell type"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_loading_heatmap"),
+  width = 15,
+  height = 6,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+
+
+
+FetchData(pg_data, vars = isotype_markers, 
+          layer = "data") |> 
+  as_tibble(rownames = "component") |> 
+  left_join(bg_scores, by = c("component")) |> 
+  pivot_longer(
+    cols = all_of(isotype_markers),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |>
+  
+  ggplot(aes(abundance, bg_score)) +
+  geom_point(size = 0.1) +
+  geom_smooth(method = "lm") +
+  geom_text(data = . %>%
+              group_by(marker) %>%
+              summarise(cor = cor(abundance, bg_score)) ,
+            aes(label = paste0("r = ", round(cor, 2))),
+            x = Inf, y = -Inf,
+            hjust = 1.1, vjust = -0.5,
+            size = 3
+  ) +
+  facet_grid(~marker, scales = "free_x") +
+  theme_bw() +
+  labs(
+    title = "Background score vs isotype marker abundance",
+    x = "Marker abundance (CLR)",
+    y = "Background score"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
+  width = 12,
+  height = 5,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+isotype_levels <- 
+  FetchData(pg_data, c("condition", cell_annotation_column, 
+                       isotype_markers)) |> 
+  as_tibble(rownames = "component") |> 
+  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |> 
+  group_by(condition, !!sym(cell_annotation_column)) |> 
+  summarise(
+    mean_isotype = mean(max_isotype),
+    sd_isotype = sd(max_isotype)
+  ) |> 
+  ungroup()
+
+abundance_data_per_celltype <- 
+  FetchData(pg_data, c("condition", cell_annotation_column,
+                       rownames(pg_data))) |> 
+  as_tibble(rownames = "component") |> 
+  pivot_longer(
+    cols = all_of(rownames(pg_data)),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |> 
+  group_by(condition, !!sym(cell_annotation_column), marker) |> 
+  summarise(
+    mean_abundance = mean(abundance),
+    sd_abundance = sd(abundance),
+    n_cells = n()
+  ) |> 
+  ungroup() |> 
+  left_join(isotype_levels, 
+            by = c("condition", 
+                   cell_annotation_column)) |> 
+  left_join(bg_loadings, 
+            by = c("marker", 
+                   cell_annotation_column)) |>
+  mutate(
+    is_low = mean_abundance < mean_isotype + 3 * sd_isotype, 
+    is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
+    is_noisy = bg_loading > 0.05,
+    passed_filter = case_when(
+      is_low ~ "Not passed",
+      is_high ~ "Passed",
+      is_noisy ~ "Not passed",
+      TRUE ~ "Passed"
+    )
+  )
+
+abundance_data_per_celltype |> 
+  mutate(cell_annotation = !!sym(cell_annotation_column)) |>
+  ggplot(aes((mean_abundance - mean_isotype) / sd_isotype, bg_loading,
+             color = passed_filter)) +
+  geom_hline(yintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker), size = 2) +
+  facet_grid(condition~cell_annotation) +
+  theme_bw() +
+  labs(
+    title = "Marker mean abundance vs PLS loading",
+    x = "Mean abundance (CLR)",
+    y = "PLS loading"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/marker_selection_scatterplot"),
+  width = 15,
+  height = 10,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+markers_per_cell_type <-
+  abundance_data_per_celltype |> 
+  filter(passed_filter == "Passed") |> 
+  select(condition, cell_type = !!sym(cell_annotation_column), marker) |> 
+  distinct() |> 
+  group_by(cell_type)
+  
+abundance_data_per_celltype |> 
+  mutate(cell_type = !!sym(cell_annotation_column)) |>
+  filter(passed_filter == "Passed") |>
+  ggplot(aes(marker, condition)) +
+  geom_tile() +
+  facet_grid(cell_type ~ .) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "Cherry")) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Selected markers per cell type",
+    x = "Marker",
+    y = "Condition",
+    fill = "Mean abundance (CLR)"
+  )
+
+save_plot(
+  filename = here::here("results/05_statistical_testing/isotype_background_score/selected_markers_heatmap"),
+  width = 12,
+  height = 8,
+  plot = last_plot(),
+  create_dir = TRUE
+)
+
+markers_per_cell_type |> 
+  write_csv(here::here("results/05_statistical_testing/isotype_background_score/selected_markers.csv"))
+
+markers_to_test <-
+  markers_per_cell_type |>
+  group_split() |> 
+  set_names(group_keys(markers_per_cell_type)$cell_type) |> 
+  lapply(function(df) unique(df$marker))
+
+```
+
 # 3. Abundance distribution
 
 This section generates  abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
@@ -2269,265 +2526,7 @@ save_plot(
 
 # 5. Statistical testing
 
-## 5.1. Marker selection
-
-When performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
-
-To identify such markers, we employ Partial Least Squares (PLS) regression, which allows us to model the relationship between isotype marker abundance and overall background signal in the dataset. The analysis is conducted separately for each cell type, allowing us to capture cell type-specific background patterns. The PLS model is fitted using isotype markers as predictors, and results in a background score describing the background level in each cell. Additionally, we obtain background loadings that indicate the contribution of each marker to the background signal. If a marker has a positive loading, it suggests that the marker is strongly associated with background signal in that cell type. For each cell type, we keep markers that either have a very high abundance (mean CLR > 10 isotype CLR std) or have medium abundance (mean CLR > 3 isotype CLR std) and a background PLS loading below 0.05. The markers that are retained in any condition will be used for downstream statistical testing.
-
-We utilize the `isotype_pls` function from the `PixelgenR` package to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
-
-```{r}
-#| label: statistical_testing_marker_selection
-
-cell_annotation_column <-
-    "l1_annotation_summary"
-isotype_markers <-
-    c("mIgG1", "mIgG2a", "mIgG2b")
-
-
-cell_data <- 
-  FetchData(
-    pg_data, vars = c(cell_annotation_column)
-  ) |> 
-  as_tibble(rownames = "component") |>
-  group_by(cell_type = !!sym(cell_annotation_column)) 
-
-pls_fit_celltype <-
-  cell_data |> 
-  group_split() |> 
-  set_names(group_keys(cell_data)$cell_type) |> 
-  lapply(function(cells) {
-    
-    pg_data |> 
-      subset(cells = cells$component) %>%
-      isotype_pls(isotype_markers,
-                  model_mat = with(.[[]], model.matrix(~ sample_alias)), 
-                  layer = "scale.data",
-                  remove_covariates = TRUE)
-  })
-    
-
-# Background scores 
-
-bg_scores <- 
-  pls_fit_celltype |> 
-  lapply(function(x) enframe(x$scores, "component", "bg_score")) |> 
-  bind_rows() 
-
-pg_data[[]] <- 
-  pg_data[[]] |>
-  as_tibble(rownames = "component") |>
-  left_join(bg_scores, by = "component") |>
-  column_to_rownames("component") 
-
-isotype_background_score_featureplot <-
-  FeaturePlot(
-    pg_data,
-    features = "bg_score"
-  ) + 
-  scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-  labs(title = "Isotype background score")
-
-save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_featureplot"),
-  plot = isotype_background_score_featureplot,
-  width = 6,
-  height = 5,
-  create_dir = TRUE
-)
-
-# Background loadings
-
-bg_loadings <- 
-  pls_fit_celltype %>%
-  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |> 
-  bind_rows(.id = cell_annotation_column)
-  
-bg_loadings |>
-  arrange(-bg_loading) |> 
-  mutate(marker = factor(marker, levels = unique(marker))) |> 
-  ggplot(aes(marker, !!sym(cell_annotation_column), fill = bg_loading)) +
-  geom_tile() +
-  
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-  ) +
-  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
-  labs(
-    title = "PLS loadings for isotype markers",
-    x = "Marker",
-    fill = "PLS loading",
-    y = "Cell type"
-  )
-
-save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_loading_heatmap"),
-  width = 15,
-  height = 6,
-  plot = last_plot(),
-  create_dir = TRUE
-)
-
-
-
-
-FetchData(pg_data, vars = isotype_markers, 
-          layer = "data") |> 
-  as_tibble(rownames = "component") |> 
-  left_join(bg_scores, by = c("component")) |> 
-  pivot_longer(
-    cols = all_of(isotype_markers),
-    names_to = "marker",
-    values_to = "abundance"
-  ) |>
-  
-  ggplot(aes(abundance, bg_score)) +
-  geom_point(size = 0.1) +
-  geom_smooth(method = "lm") +
-  geom_text(data = . %>%
-              group_by(marker) %>%
-              summarise(cor = cor(abundance, bg_score)) ,
-            aes(label = paste0("r = ", round(cor, 2))),
-            x = Inf, y = -Inf,
-            hjust = 1.1, vjust = -0.5,
-            size = 3
-  ) +
-  facet_grid(~marker, scales = "free_x") +
-  theme_bw() +
-  labs(
-    title = "Background score vs isotype marker abundance",
-    x = "Marker abundance (CLR)",
-    y = "Background score"
-  )
-
-save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
-  width = 12,
-  height = 5,
-  plot = last_plot(),
-  create_dir = TRUE
-)
-
-isotype_levels <- 
-  FetchData(pg_data, c("condition", cell_annotation_column, 
-                       isotype_markers)) |> 
-  as_tibble(rownames = "component") |> 
-  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |> 
-  group_by(condition, !!sym(cell_annotation_column)) |> 
-  summarise(
-    mean_isotype = mean(max_isotype),
-    sd_isotype = sd(max_isotype)
-  ) |> 
-  ungroup()
-
-abundance_data_per_celltype <- 
-  FetchData(pg_data, c("condition", cell_annotation_column,
-                       rownames(pg_data))) |> 
-  as_tibble(rownames = "component") |> 
-  pivot_longer(
-    cols = all_of(rownames(pg_data)),
-    names_to = "marker",
-    values_to = "abundance"
-  ) |> 
-  group_by(condition, !!sym(cell_annotation_column), marker) |> 
-  summarise(
-    mean_abundance = mean(abundance),
-    sd_abundance = sd(abundance),
-    n_cells = n()
-  ) |> 
-  ungroup() |> 
-  left_join(isotype_levels, 
-            by = c("condition", 
-                   cell_annotation_column)) |> 
-  left_join(bg_loadings, 
-            by = c("marker", 
-                   cell_annotation_column)) |>
-  mutate(
-    is_low = mean_abundance < mean_isotype + 3 * sd_isotype, 
-    is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
-    is_noisy = bg_loading > 0.05,
-    passed_filter = case_when(
-      is_low ~ "Not passed",
-      is_high ~ "Passed",
-      is_noisy ~ "Not passed",
-      TRUE ~ "Passed"
-    )
-  )
-
-abundance_data_per_celltype |> 
-  mutate(cell_annotation = !!sym(cell_annotation_column)) |>
-  ggplot(aes((mean_abundance - mean_isotype) / sd_isotype, bg_loading,
-             color = passed_filter)) +
-  geom_hline(yintercept = 0) +
-  geom_point(size = 0.1) +
-  geom_text(aes(label = marker), size = 2) +
-  facet_grid(condition~cell_annotation) +
-  theme_bw() +
-  labs(
-    title = "Marker mean abundance vs PLS loading",
-    x = "Mean abundance (CLR)",
-    y = "PLS loading"
-  )
-
-save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/marker_selection_scatterplot"),
-  width = 15,
-  height = 10,
-  plot = last_plot(),
-  create_dir = TRUE
-)
-
-markers_per_cell_type <-
-  abundance_data_per_celltype |> 
-  filter(passed_filter == "Passed") |> 
-  select(condition, cell_type = !!sym(cell_annotation_column), marker) |> 
-  distinct() |> 
-  group_by(cell_type)
-  
-abundance_data_per_celltype |> 
-  mutate(cell_type = !!sym(cell_annotation_column)) |>
-  filter(passed_filter == "Passed") |>
-  ggplot(aes(marker, condition)) +
-  geom_tile() +
-  facet_grid(cell_type ~ .) +
-  scale_fill_gradientn(colors = PixelgenGradient(100, "Cherry")) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-    panel.background = element_rect(fill = "white"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Selected markers per cell type",
-    x = "Marker",
-    y = "Condition",
-    fill = "Mean abundance (CLR)"
-  )
-
-save_plot(
-  filename = here::here("results/05_statistical_testing/isotype_background_score/selected_markers_heatmap"),
-  width = 12,
-  height = 8,
-  plot = last_plot(),
-  create_dir = TRUE
-)
-
-markers_per_cell_type |> 
-  write_csv(here::here("results/05_statistical_testing/isotype_background_score/selected_markers.csv"))
-
-markers_to_test <-
-  markers_per_cell_type |>
-  group_split() |> 
-  set_names(group_keys(markers_per_condition)$cell_type) |> 
-  lapply(function(df) unique(df$marker))
-
-```
-
-
-
-## 5.2. Differential abundance analysis
+## 5.1. Differential abundance analysis
 
 Differential abundance analysis identifies markers that exhibit statistically significant differences in expression levels between experimental conditions. This analysis is essential for understanding how experimental treatments, disease states, or other conditions affect protein expression patterns within specific cell types.
 
@@ -2571,7 +2570,7 @@ write.csv(differential_abundance_analysis, here::here("results/05_statistical_te
 
 ```    
 
-### 5.2.1. Summarizing plots
+### 5.1.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential abundance analysis results:
 
@@ -2791,7 +2790,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.3. Differential Clustering Analysis
+## 5.2. Differential Clustering Analysis
 
 Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
 
@@ -2846,7 +2845,7 @@ write.csv(differential_clustering_analysis, here::here("results/05_statistical_t
 ```
 
 
-### 5.3.1. Summarizing plots
+### 5.2.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential clustering analysis results:
 
@@ -3067,7 +3066,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.4. Differential Colocalization Analysis
+## 5.3. Differential Colocalization Analysis
 
 Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
 
@@ -3121,7 +3120,7 @@ write.csv(differential_colocalization_analysis, here::here("results/05_statistic
 
 ```
 
-### 5.4.1. Summarizing plots
+### 5.3.1. Summarizing plots
 
 Here we create summarizing plots for the differential colocalization analysis results:
 
