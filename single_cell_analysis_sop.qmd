@@ -2650,7 +2650,7 @@ for (target_condition in target_conditions) {
 
     # Create directory name based on target and reference
     comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/05_statistical_testing/differential_abundance_plots", comparison_dir)
+    base_output_dir <- here::here("results/05_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
 
     # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
     # This plot helps identify markers that are both significantly different and have large effect sizes
