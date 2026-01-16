@@ -1,5 +1,5 @@
 ---
-title: "Single Cell PNA Analysis SOP"
+title: "Proxiome Analysis SOP"
 subtitle: "v0.1.0" 
 format: 
     html:
@@ -118,6 +118,7 @@ library(ComplexHeatmap)
 library(ggplotify)
 library(here)
 library(Matrix)
+library(ggraph)
 
 # Anchor the project root directory
 here::i_am("single_cell_analysis_sop.qmd")
@@ -1655,7 +1656,7 @@ When later performing statistical tests, we want to guide our attention to marke
 
 To identify such markers, we employ Partial Least Squares (PLS) regression, which allows us to model the relationship between isotype marker abundance and overall background signal in the dataset. The analysis is conducted separately for each cell type, allowing us to capture cell type-specific background patterns. The PLS model is fitted using isotype markers as predictors, and results in a background score describing the background level in each cell. Additionally, we obtain background loadings that indicate the contribution of each marker to the background signal. If a marker has a positive loading, it suggests that the marker is strongly associated with background signal in that cell type. For each cell type, we keep markers that either have a very high abundance (mean CLR > 10 isotype CLR std) or have medium abundance (mean CLR > 3 isotype CLR std) and a background PLS loading below 0.05. The markers that are retained in any condition will be used for downstream statistical testing.
 
-We utilize the `isotype_pls` function from the `PixelgenR` package to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
+We utilize the `isotype_pls` helper function to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
 
 ```{r}
 #| label: statistical_testing_marker_selection
@@ -2289,10 +2290,17 @@ for (cell_type in cell_types) {
     sample_heatmaps <- list()
 
     for (sample in unique_samples) {
+      
         # Filter data for current sample
-        sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+        sample_data <- 
+          summary_proximity_data |> 
+          filter(sample_alias == sample)
 
-        tmp_plot <- ColocalizationHeatmap(
+        if (n_distinct(c(sample_data$marker_1, 
+                         sample_data$marker_2)) >= 2) {
+          
+          
+          tmp_plot <- ColocalizationHeatmap(
             sample_data,
             marker1_col = "marker_1",
             marker2_col = "marker_2",
@@ -2302,42 +2310,50 @@ for (cell_type in cell_types) {
             cluster_cols = FALSE,
             cluster_rows = FALSE,
             legend_range = global_value_limits # Use global range for consistent scaling
-        ) +
+          ) +
             ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
-
-        # Apply the reference marker order to the ggplot object by modifying the scales
-        # This ensures all heatmaps have consistent marker ordering
-        tmp_plot <- tmp_plot +
+          
+          # Apply the reference marker order to the ggplot object by modifying the scales
+          # This ensures all heatmaps have consistent marker ordering
+          tmp_plot <- tmp_plot +
             scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
             scale_y_discrete(limits = rev(marker_order), drop = FALSE)
-
-        # Ensure consistent scales across all samples for fair comparison
-        # The legend_range parameter already handles the value scale, but we need to ensure
-        # the size scale is also consistent. Try both fill and color aesthetics in case
-        # ColocalizationHeatmap uses either one
-        plot_layers <- tmp_plot$layers
-        has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-        has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
-
-        # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-        if (has_fill) {
+          
+          # Ensure consistent scales across all samples for fair comparison
+          # The legend_range parameter already handles the value scale, but we need to ensure
+          # the size scale is also consistent. Try both fill and color aesthetics in case
+          # ColocalizationHeatmap uses either one
+          plot_layers <- tmp_plot$layers
+          has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+          has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+          
+          # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+          if (has_fill) {
             tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-        if (has_color && !has_fill) {
+          }
+          if (has_color && !has_fill) {
             tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-        }
-
-        # Ensure consistent size scale across all samples
-        tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
-
-        # Save individual plot with dimensions scaled to number of markers
-        save_plot(
+          }
+          
+          # Ensure consistent size scale across all samples
+          tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
+          
+          # Save individual plot with dimensions scaled to number of markers
+          save_plot(
             filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
             plot = tmp_plot,
             width = plot_width,
             height = plot_height,
             create_dir = TRUE
-        )
+          )
+        } else {
+          # Create an empty plot with a message indicating insufficient markers
+          tmp_plot <- ggplot() +
+            theme_void() +
+            geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {sample}"))) +
+            xlim(-1, 1) +
+            ylim(-1, 1)
+        }
 
         # Store plot for combined visualization
         sample_heatmaps[[sample]] <- tmp_plot
@@ -2364,6 +2380,7 @@ for (cell_type in cell_types) {
         create_dir = TRUE
     )
 }
+
 ```
 
 

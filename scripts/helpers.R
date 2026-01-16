@@ -153,7 +153,8 @@ save_plot <-
         plot = plot,
         width = width,
         height = height,
-        create.dir = create_dir
+        create.dir = create_dir,
+        limitsize = FALSE
       )
     }
     invisible(NULL)
