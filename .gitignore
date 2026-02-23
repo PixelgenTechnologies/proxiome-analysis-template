@@ -7,3 +7,5 @@
 # Result files
 results/
 data/*.pxl
+single_cell_analysis_sop_files/
+*.html

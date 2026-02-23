@@ -753,13 +753,13 @@ In the example provided here, the threshold is set to 500 CPM at the 95th percen
 ```{r}
 #| label: quality_control_select_markers
 
-marker_cpm_p95_threshold <- 500
+marker_cpm_p95_threshold <- 2000
 
 count_data <-
     LayerData(pg_data, "counts")
 cpm_data <-
     count_data |>
-    sweep(1, rowSums(count_data), "/")
+    sweep(2, colSums(count_data), "/")
 
 cpm_data <- cpm_data * 1e6
 
