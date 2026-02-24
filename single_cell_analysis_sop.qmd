@@ -130,9 +130,6 @@ here::i_am("single_cell_analysis_sop.qmd")
 # Set global options for saving plots
 options(save_plot.overwrite = FALSE)
 
-# Load helper functions
-source("scripts/helpers.R")
-
 ```
 
 ## 0.2. Create the PNA object
@@ -845,7 +842,7 @@ pg_data[[]] |>
     # annotate median values above points
     fun = median,
     geom = "text",
-    aes(label = round(..y.., 1)),
+    aes(label = round(after_stat(y), 1)),
     vjust = -1,
     size = 3,
     color = "black",
