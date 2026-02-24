@@ -160,7 +160,16 @@ S3,S3_IL2,S3_IL2.pxl,IL2_treated,D1
 metadata <- read.csv(here::here("data", "metadata.csv")) |> as_tibble()
 
 # Check that the metadata file contains the required columns - otherwise stop the script
-check_metadata_columns(metadata)
+if (
+    !all(
+      c("sample_id", "sample_alias", "file_path", "condition") %in%
+        colnames(metadata)
+    )
+  ) {
+    stop(
+      "Metadata file must contain the columns: sample_id, sample_alias, file_path and condition"
+    )
+  }
 
 # Print the metadata
 print(metadata)
@@ -364,19 +373,48 @@ First we inspect the read depth per cell. This is a measure of the total number 
 ```{r}
 #| label: quality_control_read_depth
 
-read_depth_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "reads_in_component",
-    palette = sample_palette,
-    data_cutoff = 0.999 # Remove a few outlier cells that make the plot hard to read
-)
+pg_data[[]] |> 
+  ggplot(aes(
+    sample_alias, 
+    reads_in_component,
+    color = condition 
+  )) +
+  ggbeeswarm::geom_quasirandom() + 
+  stat_summary(
+    fun = median,
+    geom = "point",
+    shape = 23,
+    size = 1,
+    fill = "black",
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(..y.., 1)),
+    vjust = -1,
+    size = 3,
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Reads in Component",
+  ) +
+  scale_color_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
 
 save_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_read_depth"
     ),
-    plot = read_depth_plot,
     width = 10,
     height = 8,
     create_dir = TRUE
@@ -392,19 +430,48 @@ Here we inspect the average k-core per cell. The k-core is a measure of the conn
 #| label: quality_control_average_k_core
 
 # Average k-core per cell
-average_k_core_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "average_k_core",
-    palette = sample_palette,
-    data_cutoff = 1
-)
+pg_data[[]] |> 
+  ggplot(aes(
+    sample_alias, 
+    average_k_core,
+    color = condition 
+  )) +
+  ggbeeswarm::geom_quasirandom() + 
+  stat_summary(
+    fun = median,
+    geom = "point",
+    shape = 23,
+    size = 1,
+    fill = "black",
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(..y.., 1)),
+    vjust = -1,
+    size = 3,
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Average k-core",
+  ) +
+  scale_color_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
 
 save_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_average_k_core"
     ),
-    plot = average_k_core_plot,
     width = 10,
     height = 8,
     create_dir = TRUE
@@ -429,19 +496,48 @@ pg_data <-
         col.name = "prc_dangling_nodes"
     )
 
-dangling_nodes_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "prc_dangling_nodes",
-    palette = sample_palette,
-    data_cutoff = 1
-)
+pg_data[[]] |> 
+  ggplot(aes(
+    sample_alias, 
+    prc_dangling_nodes,
+    color = condition 
+  )) +
+  ggbeeswarm::geom_quasirandom() + 
+  stat_summary(
+    fun = median,
+    geom = "point",
+    shape = 23,
+    size = 1,
+    fill = "black",
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(..y.., 1)),
+    vjust = -1,
+    size = 3,
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "% Dangling nodes",
+  ) +
+  scale_color_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
 
 save_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
     ),
-    plot = dangling_nodes_plot,
     width = 10,
     height = 8,
     create_dir = TRUE
@@ -484,30 +580,58 @@ isotype_fraction_threshold <- 0.0025
 #| label: quality_control_n_umi_plot
 
 # Plot to visualize thresholds as a violin plot
-n_umi_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "n_umi",
-    palette = sample_palette,
-    data_cutoff = 0.999
-) &
-    geom_hline(
-        yintercept = n_umi_min_threshold,
-        linetype = "dashed",
-        color = "red"
-    ) &
-    geom_hline(
-        yintercept = n_umi_max_threshold,
-        linetype = "dashed",
-        color = "red"
-    ) &
-    theme_bw()
+pg_data[[]] |> 
+  ggplot(aes(
+    sample_alias, 
+    n_umi,
+    color = condition 
+  )) +
+  ggbeeswarm::geom_quasirandom() + 
+  stat_summary(
+    fun = median,
+    geom = "point",
+    shape = 23,
+    size = 1,
+    fill = "black",
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(..y.., 1)),
+    vjust = -1,
+    size = 3,
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Number of UMIs",
+  ) +
+  scale_color_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
+  geom_hline(
+    yintercept = n_umi_min_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  geom_hline(
+    yintercept = n_umi_max_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) 
 
 save_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_n_umi"
     ),
-    plot = n_umi_plot,
     width = 10,
     height = 8
 )
@@ -697,13 +821,43 @@ In PNA experiments, isotype control antibodies are included to measure unspecifi
 ```{r}
 #| label: quality_control_isotype_controls
 
-isotype_fraction_plot <- create_violin_plot(
-    data = pg_data,
-    var_x = "sample_alias",
-    var_y = "isotype_fraction",
-    palette = sample_palette,
-    data_cutoff = 1
-) +
+pg_data[[]] |> 
+  ggplot(aes(
+    sample_alias, 
+    isotype_fraction,
+    color = condition 
+  )) +
+  ggbeeswarm::geom_quasirandom() + 
+  stat_summary(
+    fun = median,
+    geom = "point",
+    shape = 23,
+    size = 1,
+    fill = "black",
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(..y.., 1)),
+    vjust = -1,
+    size = 3,
+    color = "black",
+    position = position_dodge(width = 0.75)
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Fraction of isotype counts",
+  ) +
+  scale_color_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
   geom_hline(
     yintercept = isotype_fraction_threshold,
     linetype = "dashed",
@@ -715,7 +869,6 @@ save_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_isotype_controls"
     ),
-    plot = isotype_fraction_plot,
     width = 10,
     height = 8
 )
