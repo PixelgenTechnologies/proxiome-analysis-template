@@ -30,9 +30,6 @@ This analysis workflow creates the following folder structure for organizing inp
 │   ├── metadata.csv                         # Sample metadata file (required)
 │   └── *.pxl                                # PNA data files (one per sample)
 │
-├── scripts/                                 # Analysis scripts
-│   └── helpers.R                            # Helper functions for plotting and data processing
-│
 └── results/                                 # Output results directory
     ├── 01_quality_control/                   # Section 1: Quality control metrics and plots
     │   ├── violin_plots/                     # Violin plots for QC metrics (read depth, k-core, etc.)
@@ -1231,7 +1228,7 @@ All automated annotations should be inspected, verified, and adjusted as necessa
 #| label: data_processing_annotation
 
 # Load reference dataset
-reference <- pixelatorES::read_annotation_reference()
+reference <- pixelatorR::read_pbmc_reference()
 
 # Set names of annotation columns in reference
 reference$l1_annotation <- reference$celltype.l1
