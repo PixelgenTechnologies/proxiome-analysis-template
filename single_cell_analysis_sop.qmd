@@ -607,7 +607,7 @@ pg_data[[]] |>
     # annotate median values above points
     fun = median,
     geom = "text",
-    aes(label = round(..y.., 1)),
+    aes(label = after_stat(round(y, 1))),
     vjust = -1,
     size = 3,
     color = "black",
