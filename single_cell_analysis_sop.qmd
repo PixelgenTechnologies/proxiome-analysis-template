@@ -1,6 +1,6 @@
 ---
 title: "Proxiome Analysis SOP"
-subtitle: "v0.1.0" 
+subtitle: "v0.2.0" 
 format: 
     html:
       toc: true
@@ -128,7 +128,9 @@ if (packageVersion("pixelatorR") < "0.16.0") {
 here::i_am("single_cell_analysis_sop.qmd")
 
 # Set global options for saving plots
-options(save_plot.overwrite = FALSE)
+options(export_plot.overwrite = FALSE)
+# Set global options for file formats to save plots in both PNG and PDF
+options(export_plot.file_formats = c("png", "pdf"))
 
 ```
 
@@ -359,7 +361,7 @@ pg_data[[]] |>
     axis.text.x = element_text(angle = 60, hjust = 1)
   )
 
-save_plot(
+export_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_read_depth"
     ),
@@ -416,7 +418,7 @@ pg_data[[]] |>
     axis.text.x = element_text(angle = 60, hjust = 1)
   )
 
-save_plot(
+export_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_average_k_core"
     ),
@@ -482,7 +484,7 @@ pg_data[[]] |>
     axis.text.x = element_text(angle = 60, hjust = 1)
   )
 
-save_plot(
+export_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
     ),
@@ -576,7 +578,7 @@ pg_data[[]] |>
     color = "red"
   ) 
 
-save_plot(
+export_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_n_umi"
     ),
@@ -607,7 +609,7 @@ molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_
         linetype = "dashed",
         color = "red"
     )
-save_plot(
+export_plot(
     filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
     plot = molecule_rank_plot_w_thresholds,
     width = 10,
@@ -616,7 +618,7 @@ save_plot(
 )
 
 molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
-save_plot(
+export_plot(
     filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
     plot = molecule_rank_plot,
     width = 10,
@@ -753,7 +755,7 @@ annotated_molecule_rank_plot <- pg_data[[]] |>
             linewidth = 0.5
         )
     )
-save_plot(
+export_plot(
     filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
     plot = annotated_molecule_rank_plot,
     width = 15,
@@ -813,7 +815,7 @@ pg_data[[]] |>
   ) 
 
 
-save_plot(
+export_plot(
     filename = here::here(
         "results/01_quality_control/violin_plots/quality_control_isotype_controls"
     ),
@@ -831,7 +833,7 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 
 tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
 
-save_plot(
+export_plot(
     filename = here::here(
         "results/01_quality_control/tau_plots/quality_control_tau_score"
     ),
@@ -883,7 +885,7 @@ scatter_percentile_cpm_quantiles <- cpm_quantiles |>
         x = "50th percentile of CPM (log10 scale)",
         y = "95th / 50th percentile of CPM (log10 scale)"
     )
-save_plot(
+export_plot(
     filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
     plot = scatter_percentile_cpm_quantiles,
     width = 12,
@@ -904,7 +906,7 @@ barplot_percentile_cpm_quantiles <- cpm_quantiles |>
         x = "Marker",
         y = "95th percentile of CPM (log10 scale)"
     )
-save_plot(
+export_plot(
     filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
     width = 12,
     height = 4,
@@ -977,7 +979,7 @@ elbow_plot_pca <- pca_red@stdev |>
         x = "Principal Component",
         y = "Standard Deviation"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
     width = 6,
     height = 4,
@@ -997,7 +999,7 @@ pca_embeddings <- Embeddings(pg_data, "pca") |>
     scale_color_manual(values = sample_palette) +
     theme_bw()
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
     width = 6,
     height = 4,
@@ -1014,7 +1016,7 @@ umap_embeddings <-
     scale_color_manual(values = sample_palette) +
     theme_bw()
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
     width = 6,
     height = 4,
@@ -1060,7 +1062,7 @@ harmony_embeddings <- Embeddings(pg_data, "harmony") |>
     scale_color_manual(values = sample_palette) +
     theme_bw()
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
     width = 6,
     height = 4,
@@ -1076,7 +1078,7 @@ harmony_umap_embeddings <- Embeddings(pg_data, "harmony_umap") |>
     scale_color_manual(values = sample_palette) +
     theme_bw()
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
     width = 6,
     height = 4,
@@ -1114,7 +1116,7 @@ harmony_clusters_embeddings <- Embeddings(pg_data, "harmony") |>
     scale_color_manual(values = cluster_palette) +
     theme_bw()
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
     width = 6,
     height = 4,
@@ -1130,7 +1132,7 @@ harmony_umap_clusters_embeddings <- Embeddings(pg_data, "harmony_umap") |>
     scale_color_manual(values = cluster_palette) +
     theme_bw()
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
     width = 6,
     height = 4,
@@ -1149,8 +1151,10 @@ This section visualizes the distribution of all markers on the harmonized UMAP. 
 for (marker in rownames(pg_data)) {
     feature_plot <- FeaturePlot(pg_data, features = marker, reduction = "harmony_umap") &
         theme(aspect.ratio = 1)
-    save_plot(
-        filename = glue::glue("results/02_data_processing/marker_umap_plots/{marker}_umap"),
+    
+    savename_marker <- str_remove_all(marker, "\\.") # remove dots from marker names for saving
+    export_plot(
+        filename = glue::glue("results/02_data_processing/marker_umap_plots/{savename_marker}_umap"),
         plot = feature_plot,
         width = 6,
         height = 6
@@ -1224,7 +1228,7 @@ harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |
     scale_color_manual(values = cell_palette) +
     theme_bw() +
     theme(panel.grid = element_blank())
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
     width = 6,
     height = 4,
@@ -1255,7 +1259,7 @@ harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
     scale_color_manual(values = cell_palette) +
     theme_bw() +
     theme(panel.grid = element_blank())
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
     width = 6,
     height = 4,
@@ -1286,7 +1290,7 @@ harmony_umap_l2_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |
     scale_color_manual(values = cell_palette) +
     theme_bw() +
     theme(panel.grid = element_blank())
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
     width = 6,
     height = 4,
@@ -1316,7 +1320,7 @@ harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
     scale_color_manual(values = cell_palette) +
     theme_bw() +
     theme(panel.grid = element_blank())
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
     width = 6,
     height = 4,
@@ -1346,7 +1350,7 @@ cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_ann
         x = "Sample",
         y = "Cell type fraction"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
     width = 12,
     height = 8,
@@ -1402,7 +1406,7 @@ differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_clus
         heatmap_legend_param = list(title = "CLR Difference"),
     ) |>
     as.ggplot()
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
     width = 10,
     height = 4,
@@ -1432,7 +1436,7 @@ volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers
         y = "-log10(p value)"
     )
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster_volcano"),
     width = 8,
     height = 6,
@@ -1484,7 +1488,7 @@ marker_abundance_harmonyumap_plot <- plot_data |>
         y = "Harmony UMAP 2",
         color = "CLR"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_harmonyumap"),
     width = 6,
     height = 4,
@@ -1507,7 +1511,7 @@ marker_abundance_per_cluster_plot <- plot_data |>
         x = "Sample",
         y = "CLR"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
     width = 8,
     height = 8,
@@ -1527,7 +1531,7 @@ mean_marker_abundance_per_cluster_heatmap <- plot_data |>
         heatmap_legend_param = list(title = "Mean CLR"),
     ) |>
     as.ggplot()
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
     width = 6,
     height = 4,
@@ -1604,7 +1608,7 @@ comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters"
         y = "Manual annotation",
         fill = "Fraction of cells"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
     width = 8,
     height = 6,
@@ -1663,7 +1667,7 @@ cd4_subtype_density_plot <- DensityScatterPlot(
         title = "CD4 T Cell Subtypes: Naive vs Memory",
         subtitle = "Naive: CD45RA+ CD45RO- | Memory: CD45RA- CD45RO+"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter"),
     width = 8,
     height = 6,
@@ -1708,7 +1712,7 @@ cd4_subtype_density_plot_memory_cd4_gate <- DensityScatterPlot(
         title = "CD4 T Cell Subtypes with Gates",
         subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
     )
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter_w_gates"),
     width = 16,
     height = 6,
@@ -1744,7 +1748,7 @@ cd4_subtype_umap <- DimPlot(
     theme(aspect.ratio = 1) +
     labs(title = "CD4 T Cell Subtypes on UMAP")
 
-save_plot(
+export_plot(
     filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_umap"),
     width = 8,
     height = 6,
@@ -1814,7 +1818,7 @@ isotype_background_score_featureplot <-
   scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
   labs(title = "Isotype background score")
 
-save_plot(
+export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_featureplot"),
   plot = isotype_background_score_featureplot,
   width = 6,
@@ -1847,7 +1851,7 @@ bg_loadings |>
     y = "Cell type"
   )
 
-save_plot(
+export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_loading_heatmap"),
   width = 15,
   height = 6,
@@ -1887,7 +1891,7 @@ FetchData(pg_data, vars = isotype_markers,
     y = "Background score"
   )
 
-save_plot(
+export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
   width = 12,
   height = 5,
@@ -1956,7 +1960,7 @@ abundance_data_per_celltype |>
     y = "PLS loading"
   )
 
-save_plot(
+export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/marker_selection_scatterplot"),
   width = 15,
   height = 10,
@@ -1991,7 +1995,7 @@ abundance_data_per_celltype |>
     fill = "Mean abundance (CLR)"
   )
 
-save_plot(
+export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/selected_markers_heatmap"),
   width = 12,
   height = 8,
@@ -2048,6 +2052,8 @@ plot_data <- plot_data_clr |>
 plot_data |>
     group_by(marker) |>
     group_map(~ {
+      
+      marker_savename <- str_remove(.y, "\\.") # remove dot from marker name for saving files
         # Create 2 plots for the current marker: CLR per sample, Count per sample
         p_clr_per_sample <- .x |> # .x contains the grouped data for the current marker
             filter(metric == "CLR") |>
@@ -2072,8 +2078,8 @@ plot_data |>
 
         # Save per sample plots
         p_abundance_distribution_per_sample <- (p_clr_per_sample + p_count_per_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        save_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_sample/{.y}_abundance_distribution_per_sample")),
+        export_plot(
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_sample/{marker_savename}_abundance_distribution_per_sample")),
             width = 12,
             height = 8,
             plot = p_abundance_distribution_per_sample
@@ -2101,8 +2107,8 @@ plot_data |>
 
         # Save per cell type plots
         p_abundance_distribution_per_celltype <- (p_clr_per_celltype + p_count_per_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        save_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type/{.y}_abundance_distribution_per_celltype")),
+        export_plot(
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type/{marker_savename}_abundance_distribution_per_celltype")),
             width = 12,
             height = 8,
             plot = p_abundance_distribution_per_celltype
@@ -2131,8 +2137,8 @@ plot_data |>
             ylim(NA, count_99)
 
         p_abundance_distribution_per_celltype_faceted_by_sample <- (p_clr_per_celltype_faceted_by_sample + p_count_per_celltype_faceted_by_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        save_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_sample/{.y}_abundance_distribution_per_celltype_faceted_by_sample")),
+        export_plot(
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_sample/{marker_savename}_abundance_distribution_per_celltype_faceted_by_sample")),
             width = 16,
             height = 12,
             plot = p_abundance_distribution_per_celltype_faceted_by_sample
@@ -2161,8 +2167,8 @@ plot_data |>
             ylim(NA, count_99)
 
         p_abundance_distribution_per_condition_faceted_by_celltype <- (p_clr_per_condition_faceted_by_celltype + p_count_per_condition_faceted_by_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        save_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_condition_faceted_by_celltype/{.y}_abundance_distribution_per_condition_faceted_by_celltype")),
+        export_plot(
+            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_condition_faceted_by_celltype/{marker_savename}_abundance_distribution_per_condition_faceted_by_celltype")),
             width = 16,
             height = 12,
             plot = p_abundance_distribution_per_condition_faceted_by_celltype
@@ -2288,7 +2294,7 @@ for (sample in unique_samples) {
     tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
 
     # Save individual plot with dimensions scaled to number of markers
-    save_plot(
+    export_plot(
         filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
         plot = tmp_plot,
         width = plot_width,
@@ -2313,7 +2319,7 @@ combined_width <- plot_width * n_cols
 combined_height <- plot_height * n_rows
 
 # Save the combined plot
-save_plot(
+export_plot(
     filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
     plot = combined_plot,
     width = combined_width,
@@ -2332,6 +2338,7 @@ The visualization follows the same principles as the per-sample analysis: color 
 #| label: colocalization_raw_heatmap_per_cell_type
 
 cell_types <- unique(pg_data[[]]$cell_annotation)
+cell_types <- cell_types[!is.na(cell_types)]
 
 for (cell_type in cell_types) {
     expressed_markers <- markers_to_test[[cell_type]]
@@ -2447,7 +2454,7 @@ for (cell_type in cell_types) {
           tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
           
           # Save individual plot with dimensions scaled to number of markers
-          save_plot(
+          export_plot(
             filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
             plot = tmp_plot,
             width = plot_width,
@@ -2480,7 +2487,7 @@ for (cell_type in cell_types) {
     combined_height <- plot_height * n_rows
 
     # Save the combined plot
-    save_plot(
+    export_plot(
         filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
         plot = combined_plot,
         width = combined_width,
@@ -2559,7 +2566,7 @@ network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
     labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
     guides(edge_width = "none")
 
-save_plot(
+export_plot(
     filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
     plot = network_plot_all_cell_types,
     width = 12,
@@ -2636,7 +2643,7 @@ network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
     ) +
     guides(edge_width = "none")
 
-save_plot(
+export_plot(
     filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
     plot = network_plot_cell_type_of_interest,
     width = 12,
@@ -2796,7 +2803,7 @@ for (target_condition in target_conditions) {
         )
 
     # Save faceted volcano plot in the comparison directory
-    save_plot(
+    export_plot(
         filename = file.path(base_output_dir, "differential_abundance_volcano"),
         plot = volcano_plot_differential_abundance,
         width = 12,
@@ -2859,7 +2866,7 @@ for (target_condition in target_conditions) {
             )
 
         # Save non-faceted volcano plot
-        save_plot(
+        export_plot(
             filename = file.path(cell_type_dir, "volcano_plot"),
             plot = volcano_plot_cell_type,
             width = 8,
@@ -2902,7 +2909,7 @@ for (target_condition in target_conditions) {
             ) |>
             as.ggplot()
 
-        save_plot(
+        export_plot(
             filename = file.path(base_output_dir, "differential_abundance_heatmap"),
             plot = heatmap_differential_abundance,
             width = 10,
@@ -3072,7 +3079,7 @@ for (target_condition in target_conditions) {
         )
 
     # Save faceted volcano plot in the comparison directory
-    save_plot(
+    export_plot(
         filename = file.path(base_output_dir, "differential_clustering_volcano"),
         plot = volcano_plot_differential_clustering,
         width = 12,
@@ -3135,7 +3142,7 @@ for (target_condition in target_conditions) {
             )
 
         # Save non-faceted volcano plot
-        save_plot(
+        export_plot(
             filename = file.path(cell_type_dir, "volcano_plot"),
             plot = volcano_plot_cell_type,
             width = 8,
@@ -3178,7 +3185,7 @@ for (target_condition in target_conditions) {
             ) |>
             as.ggplot()
 
-        save_plot(
+        export_plot(
             filename = file.path(base_output_dir, "differential_clustering_heatmap"),
             plot = heatmap_differential_clustering,
             width = 10,
@@ -3317,7 +3324,7 @@ for (target_condition in target_conditions) {
             )
 
         # Save the plot
-        save_plot(
+        export_plot(
             filename = file.path(cell_type_dir, "colocalization_heatmap"),
             plot = colocalization_heatmap,
             width = 10,
