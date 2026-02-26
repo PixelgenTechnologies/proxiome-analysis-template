@@ -1,6 +1,6 @@
 ---
 title: "Proxiome Analysis Template"
-subtitle: "v0.2.0" 
+subtitle: "v0.2.1" 
 format: 
     html:
       toc: true

@@ -89,5 +89,6 @@ files with processed data.
 
 ## Contact and License
 
-This template is released under the GNU General Public License. You are free to use, study, share, and modify the 
-template, and any distributed derivative work must also be released under the same terms.
+This template is released under the GNU General Public License v2. You are free to use, study, share, and modify the 
+template, and any distributed derivative work must also be released under the same terms. See the `LICENSE` file in 
+this repository for the full license text.
