@@ -1,6 +1,6 @@
 ---
-title: "Proxiome Analysis SOP"
-subtitle: "v0.2.0" 
+title: "Proxiome Analysis Template"
+subtitle: "v0.2.1" 
 format: 
     html:
       toc: true
@@ -8,7 +8,6 @@ date: "`r Sys.Date()`"
 editor_options: 
   chunk_output_type: console
 execute:
-  dev: ragg_png
   eval: false
   execute-dir: dir
   echo: true
@@ -16,7 +15,7 @@ execute:
   message: false
 ---
 
-This SOP describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is interactive and modular, requiring manual intervention at several key steps. 
+This template describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is interactive and modular, requiring manual intervention at several key steps. 
 
 **Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
@@ -125,7 +124,7 @@ if (packageVersion("pixelatorR") < "0.16.0") {
 }
 
 # Anchor the project root directory
-here::i_am("single_cell_analysis_sop.qmd")
+here::i_am("proxiome_analysis_template.qmd")
 
 # Set global options for saving plots
 options(export_plot.overwrite = FALSE)
