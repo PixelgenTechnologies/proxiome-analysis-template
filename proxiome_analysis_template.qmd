@@ -8,7 +8,6 @@ date: "`r Sys.Date()`"
 editor_options: 
   chunk_output_type: console
 execute:
-  dev: ragg_png
   eval: false
   execute-dir: dir
   echo: true
