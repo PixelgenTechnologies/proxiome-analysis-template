@@ -17,8 +17,8 @@ ENV PATH=/opt/quarto/$QUARTO_VERSION/bin:$PATH
 WORKDIR /workspace
 
 # Install dependencies
-COPY DESCRIPTION /workspace/
-RUN R -e "pak::pak()"
+COPY renv.lock /workspace/
+RUN Rscript -e "install.packages('renv'); renv::restore()"
 
 # Move the quarto files into the container
 COPY proxiome_analysis_template.qmd /workspace/proxiome_analysis_template.qmd
