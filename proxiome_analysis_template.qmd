@@ -130,7 +130,6 @@ here::i_am("proxiome_analysis_template.qmd")
 options(export_plot.overwrite = FALSE)
 # Set global options for file formats to save plots in both PNG and PDF
 options(export_plot.file_formats = c("png", "pdf"))
-
 ```
 
 ## 0.2. Create the PNA object
@@ -163,15 +162,15 @@ metadata <- read.csv(here::here("data", "metadata.csv")) |> as_tibble()
 
 # Check that the metadata file contains the required columns - otherwise stop the script
 if (
-    !all(
-      c("sample_id", "sample_alias", "file_path", "condition") %in%
-        colnames(metadata)
-    )
-  ) {
-    stop(
-      "Metadata file must contain the columns: sample_id, sample_alias, file_path and condition"
-    )
-  }
+  !all(
+    c("sample_id", "sample_alias", "file_path", "condition") %in%
+      colnames(metadata)
+  )
+) {
+  stop(
+    "Metadata file must contain the columns: sample_id, sample_alias, file_path and condition"
+  )
+}
 
 # Print the metadata
 print(metadata)
@@ -186,17 +185,17 @@ This step loads each PXL file specified in the metadata and merges them into a s
 
 # Load the data from the file paths into a list of PNA objects
 pg_data <-
-    here::here("data", metadata$file_path) |>
-    lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
+  here::here("data", metadata$file_path) |>
+  lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 # Merge the PNA objects, adding the sample_id to the cell names
 pg_data <-
-    merge(
-        pg_data[[1]],
-        y = pg_data[-1],
-        add.cell.ids = metadata$sample_id
-    ) |>
-    JoinLayers()
+  merge(
+    pg_data[[1]],
+    y = pg_data[-1],
+    add.cell.ids = metadata$sample_id
+  ) |>
+  JoinLayers()
 ```
 
 ### 0.2.3. Add metadata
@@ -208,16 +207,16 @@ This step adds sample-level metadata from the metadata file to each cell in the 
 
 # Add metadata to the PNA object
 pg_data[[]] <-
-    pg_data[[]] |>
-    as_tibble(rownames = "cell_id") |>
-    mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 18 characters from the cell_id to get the sample_id
-    left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
-    column_to_rownames("cell_id")
+  pg_data[[]] |>
+  as_tibble(rownames = "cell_id") |>
+  mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 18 characters from the cell_id to get the sample_id
+  left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
+  column_to_rownames("cell_id")
 
 # Sanity check the metadata
 for (col in colnames(metadata |> select(-file_path))) {
-    print(col)
-    print(table(pg_data[[]]$sample_alias, pg_data[[]][, col]))
+  print(col)
+  print(table(pg_data[[]]$sample_alias, pg_data[[]][, col]))
 }
 ```
 
@@ -229,79 +228,79 @@ Here we specify the color palettes for clusters and conditions. These can be adj
 #| label: setup_theme
 
 cluster_palette <-
-    c(
-        pixelatorR::PixelgenAccentColors(
-            level = 7,
-            hue = c(
-                "blues",
-                "reds",
-                "cyans",
-                "oranges",
-                "pinks",
-                "greens",
-                "purples",
-                "yellows",
-                "greys",
-                "beiges"
-            )
-        ),
-        pixelatorR::PixelgenAccentColors(
-            level = 9,
-            hue = c(
-                "blues",
-                "pinks",
-                "reds",
-                "yellows",
-                "greys",
-                "beiges"
-            )
-        ),
-        pixelatorR::PixelgenAccentColors(
-            level = 5,
-            hue = c(
-                "purples",
-                "blues",
-                "cyans",
-                "greens",
-                "reds",
-                "oranges"
-            )
-        ),
-        pixelatorR::PixelgenAccentColors(
-            level = 3,
-            hue = c("blues", "reds")
-        ),
-        pixelatorR::PixelgenAccentColors(
-            level = 12,
-            hue = c("blues", "reds")
-        )
-    ) |>
-    unname() |>
-    rep(10)
+  c(
+    pixelatorR::PixelgenAccentColors(
+      level = 7,
+      hue = c(
+        "blues",
+        "reds",
+        "cyans",
+        "oranges",
+        "pinks",
+        "greens",
+        "purples",
+        "yellows",
+        "greys",
+        "beiges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 9,
+      hue = c(
+        "blues",
+        "pinks",
+        "reds",
+        "yellows",
+        "greys",
+        "beiges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 5,
+      hue = c(
+        "purples",
+        "blues",
+        "cyans",
+        "greens",
+        "reds",
+        "oranges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 3,
+      hue = c("blues", "reds")
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 12,
+      hue = c("blues", "reds")
+    )
+  ) |>
+  unname() |>
+  rep(10)
 
 # Create a condition palette for the conditions
 unique_conditions <- unique(metadata$condition)
 condition_palette <-
-    set_names(
-        create_discrete_palette(
-            unique_conditions
-        )[seq_len(length(unique_conditions))],
-        unique_conditions
-    )
+  set_names(
+    create_discrete_palette(
+      unique_conditions
+    )[seq_len(length(unique_conditions))],
+    unique_conditions
+  )
 
 # Create a sample palette for the samples
 unique_samples <- unique(metadata$sample_alias)
 sample_palette <-
-    set_names(
-        create_discrete_palette(
-            unique_samples
-        )[seq_len(length(unique_samples))],
-        unique_samples
-    )
+  set_names(
+    create_discrete_palette(
+      unique_samples
+    )[seq_len(length(unique_samples))],
+    unique_samples
+  )
 
 # Use pixelatorRs palette for coloring cell types
 cell_palette <-
-    Pixelgen_cell_palette
+  Pixelgen_cell_palette
 ```
 
 # 1. Quality control
@@ -322,13 +321,13 @@ First we inspect the read depth per cell. This is a measure of the total number 
 ```{r}
 #| label: quality_control_read_depth
 
-pg_data[[]] |> 
+pg_data[[]] |>
   ggplot(aes(
-    sample_alias, 
+    sample_alias,
     reads_in_component,
-    color = condition 
+    color = condition
   )) +
-  ggbeeswarm::geom_quasirandom() + 
+  ggbeeswarm::geom_quasirandom() +
   stat_summary(
     fun = median,
     geom = "point",
@@ -361,14 +360,13 @@ pg_data[[]] |>
   )
 
 export_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_read_depth"
-    ),
-    width = 10,
-    height = 8,
-    create_dir = TRUE
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_read_depth"
+  ),
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
-
 ```
 
 ## 1.2. Connectivity
@@ -379,13 +377,13 @@ Here we inspect the average k-core per cell. The k-core is a measure of the conn
 #| label: quality_control_average_k_core
 
 # Average k-core per cell
-pg_data[[]] |> 
+pg_data[[]] |>
   ggplot(aes(
-    sample_alias, 
+    sample_alias,
     average_k_core,
-    color = condition 
+    color = condition
   )) +
-  ggbeeswarm::geom_quasirandom() + 
+  ggbeeswarm::geom_quasirandom() +
   stat_summary(
     fun = median,
     geom = "point",
@@ -418,12 +416,12 @@ pg_data[[]] |>
   )
 
 export_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_average_k_core"
-    ),
-    width = 10,
-    height = 8,
-    create_dir = TRUE
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_average_k_core"
+  ),
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
 ```
 
@@ -434,24 +432,24 @@ Next, we plot the percentage of dangling nodes per cell. Dangling nodes belong t
 
 # Add percentage of dangling nodes per cell - i.e. K-core 1 fraction
 pg_data <-
-    AddMetaData(
-        pg_data,
-        FetchData(
-            pg_data,
-            c("sample_alias", "k_core_1", "n_umi")
-        ) |>
-            mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi) |>
-            select(prc_dangling_nodes),
-        col.name = "prc_dangling_nodes"
-    )
+  AddMetaData(
+    pg_data,
+    FetchData(
+      pg_data,
+      c("sample_alias", "k_core_1", "n_umi")
+    ) |>
+      mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi) |>
+      select(prc_dangling_nodes),
+    col.name = "prc_dangling_nodes"
+  )
 
-pg_data[[]] |> 
+pg_data[[]] |>
   ggplot(aes(
-    sample_alias, 
+    sample_alias,
     prc_dangling_nodes,
-    color = condition 
+    color = condition
   )) +
-  ggbeeswarm::geom_quasirandom() + 
+  ggbeeswarm::geom_quasirandom() +
   stat_summary(
     fun = median,
     geom = "point",
@@ -484,14 +482,13 @@ pg_data[[]] |>
   )
 
 export_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
-    ),
-    width = 10,
-    height = 8,
-    create_dir = TRUE
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
+  ),
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
-
 ```
 
 
@@ -529,13 +526,13 @@ isotype_fraction_threshold <- 0.0025
 #| label: quality_control_n_umi_plot
 
 # Plot to visualize thresholds as a violin plot
-pg_data[[]] |> 
+pg_data[[]] |>
   ggplot(aes(
-    sample_alias, 
+    sample_alias,
     n_umi,
-    color = condition 
+    color = condition
   )) +
-  ggbeeswarm::geom_quasirandom() + 
+  ggbeeswarm::geom_quasirandom() +
   stat_summary(
     fun = median,
     geom = "point",
@@ -575,16 +572,15 @@ pg_data[[]] |>
     yintercept = n_umi_max_threshold,
     linetype = "dashed",
     color = "red"
-  ) 
+  )
 
 export_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_n_umi"
-    ),
-    width = 10,
-    height = 8
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_n_umi"
+  ),
+  width = 10,
+  height = 8
 )
-
 ```
 
 ### 1.3.2. Cell size filtering
@@ -598,168 +594,168 @@ Setting correct thresholds is crucial for downstream analysis quality. Threshold
 
 # Combined molecule rank plots
 molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_alias") +
-    geom_hline(
-        yintercept = n_umi_min_threshold,
-        linetype = "dashed",
-        color = "red"
-    ) +
-    geom_hline(
-        yintercept = n_umi_max_threshold,
-        linetype = "dashed",
-        color = "red"
-    )
+  geom_hline(
+    yintercept = n_umi_min_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  geom_hline(
+    yintercept = n_umi_max_threshold,
+    linetype = "dashed",
+    color = "red"
+  )
 export_plot(
-    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
-    plot = molecule_rank_plot_w_thresholds,
-    width = 10,
-    height = 8,
-    create_dir = TRUE
+  filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
+  plot = molecule_rank_plot_w_thresholds,
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
 
 molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
 export_plot(
-    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
-    plot = molecule_rank_plot,
-    width = 10,
-    height = 8,
-    create_dir = TRUE
+  filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
+  plot = molecule_rank_plot,
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
 
 # Separate annotated molecule rank plot for each sample
 pg_data[[]] <- pg_data[[]] |>
-    group_by(sample_id) |>
-    mutate(
-        rank = rank(-n_umi, ties.method = "random")
-    ) |>
-    ungroup()
+  group_by(sample_id) |>
+  mutate(
+    rank = rank(-n_umi, ties.method = "random")
+  ) |>
+  ungroup()
 
 umi_normal <- pg_data[[]] |>
-    mutate(
-        umi_normal = case_when(
-            n_umi > n_umi_min_threshold & n_umi < n_umi_max_threshold ~ TRUE,
-            n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
-        )
-    ) |>
-    filter(tau_type == "normal") |>
-    select(sample_id, umi_normal)
+  mutate(
+    umi_normal = case_when(
+      n_umi > n_umi_min_threshold & n_umi < n_umi_max_threshold ~ TRUE,
+      n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
+    )
+  ) |>
+  filter(tau_type == "normal") |>
+  select(sample_id, umi_normal)
 
 umi_normal_count <- umi_normal |>
-    filter(is.logical(umi_normal)) |>
-    group_by(sample_id) |>
-    summarise(normal_count = sum(umi_normal), .groups = "drop")
+  filter(is.logical(umi_normal)) |>
+  group_by(sample_id) |>
+  summarise(normal_count = sum(umi_normal), .groups = "drop")
 
 umi_outliers <- pg_data[[]] |>
-    select(sample_id, n_umi, tau_type) |>
-    filter(tau_type == "normal") |>
-    mutate(
-        umi_low = n_umi < n_umi_min_threshold,
-        umi_high = n_umi > n_umi_max_threshold
-    ) |>
-    group_by(sample_id) |>
-    summarise(
-        low_count = sum(umi_low),
-        high_count = sum(umi_high),
-        .groups = "drop"
-    )
+  select(sample_id, n_umi, tau_type) |>
+  filter(tau_type == "normal") |>
+  mutate(
+    umi_low = n_umi < n_umi_min_threshold,
+    umi_high = n_umi > n_umi_max_threshold
+  ) |>
+  group_by(sample_id) |>
+  summarise(
+    low_count = sum(umi_low),
+    high_count = sum(umi_high),
+    .groups = "drop"
+  )
 
 hline_normal <- data.frame(
-    sample_id = unique(pg_data[[]]$sample_id),
-    cutoff = n_umi_min_threshold
+  sample_id = unique(pg_data[[]]$sample_id),
+  cutoff = n_umi_min_threshold
 )
 
 point_colors <- pg_data[[]] |>
-    rownames_to_column("component") |>
-    select(sample_id, n_umi, rank, component) |>
-    left_join(
-        umi_normal_count |> rownames_to_column("component"),
-        by = c("component", "sample_id")
-    ) |>
-    left_join(hline_normal, by = "sample_id") |>
-    mutate(
-        max_value = n_umi_max_threshold,
-        col = case_when(
-            isTRUE(umi_normal) ~ "#496389",
-            n_umi < cutoff & !isTRUE(umi_normal) ~ "#FFA292",
-            n_umi > max_value & !isTRUE(umi_normal) ~ "#FFA292",
-            TRUE ~ "#496389"
-        )
+  rownames_to_column("component") |>
+  select(sample_id, n_umi, rank, component) |>
+  left_join(
+    umi_normal_count |> rownames_to_column("component"),
+    by = c("component", "sample_id")
+  ) |>
+  left_join(hline_normal, by = "sample_id") |>
+  mutate(
+    max_value = n_umi_max_threshold,
+    col = case_when(
+      isTRUE(umi_normal) ~ "#496389",
+      n_umi < cutoff & !isTRUE(umi_normal) ~ "#FFA292",
+      n_umi > max_value & !isTRUE(umi_normal) ~ "#FFA292",
+      TRUE ~ "#496389"
     )
+  )
 
 annotated_molecule_rank_plot <- pg_data[[]] |>
-    select(sample_id, rank, n_umi, tau_type) |>
-    filter(tau_type == "normal") |>
-    ggplot(aes(x = rank, y = n_umi)) +
-    geom_point(
-        data = point_colors,
-        aes(x = rank, y = n_umi),
-        color = point_colors$col,
-        size = 1,
-        alpha = 0.8
-    ) +
-    geom_hline(
-        data = hline_normal,
-        aes(yintercept = cutoff),
-        linetype = "dashed",
-        color = "red"
-    ) +
-    facet_wrap(
-        ~ factor(sample_id, levels = sort(unique(sample_id))),
-        nrow = 2
-    ) +
-    geom_text(
-        data = umi_normal_count,
-        aes(x = Inf, y = Inf, label = paste("Cells:", normal_count)),
-        hjust = 1.2,
-        vjust = 1.8,
-        size = 4,
-        color = "#496389",
-        position = position_nudge(y = 0.5)
-    ) +
-    geom_text(
-        data = umi_outliers,
-        aes(x = 10, y = Inf, label = paste("High: ", high_count)),
-        vjust = 1.8,
-        hjust = 0.8,
-        size = 4,
-        color = "#FFA292",
-        position = position_nudge(y = -0.5)
-    ) +
-    geom_text(
-        data = umi_outliers,
-        aes(x = 10, y = n_umi_min_threshold, label = paste("Low: ", low_count)),
-        size = 4,
-        vjust = 0.2,
-        hjust = 0.7,
-        color = "#FFA292",
-        position = position_nudge(y = -0.5)
-    ) +
-    geom_rug(
-        aes(x = rank),
-        linewidth = 1,
-        sides = "l",
-        alpha = 0.05
-    ) +
-    scale_x_log10() +
-    scale_y_log10() +
-    coord_equal(ratio = 1.5) +
-    theme_minimal(base_size = 18) +
-    labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
-    theme(
-        aspect.ratio = 1,
-        legend.position = "top",
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.border = element_rect(
-            color = "black",
-            fill = NA,
-            linewidth = 0.5
-        )
+  select(sample_id, rank, n_umi, tau_type) |>
+  filter(tau_type == "normal") |>
+  ggplot(aes(x = rank, y = n_umi)) +
+  geom_point(
+    data = point_colors,
+    aes(x = rank, y = n_umi),
+    color = point_colors$col,
+    size = 1,
+    alpha = 0.8
+  ) +
+  geom_hline(
+    data = hline_normal,
+    aes(yintercept = cutoff),
+    linetype = "dashed",
+    color = "red"
+  ) +
+  facet_wrap(
+    ~ factor(sample_id, levels = sort(unique(sample_id))),
+    nrow = 2
+  ) +
+  geom_text(
+    data = umi_normal_count,
+    aes(x = Inf, y = Inf, label = paste("Cells:", normal_count)),
+    hjust = 1.2,
+    vjust = 1.8,
+    size = 4,
+    color = "#496389",
+    position = position_nudge(y = 0.5)
+  ) +
+  geom_text(
+    data = umi_outliers,
+    aes(x = 10, y = Inf, label = paste("High: ", high_count)),
+    vjust = 1.8,
+    hjust = 0.8,
+    size = 4,
+    color = "#FFA292",
+    position = position_nudge(y = -0.5)
+  ) +
+  geom_text(
+    data = umi_outliers,
+    aes(x = 10, y = n_umi_min_threshold, label = paste("Low: ", low_count)),
+    size = 4,
+    vjust = 0.2,
+    hjust = 0.7,
+    color = "#FFA292",
+    position = position_nudge(y = -0.5)
+  ) +
+  geom_rug(
+    aes(x = rank),
+    linewidth = 1,
+    sides = "l",
+    alpha = 0.05
+  ) +
+  scale_x_log10() +
+  scale_y_log10() +
+  coord_equal(ratio = 1.5) +
+  theme_minimal(base_size = 18) +
+  labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
+  theme(
+    aspect.ratio = 1,
+    legend.position = "top",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.border = element_rect(
+      color = "black",
+      fill = NA,
+      linewidth = 0.5
     )
+  )
 export_plot(
-    filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
-    plot = annotated_molecule_rank_plot,
-    width = 15,
-    height = 12,
-    create_dir = TRUE
+  filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
+  plot = annotated_molecule_rank_plot,
+  width = 15,
+  height = 12,
+  create_dir = TRUE
 )
 ```
 
@@ -770,13 +766,13 @@ In PNA experiments, isotype control antibodies are included to measure unspecifi
 ```{r}
 #| label: quality_control_isotype_controls
 
-pg_data[[]] |> 
+pg_data[[]] |>
   ggplot(aes(
-    sample_alias, 
+    sample_alias,
     isotype_fraction,
-    color = condition 
+    color = condition
   )) +
-  ggbeeswarm::geom_quasirandom() + 
+  ggbeeswarm::geom_quasirandom() +
   stat_summary(
     fun = median,
     geom = "point",
@@ -811,15 +807,15 @@ pg_data[[]] |>
     yintercept = isotype_fraction_threshold,
     linetype = "dashed",
     color = "red"
-  ) 
+  )
 
 
 export_plot(
-    filename = here::here(
-        "results/01_quality_control/violin_plots/quality_control_isotype_controls"
-    ),
-    width = 10,
-    height = 8
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_isotype_controls"
+  ),
+  width = 10,
+  height = 8
 )
 ```
 
@@ -833,13 +829,13 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
 
 export_plot(
-    filename = here::here(
-        "results/01_quality_control/tau_plots/quality_control_tau_score"
-    ),
-    plot = tau_score_plot,
-    width = 10,
-    height = 8,
-    create_dir = TRUE
+  filename = here::here(
+    "results/01_quality_control/tau_plots/quality_control_tau_score"
+  ),
+  plot = tau_score_plot,
+  width = 10,
+  height = 8,
+  create_dir = TRUE
 )
 ```
 
@@ -858,66 +854,64 @@ In the example provided here, the threshold is set to 500 CPM at the 95th percen
 marker_cpm_p95_threshold <- 2000
 
 count_data <-
-    LayerData(pg_data, "counts")
+  LayerData(pg_data, "counts")
 cpm_data <-
-    count_data |>
-    sweep(2, colSums(count_data), "/")
+  count_data |>
+  sweep(2, colSums(count_data), "/")
 
 cpm_data <- cpm_data * 1e6
 
 cpm_quantiles <-
-    cpm_data |>
-    apply(1, function(x) quantile(x, c(0.5, 0.95))) |>
-    t() |>
-    as_tibble(rownames = "marker") |>
-    mutate(kept = `95%` > marker_cpm_p95_threshold)
+  cpm_data |>
+  apply(1, function(x) quantile(x, c(0.5, 0.95))) |>
+  t() |>
+  as_tibble(rownames = "marker") |>
+  mutate(kept = `95%` > marker_cpm_p95_threshold)
 
 scatter_percentile_cpm_quantiles <- cpm_quantiles |>
-    ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
-    geom_point(size = 0.1) +
-    geom_text(aes(label = marker), vjust = -0.5, size = 2) +
-    scale_x_log10(expand = expansion(0.2)) +
-    scale_y_log10() +
-    theme_bw() +
-    labs(
-        title = "Marker selection based on CPM",
-        x = "50th percentile of CPM (log10 scale)",
-        y = "95th / 50th percentile of CPM (log10 scale)"
-    )
+  ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker), vjust = -0.5, size = 2) +
+  scale_x_log10(expand = expansion(0.2)) +
+  scale_y_log10() +
+  theme_bw() +
+  labs(
+    title = "Marker selection based on CPM",
+    x = "50th percentile of CPM (log10 scale)",
+    y = "95th / 50th percentile of CPM (log10 scale)"
+  )
 export_plot(
-    filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
-    plot = scatter_percentile_cpm_quantiles,
-    width = 12,
-    height = 4
+  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
+  plot = scatter_percentile_cpm_quantiles,
+  width = 12,
+  height = 4
 )
 
 
 barplot_percentile_cpm_quantiles <- cpm_quantiles |>
-    arrange(`95%`) |>
-    mutate(marker = factor(marker, levels = marker)) |>
-    ggplot(aes(x = marker, y = `95%`, fill = kept)) +
-    geom_col() +
-    scale_y_log10() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 5)) +
-    labs(
-        title = "95th percentile of CPM per marker",
-        x = "Marker",
-        y = "95th percentile of CPM (log10 scale)"
-    )
+  arrange(`95%`) |>
+  mutate(marker = factor(marker, levels = marker)) |>
+  ggplot(aes(x = marker, y = `95%`, fill = kept)) +
+  geom_col() +
+  scale_y_log10() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 5)) +
+  labs(
+    title = "95th percentile of CPM per marker",
+    x = "Marker",
+    y = "95th percentile of CPM (log10 scale)"
+  )
 export_plot(
-    filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
-    width = 12,
-    height = 4,
-    plot = barplot_percentile_cpm_quantiles
+  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
+  width = 12,
+  height = 4,
+  plot = barplot_percentile_cpm_quantiles
 )
 
 selected_markers <-
-    cpm_quantiles |>
-    filter(kept) |>
-    pull(marker)
-
-
+  cpm_quantiles |>
+  filter(kept) |>
+  pull(marker)
 ```
 
 # 2. Data processing
@@ -934,15 +928,14 @@ Following normalization, the data are Z-score scaled per marker. This transforma
 pg_data <-
   pg_data |>
   # Filter cells based on quality control thresholds
-  subset(tau_type == "normal") |> 
-  subset(n_umi > n_umi_min_threshold & 
-           n_umi < n_umi_max_threshold) |> 
+  subset(tau_type == "normal") |>
+  subset(n_umi > n_umi_min_threshold &
+    n_umi < n_umi_max_threshold) |>
   subset(isotype_fraction < isotype_fraction_threshold) |>
   # Data normalization
   NormalizeData(normalization.method = "CLR", margin = 2) |>
   # Z score scaling
   ScaleData()
-
 ```
 
 ## 2.2. Dimensionality reduction
@@ -959,67 +952,67 @@ Following PCA, Uniform Manifold Approximation and Projection (UMAP) is applied t
 npcs <- 20
 n_neighbors <- 30
 pg_data <-
-    pg_data |>
-    RunPCA(npcs = npcs, features = selected_markers) |>
-    RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
+  pg_data |>
+  RunPCA(npcs = npcs, features = selected_markers) |>
+  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
 
 pca_red <-
-    Reductions(pg_data, "pca")
+  Reductions(pg_data, "pca")
 
 elbow_plot_pca <- pca_red@stdev |>
-    as_tibble(rownames = "PC") |>
-    mutate(PC = PC |> str_remove("PC_") |> as.integer()) |>
-    ggplot(aes(PC, value)) +
-    geom_line() +
-    geom_point() +
-    theme_bw() +
-    labs(
-        title = "PCA Elbow Plot",
-        x = "Principal Component",
-        y = "Standard Deviation"
-    )
+  as_tibble(rownames = "PC") |>
+  mutate(PC = PC |> str_remove("PC_") |> as.integer()) |>
+  ggplot(aes(PC, value)) +
+  geom_line() +
+  geom_point() +
+  theme_bw() +
+  labs(
+    title = "PCA Elbow Plot",
+    x = "Principal Component",
+    y = "Standard Deviation"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
-    width = 6,
-    height = 4,
-    plot = elbow_plot_pca
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
+  width = 6,
+  height = 4,
+  plot = elbow_plot_pca
 )
 
 cell_metadata <-
-    FetchData(pg_data, c("sample_alias", "condition")) |>
-    as_tibble(rownames = "cell_id")
+  FetchData(pg_data, c("sample_alias", "condition")) |>
+  as_tibble(rownames = "cell_id")
 
 pca_embeddings <- Embeddings(pg_data, "pca") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata, by = "cell_id") |>
-    ggplot(aes(PC_1, PC_2, color = sample_alias)) +
-    geom_point() +
-    coord_fixed() +
-    scale_color_manual(values = sample_palette) +
-    theme_bw()
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(PC_1, PC_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
 
 export_plot(
-    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
-    width = 6,
-    height = 4,
-    plot = pca_embeddings
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
+  width = 6,
+  height = 4,
+  plot = pca_embeddings
 )
 
 umap_embeddings <-
-    Embeddings(pg_data, "umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata, by = "cell_id") |>
-    ggplot(aes(umap_1, umap_2, color = sample_alias)) +
-    geom_point() +
-    coord_fixed() +
-    scale_color_manual(values = sample_palette) +
-    theme_bw()
+  Embeddings(pg_data, "umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(umap_1, umap_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
 
 export_plot(
-    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
-    width = 6,
-    height = 4,
-    plot = umap_embeddings
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
+  width = 6,
+  height = 4,
+  plot = umap_embeddings
 )
 ```
 
@@ -1036,54 +1029,53 @@ The harmonization process generates a new dimensional reduction called "harmony"
 ```{r}
 #| label: data_processing_data_harmonization
 pg_data <-
-    pg_data |>
-    RunHarmony(
-        group.by.vars = "sample_alias",
-        plot_convergence = FALSE,
-    ) |>
-    RunUMAP(
-        reduction = "harmony",
-        dims = 1:20,
-        reduction.name = "harmony_umap",
-        n.neighbors = n_neighbors
-    )
+  pg_data |>
+  RunHarmony(
+    group.by.vars = "sample_alias",
+    plot_convergence = FALSE,
+  ) |>
+  RunUMAP(
+    reduction = "harmony",
+    dims = 1:20,
+    reduction.name = "harmony_umap",
+    n.neighbors = n_neighbors
+  )
 
 cell_metadata <-
-    FetchData(pg_data, c("sample_alias", "condition")) |>
-    as_tibble(rownames = "cell_id")
+  FetchData(pg_data, c("sample_alias", "condition")) |>
+  as_tibble(rownames = "cell_id")
 
 harmony_embeddings <- Embeddings(pg_data, "harmony") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata, by = "cell_id") |>
-    ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
-    geom_point() +
-    coord_fixed() +
-    scale_color_manual(values = sample_palette) +
-    theme_bw()
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
 
 export_plot(
-    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
-    width = 6,
-    height = 4,
-    plot = harmony_embeddings
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
+  width = 6,
+  height = 4,
+  plot = harmony_embeddings
 )
 
 harmony_umap_embeddings <- Embeddings(pg_data, "harmony_umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata, by = "cell_id") |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
-    geom_point() +
-    coord_fixed() +
-    scale_color_manual(values = sample_palette) +
-    theme_bw()
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw()
 
 export_plot(
-    filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
-    width = 6,
-    height = 4,
-    plot = harmony_umap_embeddings
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
+  width = 6,
+  height = 4,
+  plot = harmony_umap_embeddings
 )
-
 ```
 
 ## 2.4. Clustering
@@ -1098,46 +1090,45 @@ The resolution parameter is a critical hyperparameter that controls the granular
 #| label: data_processing_clustering
 
 pg_data <-
-    pg_data |>
-    FindNeighbors(reduction = "harmony", dims = 1:10) |>
-    FindClusters(random.seed = 1, resolution = 0.5)
+  pg_data |>
+  FindNeighbors(reduction = "harmony", dims = 1:10) |>
+  FindClusters(random.seed = 1, resolution = 0.5)
 
 cell_metadata <-
-    FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
-    as_tibble(rownames = "cell_id")
+  FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
+  as_tibble(rownames = "cell_id")
 
 harmony_clusters_embeddings <- Embeddings(pg_data, "harmony") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata, by = "cell_id") |>
-    ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
-    geom_point() +
-    coord_fixed() +
-    scale_color_manual(values = cluster_palette) +
-    theme_bw()
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = cluster_palette) +
+  theme_bw()
 
 export_plot(
-    filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
-    width = 6,
-    height = 4,
-    plot = harmony_clusters_embeddings
+  filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
+  width = 6,
+  height = 4,
+  plot = harmony_clusters_embeddings
 )
 
 harmony_umap_clusters_embeddings <- Embeddings(pg_data, "harmony_umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata, by = "cell_id") |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
-    geom_point() +
-    coord_fixed() +
-    scale_color_manual(values = cluster_palette) +
-    theme_bw()
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
+  geom_point() +
+  coord_fixed() +
+  scale_color_manual(values = cluster_palette) +
+  theme_bw()
 
 export_plot(
-    filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
-    width = 6,
-    height = 4,
-    plot = harmony_umap_clusters_embeddings
+  filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
+  width = 6,
+  height = 4,
+  plot = harmony_umap_clusters_embeddings
 )
-
 ```
 
 ## 2.5. Marker Distribution on UMAP
@@ -1148,16 +1139,16 @@ This section visualizes the distribution of all markers on the harmonized UMAP. 
 #| label: data_processing_marker_distribution_on_umap
 
 for (marker in rownames(pg_data)) {
-    feature_plot <- FeaturePlot(pg_data, features = marker, reduction = "harmony_umap") &
-        theme(aspect.ratio = 1)
-    
-    savename_marker <- str_remove_all(marker, "\\.") # remove dots from marker names for saving
-    export_plot(
-        filename = glue::glue("results/02_data_processing/marker_umap_plots/{savename_marker}_umap"),
-        plot = feature_plot,
-        width = 6,
-        height = 6
-    )
+  feature_plot <- FeaturePlot(pg_data, features = marker, reduction = "harmony_umap") &
+    theme(aspect.ratio = 1)
+
+  savename_marker <- str_remove_all(marker, "\\.") # remove dots from marker names for saving
+  export_plot(
+    filename = glue::glue("results/02_data_processing/marker_umap_plots/{savename_marker}_umap"),
+    plot = feature_plot,
+    width = 6,
+    height = 6
+  )
 }
 ```
 
@@ -1183,177 +1174,177 @@ reference$l2_annotation <- reference$celltype.l2
 
 # Annotation by label transfer
 pg_data <-
-    pg_data |>
-    AnnotateCells(
-        reference = reference,
-        reference_groups = c("l1_annotation", "l2_annotation"),
-        reference_assay = "PNA",
-        query_assay = "PNA",
-        # Summarise annotations by cluster, adding an extra column with majority vote
-        summarize_by_column = "seurat_clusters",
-        normalization_method = "CLR",
-        method = "nmf"
-    )
+  pg_data |>
+  AnnotateCells(
+    reference = reference,
+    reference_groups = c("l1_annotation", "l2_annotation"),
+    reference_assay = "PNA",
+    query_assay = "PNA",
+    # Summarise annotations by cluster, adding an extra column with majority vote
+    summarize_by_column = "seurat_clusters",
+    normalization_method = "CLR",
+    method = "nmf"
+  )
 
 
 cell_metadata <-
-    FetchData(pg_data, c(
-        "sample_alias", "condition", "seurat_clusters",
-        "l1_annotation_summary", "l2_annotation_summary",
-        "l1_annotation", "l2_annotation"
-    )) |>
-    as_tibble(rownames = "cell_id")
+  FetchData(pg_data, c(
+    "sample_alias", "condition", "seurat_clusters",
+    "l1_annotation_summary", "l2_annotation_summary",
+    "l1_annotation", "l2_annotation"
+  )) |>
+  as_tibble(rownames = "cell_id")
 
 # L1 automatic annotation - summarised by cluster
 harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata,
-        by = "cell_id"
-    ) |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
-    geom_point() +
-    geom_text(
-        data = . %>%
-            group_by(l1_annotation_summary) %>%
-            summarise(
-                harmonyumap_1 = median(harmonyumap_1),
-                harmonyumap_2 = median(harmonyumap_2)
-            ),
-        aes(label = l1_annotation_summary),
-        size = 3,
-        color = "black"
-    ) +
-    coord_fixed() +
-    scale_color_manual(values = cell_palette) +
-    theme_bw() +
-    theme(panel.grid = element_blank())
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
+  geom_point() +
+  geom_text(
+    data = . %>%
+      group_by(l1_annotation_summary) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l1_annotation_summary),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
-    width = 6,
-    height = 4,
-    plot = harmony_umap_l1_annotation_summary_plot
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
+  width = 6,
+  height = 4,
+  plot = harmony_umap_l1_annotation_summary_plot
 )
 
 
 # L1 automatic annotation - annotated by cell
 harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata,
-        by = "cell_id"
-    ) |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
-    geom_point() +
-    geom_text(
-        data = . %>%
-            group_by(l1_annotation) %>%
-            summarise(
-                harmonyumap_1 = median(harmonyumap_1),
-                harmonyumap_2 = median(harmonyumap_2)
-            ),
-        aes(label = l1_annotation),
-        size = 3,
-        color = "black"
-    ) +
-    coord_fixed() +
-    scale_color_manual(values = cell_palette) +
-    theme_bw() +
-    theme(panel.grid = element_blank())
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
+  geom_point() +
+  geom_text(
+    data = . %>%
+      group_by(l1_annotation) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l1_annotation),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
-    width = 6,
-    height = 4,
-    plot = harmony_umap_l1_annotation_plot
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
+  width = 6,
+  height = 4,
+  plot = harmony_umap_l1_annotation_plot
 )
 
 
 # L2 automatic annotation - summarised by cluster
 harmony_umap_l2_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata,
-        by = "cell_id"
-    ) |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation_summary)) +
-    geom_point() +
-    geom_text(
-        data = . %>%
-            group_by(l2_annotation_summary) %>%
-            summarise(
-                harmonyumap_1 = median(harmonyumap_1),
-                harmonyumap_2 = median(harmonyumap_2)
-            ),
-        aes(label = l2_annotation_summary),
-        size = 3,
-        color = "black"
-    ) +
-    coord_fixed() +
-    scale_color_manual(values = cell_palette) +
-    theme_bw() +
-    theme(panel.grid = element_blank())
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation_summary)) +
+  geom_point() +
+  geom_text(
+    data = . %>%
+      group_by(l2_annotation_summary) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l2_annotation_summary),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
-    width = 6,
-    height = 4,
-    plot = harmony_umap_l2_annotation_summary_plot
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
+  width = 6,
+  height = 4,
+  plot = harmony_umap_l2_annotation_summary_plot
 )
 
 # L2 automatic annotation - annotated by cell
 harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
-    as_tibble(rownames = "cell_id") |>
-    left_join(cell_metadata,
-        by = "cell_id"
-    ) |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
-    geom_point() +
-    geom_text(
-        data = . %>%
-            group_by(l2_annotation) %>%
-            summarise(
-                harmonyumap_1 = median(harmonyumap_1),
-                harmonyumap_2 = median(harmonyumap_2)
-            ),
-        aes(label = l2_annotation),
-        size = 3,
-        color = "black"
-    ) +
-    coord_fixed() +
-    scale_color_manual(values = cell_palette) +
-    theme_bw() +
-    theme(panel.grid = element_blank())
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
+  geom_point() +
+  geom_text(
+    data = . %>%
+      group_by(l2_annotation) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l2_annotation),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
-    width = 6,
-    height = 4,
-    plot = harmony_umap_l2_annotation_plot
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
+  width = 6,
+  height = 4,
+  plot = harmony_umap_l2_annotation_plot
 )
 
 # L1 cell type composition per sample (annotated by cell)
 cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
-    group_by(sample_alias, l1_annotation_summary) |>
-    count(name = "n_cells") |>
-    group_by(sample_alias) |>
-    mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
-    ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
-    geom_col(position = "fill") +
-    geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
-        position = position_fill(vjust = 0.5),
-        size = 3
-    ) +
-    scale_y_continuous(labels = scales::percent_format()) +
-    scale_fill_manual(values = cell_palette) +
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 60, hjust = 1)
-    ) +
-    labs(
-        title = "Cell type composition per sample",
-        x = "Sample",
-        y = "Cell type fraction"
-    )
+  group_by(sample_alias, l1_annotation_summary) |>
+  count(name = "n_cells") |>
+  group_by(sample_alias) |>
+  mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
+  ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
+  geom_col(position = "fill") +
+  geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
+    position = position_fill(vjust = 0.5),
+    size = 3
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = cell_palette) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
+  labs(
+    title = "Cell type composition per sample",
+    x = "Sample",
+    y = "Cell type fraction"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
-    width = 12,
-    height = 8,
-    plot = cell_type_composition_per_sample
+  filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
+  width = 12,
+  height = 8,
+  plot = cell_type_composition_per_sample
 )
 ```
 
@@ -1375,71 +1366,71 @@ By examining these differential abundance patterns in conjunction with known cel
 #| label: data_processing_manual_annotation
 
 diff_abundant_markers_cluster <-
-    FindAllMarkers(
-        pg_data,
-        logfc.threshold = 0,
-        min_pct = 0,
-        test.use = "wilcox",
-        assay = "PNA",
-        slot = "data",
-        group.by = "seurat_clusters",
-        mean.fxn = rowMeans,
-        fc.name = "difference"
-    ) |>
-    as_tibble() |>
-    rename(marker = gene)
+  FindAllMarkers(
+    pg_data,
+    logfc.threshold = 0,
+    min_pct = 0,
+    test.use = "wilcox",
+    assay = "PNA",
+    slot = "data",
+    group.by = "seurat_clusters",
+    mean.fxn = rowMeans,
+    fc.name = "difference"
+  ) |>
+  as_tibble() |>
+  rename(marker = gene)
 
 # Heatmap of differential abundance markers per cluster
 differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_cluster |>
-    group_by(marker) |>
-    filter(any(p_val_adj < 0.05 & difference > 1)) |>
-    select(marker, difference, cluster) |>
-    pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
-    column_to_rownames("marker") |>
-    t() |>
-    pheatmap(
-        color = PixelgenGradient(100, "BluesCherry"),
-        breaks = seq(-3, 3, length.out = 101),
-        cellwidth = 8,
-        cellheight = 8,
-        heatmap_legend_param = list(title = "CLR Difference"),
-    ) |>
-    as.ggplot()
+  group_by(marker) |>
+  filter(any(p_val_adj < 0.05 & difference > 1)) |>
+  select(marker, difference, cluster) |>
+  pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
+  column_to_rownames("marker") |>
+  t() |>
+  pheatmap(
+    color = PixelgenGradient(100, "BluesCherry"),
+    breaks = seq(-3, 3, length.out = 101),
+    cellwidth = 8,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "CLR Difference"),
+  ) |>
+  as.ggplot()
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
-    width = 10,
-    height = 4,
-    plot = differential_abundance_markers_per_cluster_heatmap
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
+  width = 10,
+  height = 4,
+  plot = differential_abundance_markers_per_cluster_heatmap
 )
 
 # Volcano plot of differential abundance markers per cluster
 volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers_cluster |>
-    ggplot(aes(difference, -log10(p_val))) +
-    geom_hline(yintercept = 0) +
-    geom_vline(xintercept = 0) +
-    geom_point(size = 0.1) +
-    geom_text(
-        data = . %>%
-            group_by(cluster) %>%
-            top_n(5, abs(difference)),
-        aes(label = marker),
-        vjust = -0.5,
-        size = 2
-    ) +
-    facet_wrap(~cluster) +
-    scale_fill_manual(values = cluster_palette) +
-    theme_bw() +
-    labs(
-        title = "Differential abundance markers per cluster",
-        x = "Average CLR Difference",
-        y = "-log10(p value)"
-    )
+  ggplot(aes(difference, -log10(p_val))) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(
+    data = . %>%
+      group_by(cluster) %>%
+      top_n(5, abs(difference)),
+    aes(label = marker),
+    vjust = -0.5,
+    size = 2
+  ) +
+  facet_wrap(~cluster) +
+  scale_fill_manual(values = cluster_palette) +
+  theme_bw() +
+  labs(
+    title = "Differential abundance markers per cluster",
+    x = "Average CLR Difference",
+    y = "-log10(p value)"
+  )
 
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster_volcano"),
-    width = 8,
-    height = 6,
-    plot = volcano_plot_differential_abundance_markers_per_cluster
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster_volcano"),
+  width = 8,
+  height = 6,
+  plot = volcano_plot_differential_abundance_markers_per_cluster
 )
 
 # Write differential abundance markers per cluster to csv
@@ -1457,86 +1448,85 @@ Here we visualize the abundance of **selected markers** across the harmonized UM
 markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
 
 plot_data <-
-    FetchData(
-        pg_data,
-        c(
-            "harmonyumap_1", "harmonyumap_2",
-            "sample_alias", "condition",
-            "seurat_clusters",
-            markers_of_interest
-        ),
-        slot = "data"
-    ) |>
-    pivot_longer(
-        cols = all_of(markers_of_interest),
-        names_to = "marker",
-        values_to = "CLR"
-    )
+  FetchData(
+    pg_data,
+    c(
+      "harmonyumap_1", "harmonyumap_2",
+      "sample_alias", "condition",
+      "seurat_clusters",
+      markers_of_interest
+    ),
+    slot = "data"
+  ) |>
+  pivot_longer(
+    cols = all_of(markers_of_interest),
+    names_to = "marker",
+    values_to = "CLR"
+  )
 
 marker_abundance_harmonyumap_plot <- plot_data |>
-    ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
-    geom_point(size = 0.1) +
-    facet_wrap(~marker) +
-    scale_color_gradient(low = "lightgrey", high = "darkblue") +
-    coord_fixed() +
-    theme_bw() +
-    theme(panel.grid = element_blank()) +
-    labs(
-        title = "Marker expression on Harmony UMAP",
-        x = "Harmony UMAP 1",
-        y = "Harmony UMAP 2",
-        color = "CLR"
-    )
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
+  geom_point(size = 0.1) +
+  facet_wrap(~marker) +
+  scale_color_gradient(low = "lightgrey", high = "darkblue") +
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(
+    title = "Marker expression on Harmony UMAP",
+    x = "Harmony UMAP 1",
+    y = "Harmony UMAP 2",
+    color = "CLR"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_harmonyumap"),
-    width = 6,
-    height = 4,
-    plot = marker_abundance_harmonyumap_plot
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_harmonyumap"),
+  width = 6,
+  height = 4,
+  plot = marker_abundance_harmonyumap_plot
 )
 
 marker_abundance_per_cluster_plot <- plot_data |>
-    ggplot(aes(sample_alias, CLR, fill = condition)) +
-    geom_violin(quantiles = 0.5, quantile.linetype = 1) +
-    facet_grid(marker ~ seurat_clusters) +
-    scale_fill_manual(values = condition_palette) +
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-        panel.border = element_rect(color = "gray"),
-        panel.spacing = unit(0, "mm")
-    ) +
-    labs(
-        title = "Marker abundance per cluster",
-        x = "Sample",
-        y = "CLR"
-    )
+  ggplot(aes(sample_alias, CLR, fill = condition)) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  facet_grid(marker ~ seurat_clusters) +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.border = element_rect(color = "gray"),
+    panel.spacing = unit(0, "mm")
+  ) +
+  labs(
+    title = "Marker abundance per cluster",
+    x = "Sample",
+    y = "CLR"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
-    width = 8,
-    height = 8,
-    plot = marker_abundance_per_cluster_plot
+  filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
+  width = 8,
+  height = 8,
+  plot = marker_abundance_per_cluster_plot
 )
 
 mean_marker_abundance_per_cluster_heatmap <- plot_data |>
-    group_by(marker, seurat_clusters) |>
-    summarise(mean_CLR = mean(CLR)) |>
-    pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
-    column_to_rownames("marker") |>
-    as.matrix() |>
-    pheatmap(
-        color = PixelgenGradient(100, "Cherry"),
-        cellwidth = 8,
-        cellheight = 8,
-        heatmap_legend_param = list(title = "Mean CLR"),
-    ) |>
-    as.ggplot()
+  group_by(marker, seurat_clusters) |>
+  summarise(mean_CLR = mean(CLR)) |>
+  pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
+  column_to_rownames("marker") |>
+  as.matrix() |>
+  pheatmap(
+    color = PixelgenGradient(100, "Cherry"),
+    cellwidth = 8,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "Mean CLR"),
+  ) |>
+  as.ggplot()
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
-    width = 6,
-    height = 4,
-    plot = mean_marker_abundance_per_cluster_heatmap
+  filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
+  width = 6,
+  height = 4,
+  plot = mean_marker_abundance_per_cluster_heatmap
 )
-
 ```
 
 ### 2.6.4. Set manual annotation 
@@ -1552,33 +1542,32 @@ Users must carefully review all available evidence (differential abundance resul
 
 # Specify cell annotation labels for each cluster
 cluster_cell_annotation <-
-    c(
-        "0" = "CD4 T",
-        "1" = "CD4 T",
-        "2" = "Mono",
-        "3" = "CD8 T",
-        "4" = "CD4 T",
-        "5" = "CD8 T",
-        "6" = "B",
-        "7" = "NK",
-        "8" = "Platelets",
-        "9" = "CD8 T",
-        "10" = "Mono",
-        "11" = "DC",
-        "12" = "B",
-        "13" = "DC"
-    )
+  c(
+    "0" = "CD4 T",
+    "1" = "CD4 T",
+    "2" = "Mono",
+    "3" = "CD8 T",
+    "4" = "CD4 T",
+    "5" = "CD8 T",
+    "6" = "B",
+    "7" = "NK",
+    "8" = "Platelets",
+    "9" = "CD8 T",
+    "10" = "Mono",
+    "11" = "DC",
+    "12" = "B",
+    "13" = "DC"
+  )
 
 # Add annotation to Seurat object
 pg_data[[]] <-
-    pg_data[[]] |>
-    mutate(
-        cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
-    )
+  pg_data[[]] |>
+  mutate(
+    cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
+  )
 
 # Save annotated Seurat object
 saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
-
 ```
 
 ### 2.6.5. Comparison of automatic and manual annotations
@@ -1589,31 +1578,30 @@ Compare automatic and manual annotations. This can help to identify any discrepa
 #| label: data_processing_comparison_automatic_manual_annotation
 
 comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
-    group_by(seurat_clusters, l1_annotation, cell_annotation) |>
-    count() |>
-    group_by(seurat_clusters) |>
-    mutate(frac = n / sum(n)) |>
-    ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
-    geom_tile() +
-    facet_wrap(~seurat_clusters, scales = "free") +
-    scale_fill_gradient(low = "white", high = "darkblue") +
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-    ) +
-    labs(
-        title = "Comparison of automatic and manual annotations",
-        x = "Automatic annotation (L1)",
-        y = "Manual annotation",
-        fill = "Fraction of cells"
-    )
+  group_by(seurat_clusters, l1_annotation, cell_annotation) |>
+  count() |>
+  group_by(seurat_clusters) |>
+  mutate(frac = n / sum(n)) |>
+  ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
+  geom_tile() +
+  facet_wrap(~seurat_clusters, scales = "free") +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  labs(
+    title = "Comparison of automatic and manual annotations",
+    x = "Automatic annotation (L1)",
+    y = "Manual annotation",
+    fill = "Fraction of cells"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
-    width = 8,
-    height = 6,
-    plot = comparison_automatic_manual_annotation
+  filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
+  width = 8,
+  height = 6,
+  plot = comparison_automatic_manual_annotation
 )
-
 ```
 
 ### 2.6.6. Alternative: Marker gating 
@@ -1658,65 +1646,65 @@ pg_data_cd4_t <- subset(pg_data, subset = cell_annotation == "CD4 T")
 # CD45RA vs CD45RO is a classic combination for naive vs memory distinction
 # CD4 T cell subtypes: Naive (CD45RA+ CD45RO-) vs Memory (CD45RA- CD45RO+)
 cd4_subtype_density_plot <- DensityScatterPlot(
-    pg_data_cd4_t,
-    marker1 = "CD45RA",
-    marker2 = "CD45RO"
+  pg_data_cd4_t,
+  marker1 = "CD45RA",
+  marker2 = "CD45RO"
 ) +
-    labs(
-        title = "CD4 T Cell Subtypes: Naive vs Memory",
-        subtitle = "Naive: CD45RA+ CD45RO- | Memory: CD45RA- CD45RO+"
-    )
+  labs(
+    title = "CD4 T Cell Subtypes: Naive vs Memory",
+    subtitle = "Naive: CD45RA+ CD45RO- | Memory: CD45RA- CD45RO+"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter"),
-    width = 8,
-    height = 6,
-    plot = cd4_subtype_density_plot,
-    create_dir = TRUE
+  filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter"),
+  width = 8,
+  height = 6,
+  plot = cd4_subtype_density_plot,
+  create_dir = TRUE
 )
 
 # Define gates for CD4 subtypes
 # Naive CD4 T cells: High CD45RA, Low CD45RO
 naive_cd4_gate <- data.frame(
-    xmin = 2.0, # CD45RA threshold (adjust based on data)
-    xmax = 6.5,
-    ymin = 0,
-    ymax = 1.5 # CD45RO threshold (adjust based on data)
+  xmin = 2.0, # CD45RA threshold (adjust based on data)
+  xmax = 6.5,
+  ymin = 0,
+  ymax = 1.5 # CD45RO threshold (adjust based on data)
 )
 # Create plot with gates
 cd4_subtype_density_plot_naive_cd4_gate <- DensityScatterPlot(
-    pg_data_cd4_t,
-    marker1 = "CD45RA",
-    marker2 = "CD45RO",
-    plot_gate = naive_cd4_gate
+  pg_data_cd4_t,
+  marker1 = "CD45RA",
+  marker2 = "CD45RO",
+  plot_gate = naive_cd4_gate
 ) +
-    labs(
-        title = "CD4 T Cell Subtypes with Gates",
-        subtitle = "Gate 1: Naive CD4 T (CD45RA+ CD45RO-)"
-    )
+  labs(
+    title = "CD4 T Cell Subtypes with Gates",
+    subtitle = "Gate 1: Naive CD4 T (CD45RA+ CD45RO-)"
+  )
 
 # Define gate for Memory CD4 T cells: Low CD45RA, High CD45RO
 memory_cd4_gate <- data.frame(
-    xmin = 0,
-    xmax = 2.5, # CD45RA threshold (adjust based on data)
-    ymin = 2.0, # CD45RO threshold (adjust based on data)
-    ymax = 5
+  xmin = 0,
+  xmax = 2.5, # CD45RA threshold (adjust based on data)
+  ymin = 2.0, # CD45RO threshold (adjust based on data)
+  ymax = 5
 )
 cd4_subtype_density_plot_memory_cd4_gate <- DensityScatterPlot(
-    pg_data_cd4_t,
-    marker1 = "CD45RA",
-    marker2 = "CD45RO",
-    plot_gate = memory_cd4_gate
+  pg_data_cd4_t,
+  marker1 = "CD45RA",
+  marker2 = "CD45RO",
+  plot_gate = memory_cd4_gate
 ) +
-    labs(
-        title = "CD4 T Cell Subtypes with Gates",
-        subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
-    )
+  labs(
+    title = "CD4 T Cell Subtypes with Gates",
+    subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
+  )
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter_w_gates"),
-    width = 16,
-    height = 6,
-    plot = cd4_subtype_density_plot_naive_cd4_gate + cd4_subtype_density_plot_memory_cd4_gate,
-    create_dir = TRUE
+  filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter_w_gates"),
+  width = 16,
+  height = 6,
+  plot = cd4_subtype_density_plot_naive_cd4_gate + cd4_subtype_density_plot_memory_cd4_gate,
+  create_dir = TRUE
 )
 
 # Classify CD4 cells into subtypes
@@ -1726,13 +1714,13 @@ cd4_cell_data <- FetchData(pg_data_cd4_t, vars = c("CD45RA", "CD45RO", "CD4", "C
 # Adjust thresholds based on your data distribution
 
 cd4_subtype_classification <- cd4_cell_data |>
-    mutate(
-        cd4_subtype = case_when(
-            CD45RA > naive_cd4_gate$xmin & CD45RA < naive_cd4_gate$xmax & CD45RO > naive_cd4_gate$ymin & CD45RO < naive_cd4_gate$ymax ~ "Naive CD4 T",
-            CD45RA > memory_cd4_gate$xmin & CD45RA < memory_cd4_gate$xmax & CD45RO > memory_cd4_gate$ymin & CD45RO < memory_cd4_gate$ymax ~ "Memory CD4 T",
-            TRUE ~ "CD4 T (other)"
-        )
+  mutate(
+    cd4_subtype = case_when(
+      CD45RA > naive_cd4_gate$xmin & CD45RA < naive_cd4_gate$xmax & CD45RO > naive_cd4_gate$ymin & CD45RO < naive_cd4_gate$ymax ~ "Naive CD4 T",
+      CD45RA > memory_cd4_gate$xmin & CD45RA < memory_cd4_gate$xmax & CD45RO > memory_cd4_gate$ymin & CD45RO < memory_cd4_gate$ymax ~ "Memory CD4 T",
+      TRUE ~ "CD4 T (other)"
     )
+  )
 
 # Add subtype annotation to pg_data
 pg_data$cd4_subtype <- pg_data$cell_annotation
@@ -1740,19 +1728,19 @@ pg_data$cd4_subtype[rownames(cd4_subtype_classification)] <- cd4_subtype_classif
 
 # Visualize CD4 subtypes on UMAP
 cd4_subtype_umap <- DimPlot(
-    pg_data,
-    group.by = "cd4_subtype",
-    reduction = "harmony_umap"
+  pg_data,
+  group.by = "cd4_subtype",
+  reduction = "harmony_umap"
 ) +
-    theme(aspect.ratio = 1) +
-    labs(title = "CD4 T Cell Subtypes on UMAP")
+  theme(aspect.ratio = 1) +
+  labs(title = "CD4 T Cell Subtypes on UMAP")
 
 export_plot(
-    filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_umap"),
-    width = 8,
-    height = 6,
-    plot = cd4_subtype_umap,
-    create_dir = TRUE
+  filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_umap"),
+  width = 8,
+  height = 6,
+  plot = cd4_subtype_umap,
+  create_dir = TRUE
 )
 ```
 
@@ -1769,51 +1757,52 @@ We utilize the `isotype_pls` helper function to perform the PLS regression. The 
 #| label: statistical_testing_marker_selection
 
 cell_annotation_column <-
-    "l1_annotation_summary"
+  "l1_annotation_summary"
 isotype_markers <-
-    c("mIgG1", "mIgG2a", "mIgG2b")
+  c("mIgG1", "mIgG2a", "mIgG2b")
 
 
-cell_data <- 
+cell_data <-
   FetchData(
-    pg_data, vars = c(cell_annotation_column)
-  ) |> 
+    pg_data,
+    vars = c(cell_annotation_column)
+  ) |>
   as_tibble(rownames = "component") |>
-  group_by(cell_type = !!sym(cell_annotation_column)) 
+  group_by(cell_type = !!sym(cell_annotation_column))
 
 pls_fit_celltype <-
-  cell_data |> 
-  group_split() |> 
-  set_names(group_keys(cell_data)$cell_type) |> 
+  cell_data |>
+  group_split() |>
+  set_names(group_keys(cell_data)$cell_type) |>
   lapply(function(cells) {
-    
-    pg_data |> 
+    pg_data |>
       subset(cells = cells$component) %>%
       isotype_pls(isotype_markers,
-                  model_mat = with(.[[]], model.matrix(~ sample_alias)), 
-                  layer = "scale.data",
-                  remove_covariates = TRUE)
+        model_mat = with(.[[]], model.matrix(~sample_alias)),
+        layer = "scale.data",
+        remove_covariates = TRUE
+      )
   })
-    
 
-# Background scores 
 
-bg_scores <- 
-  pls_fit_celltype |> 
-  lapply(function(x) enframe(x$scores, "component", "bg_score")) |> 
-  bind_rows() 
+# Background scores
 
-pg_data[[]] <- 
+bg_scores <-
+  pls_fit_celltype |>
+  lapply(function(x) enframe(x$scores, "component", "bg_score")) |>
+  bind_rows()
+
+pg_data[[]] <-
   pg_data[[]] |>
   as_tibble(rownames = "component") |>
   left_join(bg_scores, by = "component") |>
-  column_to_rownames("component") 
+  column_to_rownames("component")
 
 isotype_background_score_featureplot <-
   FeaturePlot(
     pg_data,
     features = "bg_score"
-  ) + 
+  ) +
   scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
   labs(title = "Isotype background score")
 
@@ -1827,17 +1816,16 @@ export_plot(
 
 # Background loadings
 
-bg_loadings <- 
+bg_loadings <-
   pls_fit_celltype %>%
-  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |> 
+  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |>
   bind_rows(.id = cell_annotation_column)
-  
+
 bg_loadings |>
-  arrange(-bg_loading) |> 
-  mutate(marker = factor(marker, levels = unique(marker))) |> 
+  arrange(-bg_loading) |>
+  mutate(marker = factor(marker, levels = unique(marker))) |>
   ggplot(aes(marker, !!sym(cell_annotation_column), fill = bg_loading)) +
   geom_tile() +
-  
   theme_bw() +
   theme(
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
@@ -1859,28 +1847,28 @@ export_plot(
 )
 
 
-
-
-FetchData(pg_data, vars = isotype_markers, 
-          layer = "data") |> 
-  as_tibble(rownames = "component") |> 
-  left_join(bg_scores, by = c("component")) |> 
+FetchData(pg_data,
+  vars = isotype_markers,
+  layer = "data"
+) |>
+  as_tibble(rownames = "component") |>
+  left_join(bg_scores, by = c("component")) |>
   pivot_longer(
     cols = all_of(isotype_markers),
     names_to = "marker",
     values_to = "abundance"
   ) |>
-  
   ggplot(aes(abundance, bg_score)) +
   geom_point(size = 0.1) +
   geom_smooth(method = "lm") +
-  geom_text(data = . %>%
-              group_by(marker) %>%
-              summarise(cor = cor(abundance, bg_score)) ,
-            aes(label = paste0("r = ", round(cor, 2))),
-            x = Inf, y = -Inf,
-            hjust = 1.1, vjust = -0.5,
-            size = 3
+  geom_text(
+    data = . %>%
+      group_by(marker) %>%
+      summarise(cor = cor(abundance, bg_score)),
+    aes(label = paste0("r = ", round(cor, 2))),
+    x = Inf, y = -Inf,
+    hjust = 1.1, vjust = -0.5,
+    size = 3
   ) +
   facet_grid(~marker, scales = "free_x") +
   theme_bw() +
@@ -1898,42 +1886,52 @@ export_plot(
   create_dir = TRUE
 )
 
-isotype_levels <- 
-  FetchData(pg_data, c("condition", cell_annotation_column, 
-                       isotype_markers)) |> 
-  as_tibble(rownames = "component") |> 
-  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |> 
-  group_by(condition, !!sym(cell_annotation_column)) |> 
+isotype_levels <-
+  FetchData(pg_data, c(
+    "condition", cell_annotation_column,
+    isotype_markers
+  )) |>
+  as_tibble(rownames = "component") |>
+  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |>
+  group_by(condition, !!sym(cell_annotation_column)) |>
   summarise(
     mean_isotype = mean(max_isotype),
     sd_isotype = sd(max_isotype)
-  ) |> 
+  ) |>
   ungroup()
 
-abundance_data_per_celltype <- 
-  FetchData(pg_data, c("condition", cell_annotation_column,
-                       rownames(pg_data))) |> 
-  as_tibble(rownames = "component") |> 
+abundance_data_per_celltype <-
+  FetchData(pg_data, c(
+    "condition", cell_annotation_column,
+    rownames(pg_data)
+  )) |>
+  as_tibble(rownames = "component") |>
   pivot_longer(
     cols = all_of(rownames(pg_data)),
     names_to = "marker",
     values_to = "abundance"
-  ) |> 
-  group_by(condition, !!sym(cell_annotation_column), marker) |> 
+  ) |>
+  group_by(condition, !!sym(cell_annotation_column), marker) |>
   summarise(
     mean_abundance = mean(abundance),
     sd_abundance = sd(abundance),
     n_cells = n()
-  ) |> 
-  ungroup() |> 
-  left_join(isotype_levels, 
-            by = c("condition", 
-                   cell_annotation_column)) |> 
-  left_join(bg_loadings, 
-            by = c("marker", 
-                   cell_annotation_column)) |>
+  ) |>
+  ungroup() |>
+  left_join(isotype_levels,
+    by = c(
+      "condition",
+      cell_annotation_column
+    )
+  ) |>
+  left_join(bg_loadings,
+    by = c(
+      "marker",
+      cell_annotation_column
+    )
+  ) |>
   mutate(
-    is_low = mean_abundance < mean_isotype + 3 * sd_isotype, 
+    is_low = mean_abundance < mean_isotype + 3 * sd_isotype,
     is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
     is_noisy = bg_loading > 0.05,
     passed_filter = case_when(
@@ -1944,14 +1942,15 @@ abundance_data_per_celltype <-
     )
   )
 
-abundance_data_per_celltype |> 
+abundance_data_per_celltype |>
   mutate(cell_annotation = !!sym(cell_annotation_column)) |>
   ggplot(aes((mean_abundance - mean_isotype) / sd_isotype, bg_loading,
-             color = passed_filter)) +
+    color = passed_filter
+  )) +
   geom_hline(yintercept = 0) +
   geom_point(size = 0.1) +
   geom_text(aes(label = marker), size = 2) +
-  facet_grid(condition~cell_annotation) +
+  facet_grid(condition ~ cell_annotation) +
   theme_bw() +
   labs(
     title = "Marker mean abundance vs PLS loading",
@@ -1968,13 +1967,13 @@ export_plot(
 )
 
 markers_per_cell_type <-
-  abundance_data_per_celltype |> 
-  filter(passed_filter == "Passed") |> 
-  select(condition, cell_type = !!sym(cell_annotation_column), marker) |> 
-  distinct() |> 
+  abundance_data_per_celltype |>
+  filter(passed_filter == "Passed") |>
+  select(condition, cell_type = !!sym(cell_annotation_column), marker) |>
+  distinct() |>
   group_by(cell_type)
-  
-abundance_data_per_celltype |> 
+
+abundance_data_per_celltype |>
   mutate(cell_type = !!sym(cell_annotation_column)) |>
   filter(passed_filter == "Passed") |>
   ggplot(aes(marker, condition)) +
@@ -2002,15 +2001,14 @@ export_plot(
   create_dir = TRUE
 )
 
-markers_per_cell_type |> 
+markers_per_cell_type |>
   write_csv(here::here("results/02_data_processing/isotype_background_score/selected_markers.csv"))
 
 markers_to_test <-
   markers_per_cell_type |>
-  group_split() |> 
-  set_names(group_keys(markers_per_cell_type)$cell_type) |> 
+  group_split() |>
+  set_names(group_keys(markers_per_cell_type)$cell_type) |>
   lapply(function(df) unique(df$marker))
-
 ```
 
 # 3. Abundance distribution
@@ -2029,7 +2027,6 @@ These visualizations are valuable for quality control, marker validation, and ex
 **Note**: This section generates a large number of plots (multiple plots per marker), which can take approximately 10-15 minutes to complete depending on the number of markers and cells in the dataset.
 
 ```{r}
-
 # PLOTTING THIS TAKES AROUND 10-15 MIN!
 
 all_markers <- rownames(pg_data)
@@ -2040,140 +2037,138 @@ plot_data_cts <- FetchData(pg_data, c("sample_alias", "cell_annotation", "condit
 
 # concatenate CLR and count data
 plot_data <- plot_data_clr |>
-    pivot_longer(cols = all_of(all_markers), names_to = "marker", values_to = "abundance") |>
-    mutate(metric = "CLR") |>
-    bind_rows(
-        plot_data_cts |>
-            pivot_longer(cols = all_of(all_markers), names_to = "marker", values_to = "abundance") |>
-            mutate(metric = "Count")
-    )
+  pivot_longer(cols = all_of(all_markers), names_to = "marker", values_to = "abundance") |>
+  mutate(metric = "CLR") |>
+  bind_rows(
+    plot_data_cts |>
+      pivot_longer(cols = all_of(all_markers), names_to = "marker", values_to = "abundance") |>
+      mutate(metric = "Count")
+  )
 
 plot_data |>
-    group_by(marker) |>
-    group_map(~ {
-      
-      marker_savename <- str_remove(.y, "\\.") # remove dot from marker name for saving files
-        # Create 2 plots for the current marker: CLR per sample, Count per sample
-        p_clr_per_sample <- .x |> # .x contains the grouped data for the current marker
-            filter(metric == "CLR") |>
-            ggplot(aes(sample_alias, abundance, color = sample_alias)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = sample_palette) +
-            labs(title = "CLR per sample", x = "", y = "CLR")
+  group_by(marker) |>
+  group_map(~ {
+    marker_savename <- str_remove(.y, "\\.") # remove dot from marker name for saving files
+    # Create 2 plots for the current marker: CLR per sample, Count per sample
+    p_clr_per_sample <- .x |> # .x contains the grouped data for the current marker
+      filter(metric == "CLR") |>
+      ggplot(aes(sample_alias, abundance, color = sample_alias)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = sample_palette) +
+      labs(title = "CLR per sample", x = "", y = "CLR")
 
-        # Set y limits to the 99th percentile per marker
-        count_99 <- quantile(.x$abundance[.x$metric == "Count"], 0.99, na.rm = TRUE)
-        p_count_per_sample <- .x |>
-            filter(metric == "Count") |>
-            ggplot(aes(sample_alias, abundance, color = sample_alias)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = sample_palette) +
-            labs(title = "Count per sample", x = "", y = "Count") +
-            ylim(NA, count_99)
+    # Set y limits to the 99th percentile per marker
+    count_99 <- quantile(.x$abundance[.x$metric == "Count"], 0.99, na.rm = TRUE)
+    p_count_per_sample <- .x |>
+      filter(metric == "Count") |>
+      ggplot(aes(sample_alias, abundance, color = sample_alias)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = sample_palette) +
+      labs(title = "Count per sample", x = "", y = "Count") +
+      ylim(NA, count_99)
 
-        # Save per sample plots
-        p_abundance_distribution_per_sample <- (p_clr_per_sample + p_count_per_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        export_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_sample/{marker_savename}_abundance_distribution_per_sample")),
-            width = 12,
-            height = 8,
-            plot = p_abundance_distribution_per_sample
-        )
+    # Save per sample plots
+    p_abundance_distribution_per_sample <- (p_clr_per_sample + p_count_per_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+    export_plot(
+      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_sample/{marker_savename}_abundance_distribution_per_sample")),
+      width = 12,
+      height = 8,
+      plot = p_abundance_distribution_per_sample
+    )
 
-        # Create 2 plots for the current marker: CLR per cell type, Count per cell type
-        p_clr_per_celltype <- .x |>
-            filter(metric == "CLR") |>
-            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = cell_palette) +
-            labs(title = "CLR per cell type", x = "", y = "CLR")
+    # Create 2 plots for the current marker: CLR per cell type, Count per cell type
+    p_clr_per_celltype <- .x |>
+      filter(metric == "CLR") |>
+      ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = cell_palette) +
+      labs(title = "CLR per cell type", x = "", y = "CLR")
 
-        p_count_per_celltype <- .x |>
-            filter(metric == "Count") |>
-            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = cell_palette) +
-            labs(title = "Count per cell type", x = "", y = "Count") +
-            ylim(NA, count_99)
+    p_count_per_celltype <- .x |>
+      filter(metric == "Count") |>
+      ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = cell_palette) +
+      labs(title = "Count per cell type", x = "", y = "Count") +
+      ylim(NA, count_99)
 
-        # Save per cell type plots
-        p_abundance_distribution_per_celltype <- (p_clr_per_celltype + p_count_per_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        export_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type/{marker_savename}_abundance_distribution_per_celltype")),
-            width = 12,
-            height = 8,
-            plot = p_abundance_distribution_per_celltype
-        )
+    # Save per cell type plots
+    p_abundance_distribution_per_celltype <- (p_clr_per_celltype + p_count_per_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+    export_plot(
+      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type/{marker_savename}_abundance_distribution_per_celltype")),
+      width = 12,
+      height = 8,
+      plot = p_abundance_distribution_per_celltype
+    )
 
-        # Save per cell type plots faceted by sample
-        p_clr_per_celltype_faceted_by_sample <- .x |>
-            filter(metric == "CLR") |>
-            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = cell_palette) +
-            labs(title = "CLR per cell type", x = "", y = "CLR") +
-            facet_wrap(~sample_alias)
+    # Save per cell type plots faceted by sample
+    p_clr_per_celltype_faceted_by_sample <- .x |>
+      filter(metric == "CLR") |>
+      ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = cell_palette) +
+      labs(title = "CLR per cell type", x = "", y = "CLR") +
+      facet_wrap(~sample_alias)
 
-        p_count_per_celltype_faceted_by_sample <- .x |>
-            filter(metric == "Count") |>
-            ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = cell_palette) +
-            labs(title = "Count per cell type", x = "", y = "Count") +
-            facet_wrap(~sample_alias) +
-            ylim(NA, count_99)
+    p_count_per_celltype_faceted_by_sample <- .x |>
+      filter(metric == "Count") |>
+      ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = cell_palette) +
+      labs(title = "Count per cell type", x = "", y = "Count") +
+      facet_wrap(~sample_alias) +
+      ylim(NA, count_99)
 
-        p_abundance_distribution_per_celltype_faceted_by_sample <- (p_clr_per_celltype_faceted_by_sample + p_count_per_celltype_faceted_by_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        export_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_sample/{marker_savename}_abundance_distribution_per_celltype_faceted_by_sample")),
-            width = 16,
-            height = 12,
-            plot = p_abundance_distribution_per_celltype_faceted_by_sample
-        )
+    p_abundance_distribution_per_celltype_faceted_by_sample <- (p_clr_per_celltype_faceted_by_sample + p_count_per_celltype_faceted_by_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+    export_plot(
+      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_sample/{marker_savename}_abundance_distribution_per_celltype_faceted_by_sample")),
+      width = 16,
+      height = 12,
+      plot = p_abundance_distribution_per_celltype_faceted_by_sample
+    )
 
-        # Create plots for the current marker: CLR per condition per cell type, Count per condition per cell type
-        p_clr_per_condition_faceted_by_celltype <- .x |>
-            filter(metric == "CLR") |>
-            ggplot(aes(condition, abundance, color = condition)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = condition_palette) +
-            labs(title = "CLR per condition per cell type", x = "", y = "CLR") +
-            facet_wrap(~cell_annotation)
+    # Create plots for the current marker: CLR per condition per cell type, Count per condition per cell type
+    p_clr_per_condition_faceted_by_celltype <- .x |>
+      filter(metric == "CLR") |>
+      ggplot(aes(condition, abundance, color = condition)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = condition_palette) +
+      labs(title = "CLR per condition per cell type", x = "", y = "CLR") +
+      facet_wrap(~cell_annotation)
 
-        p_count_per_condition_faceted_by_celltype <- .x |>
-            filter(metric == "Count") |>
-            ggplot(aes(condition, abundance, color = condition)) +
-            ggbeeswarm::geom_quasirandom() +
-            theme_bw() +
-            theme(legend.position = "none") +
-            scale_color_manual(values = condition_palette) +
-            labs(title = "Count per condition per cell type", x = "", y = "Count") +
-            facet_wrap(~cell_annotation) +
-            ylim(NA, count_99)
+    p_count_per_condition_faceted_by_celltype <- .x |>
+      filter(metric == "Count") |>
+      ggplot(aes(condition, abundance, color = condition)) +
+      ggbeeswarm::geom_quasirandom() +
+      theme_bw() +
+      theme(legend.position = "none") +
+      scale_color_manual(values = condition_palette) +
+      labs(title = "Count per condition per cell type", x = "", y = "Count") +
+      facet_wrap(~cell_annotation) +
+      ylim(NA, count_99)
 
-        p_abundance_distribution_per_condition_faceted_by_celltype <- (p_clr_per_condition_faceted_by_celltype + p_count_per_condition_faceted_by_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
-        export_plot(
-            filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_condition_faceted_by_celltype/{marker_savename}_abundance_distribution_per_condition_faceted_by_celltype")),
-            width = 16,
-            height = 12,
-            plot = p_abundance_distribution_per_condition_faceted_by_celltype
-        )
-    })
-
+    p_abundance_distribution_per_condition_faceted_by_celltype <- (p_clr_per_condition_faceted_by_celltype + p_count_per_condition_faceted_by_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+    export_plot(
+      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_condition_faceted_by_celltype/{marker_savename}_abundance_distribution_per_condition_faceted_by_celltype")),
+      width = 16,
+      height = 12,
+      plot = p_abundance_distribution_per_condition_faceted_by_celltype
+    )
+  })
 ```
 
 
@@ -2195,12 +2190,12 @@ To enable direct comparison across samples, all heatmaps use a consistent marker
 expressed_markers <- unique(unlist(markers_to_test))
 
 proximity_data <- ProximityScores(pg_data,
-    lazy = TRUE,
-    meta_data_columns = c("sample_alias")
+  lazy = TRUE,
+  meta_data_columns = c("sample_alias")
 ) |>
-    filter(marker_1 %in% expressed_markers) |>
-    filter(marker_2 %in% expressed_markers) |>
-    collect()
+  filter(marker_1 %in% expressed_markers) |>
+  filter(marker_2 %in% expressed_markers) |>
+  collect()
 
 summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
 rm(proximity_data)
@@ -2208,15 +2203,15 @@ gc()
 
 # Create reference heatmap to determine marker ordering
 reference_heatmap <- ColocalizationHeatmap(
-    summary_proximity_data |> filter(sample_alias == "S1_resting"),
-    marker1_col = "marker_1",
-    marker2_col = "marker_2",
-    value_col = "mean_log2_ratio",
-    size_col = "pct_detected",
-    type = "dots",
-    cluster_cols = TRUE,
-    cluster_rows = TRUE,
-    legend_range = c(-1, 1)
+  summary_proximity_data |> filter(sample_alias == "S1_resting"),
+  marker1_col = "marker_1",
+  marker2_col = "marker_2",
+  value_col = "mean_log2_ratio",
+  size_col = "pct_detected",
+  type = "dots",
+  cluster_cols = TRUE,
+  cluster_rows = TRUE,
+  legend_range = c(-1, 1)
 )
 
 marker_order <- layer_scales(reference_heatmap)$y$range$range
@@ -2251,58 +2246,58 @@ unique_samples <- unique(summary_proximity_data$sample_alias)
 sample_heatmaps <- list()
 
 for (sample in unique_samples) {
-    # Filter data for current sample
-    sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+  # Filter data for current sample
+  sample_data <- summary_proximity_data |> filter(sample_alias == sample)
 
-    tmp_plot <- ColocalizationHeatmap(
-        sample_data,
-        marker1_col = "marker_1",
-        marker2_col = "marker_2",
-        value_col = "mean_log2_ratio",
-        size_col = "pct_detected",
-        type = "dots",
-        cluster_cols = FALSE,
-        cluster_rows = FALSE,
-        legend_range = global_value_limits # Use global range for consistent scaling
-    ) +
-        ggtitle(glue::glue("Raw colocalization heatmap for {sample}"))
+  tmp_plot <- ColocalizationHeatmap(
+    sample_data,
+    marker1_col = "marker_1",
+    marker2_col = "marker_2",
+    value_col = "mean_log2_ratio",
+    size_col = "pct_detected",
+    type = "dots",
+    cluster_cols = FALSE,
+    cluster_rows = FALSE,
+    legend_range = global_value_limits # Use global range for consistent scaling
+  ) +
+    ggtitle(glue::glue("Raw colocalization heatmap for {sample}"))
 
-    # Apply the reference marker order to the ggplot object by modifying the scales
-    # This ensures all heatmaps have consistent marker ordering
-    tmp_plot <- tmp_plot +
-        scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
-        scale_y_discrete(limits = rev(marker_order), drop = FALSE)
+  # Apply the reference marker order to the ggplot object by modifying the scales
+  # This ensures all heatmaps have consistent marker ordering
+  tmp_plot <- tmp_plot +
+    scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+    scale_y_discrete(limits = rev(marker_order), drop = FALSE)
 
-    # Ensure consistent scales across all samples for fair comparison
-    # The legend_range parameter already handles the value scale, but we need to ensure
-    # the size scale is also consistent. Try both fill and color aesthetics in case
-    # ColocalizationHeatmap uses either one
-    plot_layers <- tmp_plot$layers
-    has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-    has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+  # Ensure consistent scales across all samples for fair comparison
+  # The legend_range parameter already handles the value scale, but we need to ensure
+  # the size scale is also consistent. Try both fill and color aesthetics in case
+  # ColocalizationHeatmap uses either one
+  plot_layers <- tmp_plot$layers
+  has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+  has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
 
-    # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-    if (has_fill) {
-        tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-    }
-    if (has_color && !has_fill) {
-        tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-    }
+  # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+  if (has_fill) {
+    tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+  }
+  if (has_color && !has_fill) {
+    tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+  }
 
-    # Ensure consistent size scale across all samples
-    tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
+  # Ensure consistent size scale across all samples
+  tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
 
-    # Save individual plot with dimensions scaled to number of markers
-    export_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
-        plot = tmp_plot,
-        width = plot_width,
-        height = plot_height,
-        create_dir = TRUE
-    )
+  # Save individual plot with dimensions scaled to number of markers
+  export_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
+    plot = tmp_plot,
+    width = plot_width,
+    height = plot_height,
+    create_dir = TRUE
+  )
 
-    # Store plot for combined visualization
-    sample_heatmaps[[sample]] <- tmp_plot
+  # Store plot for combined visualization
+  sample_heatmaps[[sample]] <- tmp_plot
 }
 
 # Create a combined plot with all samples side by side
@@ -2319,11 +2314,11 @@ combined_height <- plot_height * n_rows
 
 # Save the combined plot
 export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
-    plot = combined_plot,
-    width = combined_width,
-    height = combined_height,
-    create_dir = TRUE
+  filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
+  plot = combined_plot,
+  width = combined_width,
+  height = combined_height,
+  create_dir = TRUE
 )
 ```
 
@@ -2340,161 +2335,161 @@ cell_types <- unique(pg_data[[]]$cell_annotation)
 cell_types <- cell_types[!is.na(cell_types)]
 
 for (cell_type in cell_types) {
-    expressed_markers <- markers_to_test[[cell_type]]
-    pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
+  expressed_markers <- markers_to_test[[cell_type]]
+  pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
 
-    proximity_data <- ProximityScores(pg_data_cell_type,
-        lazy = TRUE,
-        meta_data_columns = c("sample_alias")
-    ) |>
-        filter(marker_1 %in% expressed_markers) |>
-        filter(marker_2 %in% expressed_markers) |>
-        collect()
+  proximity_data <- ProximityScores(pg_data_cell_type,
+    lazy = TRUE,
+    meta_data_columns = c("sample_alias")
+  ) |>
+    filter(marker_1 %in% expressed_markers) |>
+    filter(marker_2 %in% expressed_markers) |>
+    collect()
 
-    summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
-    rm(proximity_data)
-    gc()
+  summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+  rm(proximity_data)
+  gc()
 
-    # Create reference heatmap to determine marker ordering
-    reference_heatmap <- ColocalizationHeatmap(
-        summary_proximity_data |> 
-          group_by(marker_1, marker_2) |> 
-          summarise(mean_log2_ratio = mean(mean_log2_ratio, na.rm = TRUE),
-                    pct_detected = mean(pct_detected, na.rm = TRUE), 
-                    .groups = "drop"), 
+  # Create reference heatmap to determine marker ordering
+  reference_heatmap <- ColocalizationHeatmap(
+    summary_proximity_data |>
+      group_by(marker_1, marker_2) |>
+      summarise(
+        mean_log2_ratio = mean(mean_log2_ratio, na.rm = TRUE),
+        pct_detected = mean(pct_detected, na.rm = TRUE),
+        .groups = "drop"
+      ),
+    marker1_col = "marker_1",
+    marker2_col = "marker_2",
+    value_col = "mean_log2_ratio",
+    size_col = "pct_detected",
+    type = "dots",
+    cluster_cols = TRUE,
+    cluster_rows = TRUE,
+    legend_range = c(-1, 1)
+  )
+
+  marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+  # Calculate number of markers for dynamic plot sizing
+  n_markers <- length(marker_order)
+
+  # Calculate plot dimensions based on number of markers
+  # Base size + scaling factor to ensure readability across different marker counts
+  # Minimum size ensures small marker sets are still readable, scaling factor accommodates larger sets
+  base_width <- 6
+  base_height <- 6
+  marker_scaling_factor <- 0.15 # Additional inches per marker
+  plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
+  plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
+
+  # Calculate global scale ranges across all samples for this cell type
+  # This ensures all heatmaps have consistent color and size scales for fair comparison
+  global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
+  global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+
+  # Use symmetric range for value scale (centered around 0) to match legend_range behavior
+  # But ensure it covers the actual data range
+  max_abs_value <- max(abs(global_value_range))
+  global_value_limits <- c(-max_abs_value, max_abs_value)
+
+  # Get all unique sample_alias values
+  unique_samples <- unique(summary_proximity_data$sample_alias)
+
+  # Create heatmaps for each sample using the reference marker order
+  # Store plots in a list to combine them later
+  sample_heatmaps <- list()
+
+  for (sample in unique_samples) {
+    # Filter data for current sample
+    sample_data <-
+      summary_proximity_data |>
+      filter(sample_alias == sample)
+
+    if (n_distinct(c(
+      sample_data$marker_1,
+      sample_data$marker_2
+    )) >= 2) {
+      tmp_plot <- ColocalizationHeatmap(
+        sample_data,
         marker1_col = "marker_1",
         marker2_col = "marker_2",
         value_col = "mean_log2_ratio",
         size_col = "pct_detected",
         type = "dots",
-        cluster_cols = TRUE,
-        cluster_rows = TRUE,
-        legend_range = c(-1, 1)
-    )
+        cluster_cols = FALSE,
+        cluster_rows = FALSE,
+        legend_range = global_value_limits # Use global range for consistent scaling
+      ) +
+        ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
 
-    marker_order <- layer_scales(reference_heatmap)$y$range$range
+      # Apply the reference marker order to the ggplot object by modifying the scales
+      # This ensures all heatmaps have consistent marker ordering
+      tmp_plot <- tmp_plot +
+        scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+        scale_y_discrete(limits = rev(marker_order), drop = FALSE)
 
-    # Calculate number of markers for dynamic plot sizing
-    n_markers <- length(marker_order)
+      # Ensure consistent scales across all samples for fair comparison
+      # The legend_range parameter already handles the value scale, but we need to ensure
+      # the size scale is also consistent. Try both fill and color aesthetics in case
+      # ColocalizationHeatmap uses either one
+      plot_layers <- tmp_plot$layers
+      has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+      has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
 
-    # Calculate plot dimensions based on number of markers
-    # Base size + scaling factor to ensure readability across different marker counts
-    # Minimum size ensures small marker sets are still readable, scaling factor accommodates larger sets
-    base_width <- 6
-    base_height <- 6
-    marker_scaling_factor <- 0.15 # Additional inches per marker
-    plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
-    plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
+      # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+      if (has_fill) {
+        tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+      }
+      if (has_color && !has_fill) {
+        tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+      }
 
-    # Calculate global scale ranges across all samples for this cell type
-    # This ensures all heatmaps have consistent color and size scales for fair comparison
-    global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
-    global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+      # Ensure consistent size scale across all samples
+      tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
 
-    # Use symmetric range for value scale (centered around 0) to match legend_range behavior
-    # But ensure it covers the actual data range
-    max_abs_value <- max(abs(global_value_range))
-    global_value_limits <- c(-max_abs_value, max_abs_value)
-
-    # Get all unique sample_alias values
-    unique_samples <- unique(summary_proximity_data$sample_alias)
-
-    # Create heatmaps for each sample using the reference marker order
-    # Store plots in a list to combine them later
-    sample_heatmaps <- list()
-
-    for (sample in unique_samples) {
-      
-        # Filter data for current sample
-        sample_data <- 
-          summary_proximity_data |> 
-          filter(sample_alias == sample)
-
-        if (n_distinct(c(sample_data$marker_1, 
-                         sample_data$marker_2)) >= 2) {
-          
-          
-          tmp_plot <- ColocalizationHeatmap(
-            sample_data,
-            marker1_col = "marker_1",
-            marker2_col = "marker_2",
-            value_col = "mean_log2_ratio",
-            size_col = "pct_detected",
-            type = "dots",
-            cluster_cols = FALSE,
-            cluster_rows = FALSE,
-            legend_range = global_value_limits # Use global range for consistent scaling
-          ) +
-            ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
-          
-          # Apply the reference marker order to the ggplot object by modifying the scales
-          # This ensures all heatmaps have consistent marker ordering
-          tmp_plot <- tmp_plot +
-            scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
-            scale_y_discrete(limits = rev(marker_order), drop = FALSE)
-          
-          # Ensure consistent scales across all samples for fair comparison
-          # The legend_range parameter already handles the value scale, but we need to ensure
-          # the size scale is also consistent. Try both fill and color aesthetics in case
-          # ColocalizationHeatmap uses either one
-          plot_layers <- tmp_plot$layers
-          has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
-          has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
-          
-          # Apply value scale limits (legend_range should handle this, but ensure it's applied)
-          if (has_fill) {
-            tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
-          }
-          if (has_color && !has_fill) {
-            tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
-          }
-          
-          # Ensure consistent size scale across all samples
-          tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
-          
-          # Save individual plot with dimensions scaled to number of markers
-          export_plot(
-            filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
-            plot = tmp_plot,
-            width = plot_width,
-            height = plot_height,
-            create_dir = TRUE
-          )
-        } else {
-          # Create an empty plot with a message indicating insufficient markers
-          tmp_plot <- ggplot() +
-            theme_void() +
-            geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {sample}"))) +
-            xlim(-1, 1) +
-            ylim(-1, 1)
-        }
-
-        # Store plot for combined visualization
-        sample_heatmaps[[sample]] <- tmp_plot
+      # Save individual plot with dimensions scaled to number of markers
+      export_plot(
+        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
+        plot = tmp_plot,
+        width = plot_width,
+        height = plot_height,
+        create_dir = TRUE
+      )
+    } else {
+      # Create an empty plot with a message indicating insufficient markers
+      tmp_plot <- ggplot() +
+        theme_void() +
+        geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {sample}"))) +
+        xlim(-1, 1) +
+        ylim(-1, 1)
     }
 
-    # Create a combined plot with all samples side by side
-    # Use patchwork to combine plots (install with: install.packages("patchwork"))
-    n_samples <- length(unique_samples)
-    n_rows <- 2
-    n_cols <- ceiling(n_samples / n_rows)
-    combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = n_rows)
+    # Store plot for combined visualization
+    sample_heatmaps[[sample]] <- tmp_plot
+  }
 
-    # Calculate combined plot dimensions: scale width by number of columns, height by number of rows
-    # Each subplot maintains its aspect ratio while accommodating multiple samples
-    combined_width <- plot_width * n_cols
-    combined_height <- plot_height * n_rows
+  # Create a combined plot with all samples side by side
+  # Use patchwork to combine plots (install with: install.packages("patchwork"))
+  n_samples <- length(unique_samples)
+  n_rows <- 2
+  n_cols <- ceiling(n_samples / n_rows)
+  combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = n_rows)
 
-    # Save the combined plot
-    export_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
-        plot = combined_plot,
-        width = combined_width,
-        height = combined_height,
-        create_dir = TRUE
-    )
+  # Calculate combined plot dimensions: scale width by number of columns, height by number of rows
+  # Each subplot maintains its aspect ratio while accommodating multiple samples
+  combined_width <- plot_width * n_cols
+  combined_height <- plot_height * n_rows
+
+  # Save the combined plot
+  export_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
+    plot = combined_plot,
+    width = combined_width,
+    height = combined_height,
+    create_dir = TRUE
+  )
 }
-
 ```
 
 
@@ -2524,12 +2519,12 @@ metric_threshold <- 0.1
 pct_detected_threshold <- 0.5
 
 proximity_data <- ProximityScores(pg_data,
-    lazy = TRUE,
-    meta_data_columns = c("sample_alias")
+  lazy = TRUE,
+  meta_data_columns = c("sample_alias")
 ) |>
-    filter(marker_1 %in% network_markers) |>
-    filter(marker_2 %in% network_markers) |>
-    collect()
+  filter(marker_1 %in% network_markers) |>
+  filter(marker_2 %in% network_markers) |>
+  collect()
 
 summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
 rm(proximity_data)
@@ -2537,42 +2532,41 @@ gc()
 
 # Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
 df_net <- summary_proximity_data %>%
-    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
-    filter(pct_detected > pct_detected_threshold) %>%
-    mutate(from = marker_1, to = marker_2) %>%
-    select(from, to, mean_log2_ratio, sample_alias)
+  filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+  filter(pct_detected > pct_detected_threshold) %>%
+  mutate(from = marker_1, to = marker_2) %>%
+  select(from, to, mean_log2_ratio, sample_alias)
 
 network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
-    ggraph(layout = "kk") +
-    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
-    geom_node_label(aes(label = name), size = 2.5) +
-    scale_edge_color_gradientn(
-        colours = c(
-            "#1F395F", "#647DA3", "#BBC8DA",
-            "#FFFFFF", "#F0BCCD", "#BE5F7D",
-            "#781534"
-        ),
-        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
-    ) +
-    scale_x_continuous(expand = c(0.2, 0.2)) +
-    scale_y_continuous(expand = c(0.2, 0.2)) +
-    facet_edges(~sample_alias, nrow = 2) +
-    theme(
-        aspect.ratio = 1,
-        panel.background = element_rect(fill = "white", color = "black"),
-        panel.spacing = unit(1, "lines")
-    ) +
-    labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
-    guides(edge_width = "none")
+  ggraph(layout = "kk") +
+  geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+  geom_node_label(aes(label = name), size = 2.5) +
+  scale_edge_color_gradientn(
+    colours = c(
+      "#1F395F", "#647DA3", "#BBC8DA",
+      "#FFFFFF", "#F0BCCD", "#BE5F7D",
+      "#781534"
+    ),
+    limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+  ) +
+  scale_x_continuous(expand = c(0.2, 0.2)) +
+  scale_y_continuous(expand = c(0.2, 0.2)) +
+  facet_edges(~sample_alias, nrow = 2) +
+  theme(
+    aspect.ratio = 1,
+    panel.background = element_rect(fill = "white", color = "black"),
+    panel.spacing = unit(1, "lines")
+  ) +
+  labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
+  guides(edge_width = "none")
 
 export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
-    plot = network_plot_all_cell_types,
-    width = 12,
-    height = 8,
-    create_dir = TRUE
+  filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
+  plot = network_plot_all_cell_types,
+  width = 12,
+  height = 8,
+  create_dir = TRUE
 )
-
 ```
 
 
@@ -2593,14 +2587,14 @@ metric_threshold <- 0.1
 pct_detected_threshold <- 0.5
 
 proximity_data <- ProximityScores(pg_data,
-    lazy = TRUE,
-    meta_data_columns = c("sample_alias", "cell_annotation")
+  lazy = TRUE,
+  meta_data_columns = c("sample_alias", "cell_annotation")
 ) |>
-    filter(cell_annotation == cell_type_of_interest) |>
-    filter(marker_1 %in% network_markers) |>
-    filter(marker_2 %in% network_markers) |>
-    filter(marker_1 != marker_2) |>
-    collect()
+  filter(cell_annotation == cell_type_of_interest) |>
+  filter(marker_1 %in% network_markers) |>
+  filter(marker_2 %in% network_markers) |>
+  filter(marker_1 != marker_2) |>
+  collect()
 
 summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
 rm(proximity_data)
@@ -2608,48 +2602,47 @@ gc()
 
 # Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
 df_net <- summary_proximity_data %>%
-    filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
-    filter(pct_detected > pct_detected_threshold) %>%
-    mutate(from = marker_1, to = marker_2) %>%
-    select(from, to, mean_log2_ratio, sample_alias)
+  filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+  filter(pct_detected > pct_detected_threshold) %>%
+  mutate(from = marker_1, to = marker_2) %>%
+  select(from, to, mean_log2_ratio, sample_alias)
 
 network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
-    ggraph(layout = "kk") +
-    geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
-    geom_node_label(aes(label = name), size = 2.5) +
-    scale_edge_color_gradientn(
-        colours = c(
-            "#1F395F", "#647DA3", "#BBC8DA",
-            "#FFFFFF", "#F0BCCD", "#BE5F7D",
-            "#781534"
-        ),
-        limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
-    ) +
-    scale_x_continuous(expand = c(0.2, 0.2)) +
-    scale_y_continuous(expand = c(0.2, 0.2)) +
-    facet_edges(~sample_alias, nrow = 2) +
-    theme(
-        aspect.ratio = 1,
-        panel.background = element_rect(fill = "white", color = "black"),
-        panel.spacing = unit(1, "lines")
-    ) +
-    labs(
-        edge_color = "Mean\nlog2 ratio",
-        title = glue::glue("Colocalization Score Network {cell_type_of_interest}"),
-        subtitle = glue::glue(
-            "Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}"
-        )
-    ) +
-    guides(edge_width = "none")
+  ggraph(layout = "kk") +
+  geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+  geom_node_label(aes(label = name), size = 2.5) +
+  scale_edge_color_gradientn(
+    colours = c(
+      "#1F395F", "#647DA3", "#BBC8DA",
+      "#FFFFFF", "#F0BCCD", "#BE5F7D",
+      "#781534"
+    ),
+    limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+  ) +
+  scale_x_continuous(expand = c(0.2, 0.2)) +
+  scale_y_continuous(expand = c(0.2, 0.2)) +
+  facet_edges(~sample_alias, nrow = 2) +
+  theme(
+    aspect.ratio = 1,
+    panel.background = element_rect(fill = "white", color = "black"),
+    panel.spacing = unit(1, "lines")
+  ) +
+  labs(
+    edge_color = "Mean\nlog2 ratio",
+    title = glue::glue("Colocalization Score Network {cell_type_of_interest}"),
+    subtitle = glue::glue(
+      "Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}"
+    )
+  ) +
+  guides(edge_width = "none")
 
 export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
-    plot = network_plot_cell_type_of_interest,
-    width = 12,
-    height = 8,
-    create_dir = TRUE
+  filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
+  plot = network_plot_cell_type_of_interest,
+  width = 12,
+  height = 8,
+  create_dir = TRUE
 )
-
 ```
 
 
@@ -2668,28 +2661,27 @@ The test compares marker expression values (typically CLR-normalized values) bet
 Results are organized by cell type and include both the raw statistical outputs and summary visualizations. Markers with significant differences (typically p_adj < 0.05) and large effect sizes are of particular biological interest, as they represent markers whose expression is substantially altered by the experimental condition. This analysis enables identification of condition-specific markers, understanding of cellular responses to treatments, and discovery of biomarkers associated with different experimental states.
 
 ```{r}
-
 differential_abundance_analysis <-
-    names(markers_to_test) |>
-    map(function(x) {
-        tryCatch(
-            {
-                daa_res <- RunDAA(subset(pg_data, cell_annotation == x),
-                    contrast_column = "condition",
-                    reference = "resting",
-                    features = markers_to_test[[x]]
-                )
-                daa_res$group <- x
-                return(daa_res)
-            },
-            error = function(e) {
-                message(paste("Error for cell type:", x, ":", e))
-                return(NULL)
-            }
+  names(markers_to_test) |>
+  map(function(x) {
+    tryCatch(
+      {
+        daa_res <- RunDAA(subset(pg_data, cell_annotation == x),
+          contrast_column = "condition",
+          reference = "resting",
+          features = markers_to_test[[x]]
         )
-    }) |>
-    bind_rows() |>
-    mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+        daa_res$group <- x
+        return(daa_res)
+      },
+      error = function(e) {
+        message(paste("Error for cell type:", x, ":", e))
+        return(NULL)
+      }
+    )
+  }) |>
+  bind_rows() |>
+  mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
 dir.create(here::here("results/05_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
 
@@ -2698,7 +2690,6 @@ saveRDS(differential_abundance_analysis, here::here("results/05_statistical_test
 
 # Save the differential abundance analysis results to a csv file
 write.csv(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
-
 ```    
 
 ### 5.1.1. Summarizing plots
@@ -2724,200 +2715,200 @@ reference_condition <- "resting" # Known from RunDAA call
 
 # Determine target conditions - check if dataframe has target/contrast columns
 if ("target" %in% colnames(differential_abundance_analysis)) {
-    # If target column exists, get all unique targets
-    target_conditions <- unique(differential_abundance_analysis$target)
-    target_conditions <- target_conditions[!is.na(target_conditions)]
+  # If target column exists, get all unique targets
+  target_conditions <- unique(differential_abundance_analysis$target)
+  target_conditions <- target_conditions[!is.na(target_conditions)]
 } else {
-    stop("Could not find target column. Available columns: ", paste(colnames(differential_abundance_analysis), collapse = ", "))
+  stop("Could not find target column. Available columns: ", paste(colnames(differential_abundance_analysis), collapse = ", "))
 }
 
 # Prepare base data for plotting (add target column if it doesn't exist)
 plot_data_base <- differential_abundance_analysis |>
-    mutate(
-        neg_log10_p_adj = -log10(p_adj),
-        significant = p_adj < 0.05,
-        effect_size = !!sym(effect_size_col),
-        marker = !!sym(feature_col)
-    )
+  mutate(
+    neg_log10_p_adj = -log10(p_adj),
+    significant = p_adj < 0.05,
+    effect_size = !!sym(effect_size_col),
+    marker = !!sym(feature_col)
+  )
 
 
 # Loop through each target condition and create plots
 for (target_condition in target_conditions) {
-    # Filter data for this target (if target column exists)
-    if ("target" %in% colnames(plot_data_base)) {
-        plot_data <- plot_data_base |>
-            filter(target == target_condition)
-    }
+  # Filter data for this target (if target column exists)
+  if ("target" %in% colnames(plot_data_base)) {
+    plot_data <- plot_data_base |>
+      filter(target == target_condition)
+  }
 
-    # Skip if no data for this target
-    if (nrow(plot_data) == 0) {
-        warning(paste("No data found for target condition:", target_condition))
-        next
-    }
+  # Skip if no data for this target
+  if (nrow(plot_data) == 0) {
+    warning(paste("No data found for target condition:", target_condition))
+    next
+  }
 
-    # Create directory name based on target and reference
-    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/05_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
+  # Create directory name based on target and reference
+  comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+  base_output_dir <- here::here("results/05_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
 
-    # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
-    # This plot helps identify markers that are both significantly different and have large effect sizes
-    # Identify top 5 most extreme effect sizes per cell type for labeling
-    top_markers_faceted <- plot_data |>
-        group_by(group) |>
-        slice_max(order_by = abs(effect_size), n = 5) |>
-        ungroup()
+  # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
+  # This plot helps identify markers that are both significantly different and have large effect sizes
+  # Identify top 5 most extreme effect sizes per cell type for labeling
+  top_markers_faceted <- plot_data |>
+    group_by(group) |>
+    slice_max(order_by = abs(effect_size), n = 5) |>
+    ungroup()
 
-    volcano_plot_differential_abundance <- plot_data |>
-        ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-        geom_point() +
-        scale_color_gradient2(
-            low = "#0066FFFF",
-            mid = "#74D055FF",
-            high = "#FF0000FF",
-            midpoint = 0
-        ) +
-        geom_hline(yintercept = 0) +
-        geom_vline(xintercept = 0) +
-        geom_vline(xintercept = c(-1, 1), col = "grey") +
-        coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
-        facet_wrap(~group, scales = "free") +
-        geom_text(
-            data = top_markers_faceted,
-            aes(label = marker),
-            hjust = -0.2,
-            vjust = 0
-        ) +
-        theme_bw() +
-        labs(
-            title = paste("Differential abundance analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
-            subtitle = "Effect size vs statistical significance by cell type",
-            x = paste("Effect size (", effect_size_col, ")", sep = ""),
-            y = "-log10(adjusted p-value)",
-            color = "Effect size"
-        ) +
-        theme(
-            strip.background = element_rect(fill = "lightblue", color = "black"),
-            panel.grid.minor = element_blank(),
-            panel.grid.major = element_blank()
-        )
-
-    # Save faceted volcano plot in the comparison directory
-    export_plot(
-        filename = file.path(base_output_dir, "differential_abundance_volcano"),
-        plot = volcano_plot_differential_abundance,
-        width = 12,
-        height = 8,
-        create_dir = TRUE
+  volcano_plot_differential_abundance <- plot_data |>
+    ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+    geom_point() +
+    scale_color_gradient2(
+      low = "#0066FFFF",
+      mid = "#74D055FF",
+      high = "#FF0000FF",
+      midpoint = 0
+    ) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_vline(xintercept = c(-1, 1), col = "grey") +
+    coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
+    facet_wrap(~group, scales = "free") +
+    geom_text(
+      data = top_markers_faceted,
+      aes(label = marker),
+      hjust = -0.2,
+      vjust = 0
+    ) +
+    theme_bw() +
+    labs(
+      title = paste("Differential abundance analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
+      subtitle = "Effect size vs statistical significance by cell type",
+      x = paste("Effect size (", effect_size_col, ")", sep = ""),
+      y = "-log10(adjusted p-value)",
+      color = "Effect size"
+    ) +
+    theme(
+      strip.background = element_rect(fill = "lightblue", color = "black"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_blank()
     )
 
-    # Plot 2: Non-faceted volcano plots per cell type
-    # Create individual folders per cell type and save non-faceted volcano plots for each cell type
-    # Get unique cell types (groups)
-    unique_cell_types <- unique(plot_data$group)
+  # Save faceted volcano plot in the comparison directory
+  export_plot(
+    filename = file.path(base_output_dir, "differential_abundance_volcano"),
+    plot = volcano_plot_differential_abundance,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+  )
 
-    # For each cell type, create a non-faceted volcano plot
-    for (cell_type in unique_cell_types) {
-        # Create directory for this cell type
-        cell_type_dir <- file.path(base_output_dir, cell_type)
-        dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+  # Plot 2: Non-faceted volcano plots per cell type
+  # Create individual folders per cell type and save non-faceted volcano plots for each cell type
+  # Get unique cell types (groups)
+  unique_cell_types <- unique(plot_data$group)
 
-        # Filter data for this cell type
-        cell_type_plot_data <- plot_data |>
-            filter(group == cell_type)
+  # For each cell type, create a non-faceted volcano plot
+  for (cell_type in unique_cell_types) {
+    # Create directory for this cell type
+    cell_type_dir <- file.path(base_output_dir, cell_type)
+    dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
 
-        # Create non-faceted volcano plot for this cell type
-        # Identify top 5 most extreme effect sizes for labeling
-        top_markers_cell_type <- cell_type_plot_data |>
-            slice_max(order_by = abs(effect_size), n = 5)
+    # Filter data for this cell type
+    cell_type_plot_data <- plot_data |>
+      filter(group == cell_type)
 
-        volcano_plot_cell_type <- cell_type_plot_data |>
-            ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-            geom_point() +
-            scale_color_gradient2(
-                low = "#0066FFFF",
-                mid = "#74D055FF",
-                high = "#FF0000FF",
-                midpoint = 0
-            ) +
-            geom_hline(yintercept = 0) +
-            geom_vline(xintercept = 0) +
-            geom_vline(xintercept = c(-1, 1), col = "grey") +
-            coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
-            geom_text(
-                data = top_markers_cell_type,
-                aes(label = marker),
-                hjust = -0.2,
-                vjust = 0
-            ) +
-            theme_bw() +
-            labs(
-                title = paste("Differential abundance analysis: Volcano plot", sep = ""),
-                subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
-                x = paste("Effect size (", effect_size_col, ")", sep = ""),
-                y = "-log10(adjusted p-value)",
-                color = "Effect size"
-            ) +
-            theme(
-                plot.title = element_text(size = 14, face = "bold"),
-                plot.subtitle = element_text(size = 12),
-                panel.grid.minor = element_blank(),
-                panel.grid.major = element_blank()
-            )
+    # Create non-faceted volcano plot for this cell type
+    # Identify top 5 most extreme effect sizes for labeling
+    top_markers_cell_type <- cell_type_plot_data |>
+      slice_max(order_by = abs(effect_size), n = 5)
 
-        # Save non-faceted volcano plot
-        export_plot(
-            filename = file.path(cell_type_dir, "volcano_plot"),
-            plot = volcano_plot_cell_type,
-            width = 8,
-            height = 6,
-            create_dir = FALSE # Directory already created
-        )
-    }
+    volcano_plot_cell_type <- cell_type_plot_data |>
+      ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+      geom_point() +
+      scale_color_gradient2(
+        low = "#0066FFFF",
+        mid = "#74D055FF",
+        high = "#FF0000FF",
+        midpoint = 0
+      ) +
+      geom_hline(yintercept = 0) +
+      geom_vline(xintercept = 0) +
+      geom_vline(xintercept = c(-1, 1), col = "grey") +
+      coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
+      geom_text(
+        data = top_markers_cell_type,
+        aes(label = marker),
+        hjust = -0.2,
+        vjust = 0
+      ) +
+      theme_bw() +
+      labs(
+        title = paste("Differential abundance analysis: Volcano plot", sep = ""),
+        subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
+        x = paste("Effect size (", effect_size_col, ")", sep = ""),
+        y = "-log10(adjusted p-value)",
+        color = "Effect size"
+      ) +
+      theme(
+        plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 12),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank()
+      )
 
-    # Plot 3: Heatmap showing significant markers across cell types
-    # This provides an overview of which markers are differentially abundant in which cell types
-    # Filter for significant markers and prepare data for heatmap
-    significant_markers <- plot_data |>
-        filter(significant) |>
-        select(marker, group, effect_size) |>
-        # Pivot to wide format for heatmap
-        pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
-        column_to_rownames("marker") |>
-        as.matrix()
+    # Save non-faceted volcano plot
+    export_plot(
+      filename = file.path(cell_type_dir, "volcano_plot"),
+      plot = volcano_plot_cell_type,
+      width = 8,
+      height = 6,
+      create_dir = FALSE # Directory already created
+    )
+  }
 
-    # Only create heatmap if there are significant markers
-    if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
-        # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
-        effect_vals <- as.numeric(significant_markers)
-        effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
-        max_abs_effect <- max(abs(effect_quantiles))
-        breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
+  # Plot 3: Heatmap showing significant markers across cell types
+  # This provides an overview of which markers are differentially abundant in which cell types
+  # Filter for significant markers and prepare data for heatmap
+  significant_markers <- plot_data |>
+    filter(significant) |>
+    select(marker, group, effect_size) |>
+    # Pivot to wide format for heatmap
+    pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    as.matrix()
 
-        heatmap_differential_abundance <- significant_markers |>
-            pheatmap(
-                color = PixelgenGradient(100, "BluesCherry"),
-                breaks = breaks_range,
-                cellwidth = 12,
-                cellheight = 8,
-                cluster_rows = TRUE,
-                cluster_cols = TRUE,
-                heatmap_legend_param = list(title = "Effect size"),
-                fontsize = 8,
-                fontsize_row = 6,
-                fontsize_col = 8
-            ) |>
-            as.ggplot()
+  # Only create heatmap if there are significant markers
+  if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
+    # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
+    effect_vals <- as.numeric(significant_markers)
+    effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
+    max_abs_effect <- max(abs(effect_quantiles))
+    breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
 
-        export_plot(
-            filename = file.path(base_output_dir, "differential_abundance_heatmap"),
-            plot = heatmap_differential_abundance,
-            width = 10,
-            height = max(6, nrow(significant_markers) * 0.3),
-            create_dir = TRUE
-        )
-    } else {
-        warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
-    }
+    heatmap_differential_abundance <- significant_markers |>
+      pheatmap(
+        color = PixelgenGradient(100, "BluesCherry"),
+        breaks = breaks_range,
+        cellwidth = 12,
+        cellheight = 8,
+        cluster_rows = TRUE,
+        cluster_cols = TRUE,
+        heatmap_legend_param = list(title = "Effect size"),
+        fontsize = 8,
+        fontsize_row = 6,
+        fontsize_col = 8
+      ) |>
+      as.ggplot()
+
+    export_plot(
+      filename = file.path(base_output_dir, "differential_abundance_heatmap"),
+      plot = heatmap_differential_abundance,
+      width = 10,
+      height = max(6, nrow(significant_markers) * 0.3),
+      create_dir = TRUE
+    )
+  } else {
+    warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
+  }
 }
 ```
 
@@ -2931,39 +2922,39 @@ The analysis is performed separately for each cell type, comparing clustering pa
 #| label: statistical_testing_differential_proximity
 
 differential_clustering_analysis <-
-    names(markers_to_test) |>
-    map(function(x) {
-        tryCatch(
-            {
-                # Store markers in a variable to ensure proper evaluation in lazy query context
-                # Convert to character vector to ensure proper SQL translation
-                markers_vec <- as.character(markers_to_test[[x]])
-                proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
-                    lazy = TRUE,
-                    meta_data_columns = c("sample_alias", "condition")
-                ) |>
-                    filter(marker_1 == marker_2) |>
-                    filter(marker_1 %in% markers_vec) |>
-                    filter(marker_2 %in% markers_vec) |>
-                    collect()
+  names(markers_to_test) |>
+  map(function(x) {
+    tryCatch(
+      {
+        # Store markers in a variable to ensure proper evaluation in lazy query context
+        # Convert to character vector to ensure proper SQL translation
+        markers_vec <- as.character(markers_to_test[[x]])
+        proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
+          lazy = TRUE,
+          meta_data_columns = c("sample_alias", "condition")
+        ) |>
+          filter(marker_1 == marker_2) |>
+          filter(marker_1 %in% markers_vec) |>
+          filter(marker_2 %in% markers_vec) |>
+          collect()
 
-                res <- DifferentialProximityAnalysis(proximity_data,
-                    contrast_column = "condition",
-                    reference = "resting",
-                    proximity_metric = "log2_ratio",
-                    min_n_obs = 5
-                )
-                res$group <- x
-                return(res)
-            },
-            error = function(e) {
-                message(paste("Error for cell type:", x, ":", e))
-                return(NULL)
-            }
+        res <- DifferentialProximityAnalysis(proximity_data,
+          contrast_column = "condition",
+          reference = "resting",
+          proximity_metric = "log2_ratio",
+          min_n_obs = 5
         )
-    }) |>
-    bind_rows() |>
-    mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+        res$group <- x
+        return(res)
+      },
+      error = function(e) {
+        message(paste("Error for cell type:", x, ":", e))
+        return(NULL)
+      }
+    )
+  }) |>
+  bind_rows() |>
+  mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
 dir.create(here::here("results/05_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
 
@@ -2972,7 +2963,6 @@ saveRDS(differential_clustering_analysis, here::here("results/05_statistical_tes
 
 # Save the differential abundance analysis results to a csv file
 write.csv(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
-
 ```
 
 
@@ -2999,201 +2989,200 @@ reference_condition <- "resting" # Known from DifferentialProximityAnalysis call
 
 # Determine target conditions - check if dataframe has target/contrast columns
 if ("target" %in% colnames(differential_clustering_analysis)) {
-    # If target column exists, get all unique targets
-    target_conditions <- unique(differential_clustering_analysis$target)
-    target_conditions <- target_conditions[!is.na(target_conditions)]
+  # If target column exists, get all unique targets
+  target_conditions <- unique(differential_clustering_analysis$target)
+  target_conditions <- target_conditions[!is.na(target_conditions)]
 } else {
-    stop("Could not find target column. Available columns: ", paste(colnames(differential_clustering_analysis), collapse = ", "))
+  stop("Could not find target column. Available columns: ", paste(colnames(differential_clustering_analysis), collapse = ", "))
 }
 
 # Prepare base data for plotting (add target column if it doesn't exist)
 plot_data_base <- differential_clustering_analysis |>
-    mutate(
-        neg_log10_p_adj = -log10(p_adj),
-        significant = p_adj < 0.05,
-        effect_size = !!sym(effect_size_col),
-        marker = !!sym(feature_col)
-    )
-
+  mutate(
+    neg_log10_p_adj = -log10(p_adj),
+    significant = p_adj < 0.05,
+    effect_size = !!sym(effect_size_col),
+    marker = !!sym(feature_col)
+  )
 
 
 # Loop through each target condition and create plots
 for (target_condition in target_conditions) {
-    # Filter data for this target (if target column exists)
-    if ("target" %in% colnames(plot_data_base)) {
-        plot_data <- plot_data_base |>
-            filter(target == target_condition)
-    }
+  # Filter data for this target (if target column exists)
+  if ("target" %in% colnames(plot_data_base)) {
+    plot_data <- plot_data_base |>
+      filter(target == target_condition)
+  }
 
-    # Skip if no data for this target
-    if (nrow(plot_data) == 0) {
-        warning(paste("No data found for target condition:", target_condition))
-        next
-    }
+  # Skip if no data for this target
+  if (nrow(plot_data) == 0) {
+    warning(paste("No data found for target condition:", target_condition))
+    next
+  }
 
-    # Create directory name based on target and reference
-    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/05_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
+  # Create directory name based on target and reference
+  comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+  base_output_dir <- here::here("results/05_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
 
-    # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
-    # This plot helps identify markers that are both significantly different and have large effect sizes
-    # Identify top 5 most extreme effect sizes per cell type for labeling
-    top_markers_faceted <- plot_data |>
-        group_by(group) |>
-        slice_max(order_by = abs(effect_size), n = 5) |>
-        ungroup()
+  # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
+  # This plot helps identify markers that are both significantly different and have large effect sizes
+  # Identify top 5 most extreme effect sizes per cell type for labeling
+  top_markers_faceted <- plot_data |>
+    group_by(group) |>
+    slice_max(order_by = abs(effect_size), n = 5) |>
+    ungroup()
 
-    volcano_plot_differential_clustering <- plot_data |>
-        ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-        geom_point() +
-        scale_color_gradient2(
-            low = "#0066FFFF",
-            mid = "#74D055FF",
-            high = "#FF0000FF",
-            midpoint = 0
-        ) +
-        geom_hline(yintercept = 0) +
-        geom_vline(xintercept = 0) +
-        geom_vline(xintercept = c(-1, 1), col = "grey") +
-        coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
-        facet_wrap(~group, scales = "free") +
-        geom_text(
-            data = top_markers_faceted,
-            aes(label = marker),
-            hjust = -0.2,
-            vjust = 0
-        ) +
-        theme_bw() +
-        labs(
-            title = paste("Differential clustering analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
-            subtitle = "Effect size vs statistical significance by cell type",
-            x = paste("Effect size (", effect_size_col, ")", sep = ""),
-            y = "-log10(adjusted p-value)",
-            color = "Effect size"
-        ) +
-        theme(
-            strip.background = element_rect(fill = "lightblue", color = "black"),
-            panel.grid.minor = element_blank(),
-            panel.grid.major = element_blank()
-        )
-
-    # Save faceted volcano plot in the comparison directory
-    export_plot(
-        filename = file.path(base_output_dir, "differential_clustering_volcano"),
-        plot = volcano_plot_differential_clustering,
-        width = 12,
-        height = 8,
-        create_dir = TRUE
+  volcano_plot_differential_clustering <- plot_data |>
+    ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+    geom_point() +
+    scale_color_gradient2(
+      low = "#0066FFFF",
+      mid = "#74D055FF",
+      high = "#FF0000FF",
+      midpoint = 0
+    ) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    geom_vline(xintercept = c(-1, 1), col = "grey") +
+    coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
+    facet_wrap(~group, scales = "free") +
+    geom_text(
+      data = top_markers_faceted,
+      aes(label = marker),
+      hjust = -0.2,
+      vjust = 0
+    ) +
+    theme_bw() +
+    labs(
+      title = paste("Differential clustering analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
+      subtitle = "Effect size vs statistical significance by cell type",
+      x = paste("Effect size (", effect_size_col, ")", sep = ""),
+      y = "-log10(adjusted p-value)",
+      color = "Effect size"
+    ) +
+    theme(
+      strip.background = element_rect(fill = "lightblue", color = "black"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_blank()
     )
 
-    # Plot 2: Non-faceted volcano plots per cell type
-    # Create individual folders per cell type and save non-faceted volcano plots for each cell type
-    # Get unique cell types (groups)
-    unique_cell_types <- unique(plot_data$group)
+  # Save faceted volcano plot in the comparison directory
+  export_plot(
+    filename = file.path(base_output_dir, "differential_clustering_volcano"),
+    plot = volcano_plot_differential_clustering,
+    width = 12,
+    height = 8,
+    create_dir = TRUE
+  )
 
-    # For each cell type, create a non-faceted volcano plot
-    for (cell_type in unique_cell_types) {
-        # Create directory for this cell type
-        cell_type_dir <- file.path(base_output_dir, cell_type)
-        dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+  # Plot 2: Non-faceted volcano plots per cell type
+  # Create individual folders per cell type and save non-faceted volcano plots for each cell type
+  # Get unique cell types (groups)
+  unique_cell_types <- unique(plot_data$group)
 
-        # Filter data for this cell type
-        cell_type_plot_data <- plot_data |>
-            filter(group == cell_type)
+  # For each cell type, create a non-faceted volcano plot
+  for (cell_type in unique_cell_types) {
+    # Create directory for this cell type
+    cell_type_dir <- file.path(base_output_dir, cell_type)
+    dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
 
-        # Create non-faceted volcano plot for this cell type
-        # Identify top 5 most extreme effect sizes for labeling
-        top_markers_cell_type <- cell_type_plot_data |>
-            slice_max(order_by = abs(effect_size), n = 5)
+    # Filter data for this cell type
+    cell_type_plot_data <- plot_data |>
+      filter(group == cell_type)
 
-        volcano_plot_cell_type <- cell_type_plot_data |>
-            ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-            geom_point() +
-            scale_color_gradient2(
-                low = "#0066FFFF",
-                mid = "#74D055FF",
-                high = "#FF0000FF",
-                midpoint = 0
-            ) +
-            geom_hline(yintercept = 0) +
-            geom_vline(xintercept = 0) +
-            geom_vline(xintercept = c(-1, 1), col = "grey") +
-            coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
-            geom_text(
-                data = top_markers_cell_type,
-                aes(label = marker),
-                hjust = -0.2,
-                vjust = 0
-            ) +
-            theme_bw() +
-            labs(
-                title = paste("Differential clustering analysis: Volcano plot", sep = ""),
-                subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
-                x = paste("Effect size (", effect_size_col, ")", sep = ""),
-                y = "-log10(adjusted p-value)",
-                color = "Effect size"
-            ) +
-            theme(
-                plot.title = element_text(size = 14, face = "bold"),
-                plot.subtitle = element_text(size = 12),
-                panel.grid.minor = element_blank(),
-                panel.grid.major = element_blank()
-            )
+    # Create non-faceted volcano plot for this cell type
+    # Identify top 5 most extreme effect sizes for labeling
+    top_markers_cell_type <- cell_type_plot_data |>
+      slice_max(order_by = abs(effect_size), n = 5)
 
-        # Save non-faceted volcano plot
-        export_plot(
-            filename = file.path(cell_type_dir, "volcano_plot"),
-            plot = volcano_plot_cell_type,
-            width = 8,
-            height = 6,
-            create_dir = FALSE # Directory already created
-        )
-    }
+    volcano_plot_cell_type <- cell_type_plot_data |>
+      ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+      geom_point() +
+      scale_color_gradient2(
+        low = "#0066FFFF",
+        mid = "#74D055FF",
+        high = "#FF0000FF",
+        midpoint = 0
+      ) +
+      geom_hline(yintercept = 0) +
+      geom_vline(xintercept = 0) +
+      geom_vline(xintercept = c(-1, 1), col = "grey") +
+      coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
+      geom_text(
+        data = top_markers_cell_type,
+        aes(label = marker),
+        hjust = -0.2,
+        vjust = 0
+      ) +
+      theme_bw() +
+      labs(
+        title = paste("Differential clustering analysis: Volcano plot", sep = ""),
+        subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
+        x = paste("Effect size (", effect_size_col, ")", sep = ""),
+        y = "-log10(adjusted p-value)",
+        color = "Effect size"
+      ) +
+      theme(
+        plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 12),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank()
+      )
 
-    # Plot 3: Heatmap showing significant markers across cell types
-    # This provides an overview of which markers are differentially clustered in which cell types
-    # Filter for significant markers and prepare data for heatmap
-    significant_markers <- plot_data |>
-        filter(significant) |>
-        select(marker, group, effect_size) |>
-        # Pivot to wide format for heatmap
-        pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
-        column_to_rownames("marker") |>
-        as.matrix()
+    # Save non-faceted volcano plot
+    export_plot(
+      filename = file.path(cell_type_dir, "volcano_plot"),
+      plot = volcano_plot_cell_type,
+      width = 8,
+      height = 6,
+      create_dir = FALSE # Directory already created
+    )
+  }
 
-    # Only create heatmap if there are significant markers
-    if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
-        # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
-        effect_vals <- as.numeric(significant_markers)
-        effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
-        max_abs_effect <- max(abs(effect_quantiles))
-        breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
+  # Plot 3: Heatmap showing significant markers across cell types
+  # This provides an overview of which markers are differentially clustered in which cell types
+  # Filter for significant markers and prepare data for heatmap
+  significant_markers <- plot_data |>
+    filter(significant) |>
+    select(marker, group, effect_size) |>
+    # Pivot to wide format for heatmap
+    pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    as.matrix()
 
-        heatmap_differential_clustering <- significant_markers |>
-            pheatmap(
-                color = PixelgenGradient(100, "BluesCherry"),
-                breaks = breaks_range,
-                cellwidth = 12,
-                cellheight = 8,
-                cluster_rows = TRUE,
-                cluster_cols = TRUE,
-                heatmap_legend_param = list(title = "Effect size"),
-                fontsize = 8,
-                fontsize_row = 6,
-                fontsize_col = 8
-            ) |>
-            as.ggplot()
+  # Only create heatmap if there are significant markers
+  if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
+    # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
+    effect_vals <- as.numeric(significant_markers)
+    effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
+    max_abs_effect <- max(abs(effect_quantiles))
+    breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
 
-        export_plot(
-            filename = file.path(base_output_dir, "differential_clustering_heatmap"),
-            plot = heatmap_differential_clustering,
-            width = 10,
-            height = max(6, nrow(significant_markers) * 0.3),
-            create_dir = TRUE
-        )
-    } else {
-        warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
-    }
+    heatmap_differential_clustering <- significant_markers |>
+      pheatmap(
+        color = PixelgenGradient(100, "BluesCherry"),
+        breaks = breaks_range,
+        cellwidth = 12,
+        cellheight = 8,
+        cluster_rows = TRUE,
+        cluster_cols = TRUE,
+        heatmap_legend_param = list(title = "Effect size"),
+        fontsize = 8,
+        fontsize_row = 6,
+        fontsize_col = 8
+      ) |>
+      as.ggplot()
+
+    export_plot(
+      filename = file.path(base_output_dir, "differential_clustering_heatmap"),
+      plot = heatmap_differential_clustering,
+      width = 10,
+      height = max(6, nrow(significant_markers) * 0.3),
+      create_dir = TRUE
+    )
+  } else {
+    warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
+  }
 }
 ```
 
@@ -3207,38 +3196,38 @@ Differential colocalization analysis identifies markers that exhibit statistical
 
 
 differential_colocalization_analysis <-
-    names(markers_to_test) |>
-    map(function(x) {
-        tryCatch(
-            {
-                # Store markers in a variable to ensure proper evaluation in lazy query context
-                # Convert to character vector to ensure proper SQL translation
-                markers_vec <- as.character(markers_to_test[[x]])
-                proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
-                    lazy = TRUE,
-                    meta_data_columns = c("sample_alias", "condition")
-                ) |>
-                    filter(marker_1 %in% markers_vec) |>
-                    filter(marker_2 %in% markers_vec) |>
-                    collect()
+  names(markers_to_test) |>
+  map(function(x) {
+    tryCatch(
+      {
+        # Store markers in a variable to ensure proper evaluation in lazy query context
+        # Convert to character vector to ensure proper SQL translation
+        markers_vec <- as.character(markers_to_test[[x]])
+        proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
+          lazy = TRUE,
+          meta_data_columns = c("sample_alias", "condition")
+        ) |>
+          filter(marker_1 %in% markers_vec) |>
+          filter(marker_2 %in% markers_vec) |>
+          collect()
 
-                res <- DifferentialProximityAnalysis(proximity_data,
-                    contrast_column = "condition",
-                    reference = "resting",
-                    proximity_metric = "log2_ratio",
-                    min_n_obs = 5
-                )
-                res$group <- x
-                return(res)
-            },
-            error = function(e) {
-                message(paste("Error for cell type:", x, ":", e))
-                return(NULL)
-            }
+        res <- DifferentialProximityAnalysis(proximity_data,
+          contrast_column = "condition",
+          reference = "resting",
+          proximity_metric = "log2_ratio",
+          min_n_obs = 5
         )
-    }) |>
-    bind_rows() |>
-    mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+        res$group <- x
+        return(res)
+      },
+      error = function(e) {
+        message(paste("Error for cell type:", x, ":", e))
+        return(NULL)
+      }
+    )
+  }) |>
+  bind_rows() |>
+  mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
 dir.create(here::here("results/05_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
 
@@ -3247,8 +3236,6 @@ saveRDS(differential_colocalization_analysis, here::here("results/05_statistical
 
 # Save the differential abundance analysis results to a csv file
 write.csv(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
-
-
 ```
 
 ### 5.3.1. Summarizing plots
@@ -3265,11 +3252,11 @@ reference_condition <- "resting" # Known from DifferentialProximityAnalysis call
 
 # Determine target conditions - check if dataframe has target/contrast columns
 if ("target" %in% colnames(differential_colocalization_analysis)) {
-    # If target column exists, get all unique targets
-    target_conditions <- unique(differential_colocalization_analysis$target)
-    target_conditions <- target_conditions[!is.na(target_conditions)]
+  # If target column exists, get all unique targets
+  target_conditions <- unique(differential_colocalization_analysis$target)
+  target_conditions <- target_conditions[!is.na(target_conditions)]
 } else {
-    stop("Could not find target column. Available columns: ", paste(colnames(differential_colocalization_analysis), collapse = ", "))
+  stop("Could not find target column. Available columns: ", paste(colnames(differential_colocalization_analysis), collapse = ", "))
 }
 
 # Get unique cell types (groups)
@@ -3278,58 +3265,58 @@ unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
 
 # Loop through each target condition and cell type combination
 for (target_condition in target_conditions) {
-    # Create directory name based on target and reference
-    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-    base_output_dir <- here::here("results/05_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
+  # Create directory name based on target and reference
+  comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+  base_output_dir <- here::here("results/05_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
 
-    for (cell_type in unique_cell_types) {
-        # Create directory for this cell type
-        cell_type_dir <- file.path(base_output_dir, cell_type)
-        dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+  for (cell_type in unique_cell_types) {
+    # Create directory for this cell type
+    cell_type_dir <- file.path(base_output_dir, cell_type)
+    dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
 
-        # Filter data for this target and cell type
-        # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
-        plot_data <- differential_colocalization_analysis %>%
-            filter(group == cell_type & target == target_condition) %>%
-            mutate(diff_median = case_when(
-                p_adj < 0.001 ~ diff_median,
-                TRUE ~ 0
-            ))
+    # Filter data for this target and cell type
+    # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
+    plot_data <- differential_colocalization_analysis %>%
+      filter(group == cell_type & target == target_condition) %>%
+      mutate(diff_median = case_when(
+        p_adj < 0.001 ~ diff_median,
+        TRUE ~ 0
+      ))
 
-        # Skip if no data for this combination
-        if (nrow(plot_data) == 0) {
-            warning(paste("No data found for target condition:", target_condition, "and cell type:", cell_type))
-            next
-        }
-
-        # Create the colocalization heatmap plot
-        # Add title indicating the target and cell type
-        colocalization_heatmap <- ColocalizationHeatmap(
-            plot_data,
-            marker1_col = "marker_1",
-            marker2_col = "marker_2",
-            value_col = "diff_median",
-            type = "dots",
-            size_col_transform = \(x) {
-                -log10(x)
-            }
-        ) &
-            labs(size = "-log10(p_adj)") &
-            scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data$p_adj)))) &
-            labs(fill = "Difference\nin medians") &
-            labs(
-                title = paste("Differential Colocalization Analysis", sep = ""),
-                subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = "")
-            )
-
-        # Save the plot
-        export_plot(
-            filename = file.path(cell_type_dir, "colocalization_heatmap"),
-            plot = colocalization_heatmap,
-            width = 10,
-            height = 8,
-            create_dir = FALSE # Directory already created
-        )
+    # Skip if no data for this combination
+    if (nrow(plot_data) == 0) {
+      warning(paste("No data found for target condition:", target_condition, "and cell type:", cell_type))
+      next
     }
+
+    # Create the colocalization heatmap plot
+    # Add title indicating the target and cell type
+    colocalization_heatmap <- ColocalizationHeatmap(
+      plot_data,
+      marker1_col = "marker_1",
+      marker2_col = "marker_2",
+      value_col = "diff_median",
+      type = "dots",
+      size_col_transform = \(x) {
+        -log10(x)
+      }
+    ) &
+      labs(size = "-log10(p_adj)") &
+      scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data$p_adj)))) &
+      labs(fill = "Difference\nin medians") &
+      labs(
+        title = paste("Differential Colocalization Analysis", sep = ""),
+        subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = "")
+      )
+
+    # Save the plot
+    export_plot(
+      filename = file.path(cell_type_dir, "colocalization_heatmap"),
+      plot = colocalization_heatmap,
+      width = 10,
+      height = 8,
+      create_dir = FALSE # Directory already created
+    )
+  }
 }
 ```

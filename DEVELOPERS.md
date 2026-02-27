@@ -16,14 +16,11 @@ The configuration file `.lintr` is used to specify the rules that the linter sho
 
 ## Styler
 
-To style the code, you need to install `styler`. Then you can use one of the the following commands:
+To style the code, you need to install `styler`. You can then use one of the following command:
 
 ```r
-# Style entire package
-styler::style_pkg(transformers = pixelatorR::pixelatorR_style())
-
 # Style single file
-styler::style_file("path/to/file.R", transformers = pixelatorR::pixelatorR_style())
+styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::pixelatorR_style())
 ```
 
 ## renv environment
