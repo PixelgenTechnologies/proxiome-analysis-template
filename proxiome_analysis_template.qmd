@@ -209,7 +209,7 @@ This step adds sample-level metadata from the metadata file to each cell in the 
 pg_data[[]] <-
   pg_data[[]] |>
   as_tibble(rownames = "cell_id") |>
-  mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove the last 18 characters from the cell_id to get the sample_id
+  mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove last 18 characters from the cell_id to get the sample_id
   left_join(metadata |> select(-file_path), by = "sample_id") |> # Do not add the file path to the PNA object
   column_to_rownames("cell_id")
 
