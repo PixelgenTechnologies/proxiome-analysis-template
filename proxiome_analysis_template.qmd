@@ -210,9 +210,11 @@ pg_data[[]] <-
   pg_data[[]] |>
   as_tibble(rownames = "cell_id") |>
   mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove last 18 characters from the cell_id to get the sample_id
-  left_join(metadata |> 
-              select(-file_path), 
-            by = "sample_id") |> # Do not add the file path to the PNA object
+  left_join(
+    metadata |>
+      select(-file_path),
+    by = "sample_id"
+  ) |> # Do not add the file path to the PNA object
   column_to_rownames("cell_id")
 
 # Sanity check the metadata
@@ -963,9 +965,9 @@ pca_red <-
 
 elbow_plot_pca <- pca_red@stdev |>
   as_tibble(rownames = "PC") |>
-  mutate(PC = PC |> 
-           str_remove("PC_") |> 
-           as.integer()) |>
+  mutate(PC = PC |>
+    str_remove("PC_") |>
+    as.integer()) |>
   ggplot(aes(PC, value)) +
   geom_line() +
   geom_point() +
