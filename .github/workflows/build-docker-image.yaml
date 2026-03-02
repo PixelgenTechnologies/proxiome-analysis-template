@@ -15,7 +15,6 @@ permissions:
   id-token: write
   actions: write
   contents: read
-  packages: write
 
 jobs:
   build-and-push-container:
@@ -52,7 +51,6 @@ jobs:
           context: .
           target: build
           platforms: linux/amd64
-          load: true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

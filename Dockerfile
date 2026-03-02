@@ -1,10 +1,6 @@
 # ----------------------- Base image -----------------------
 FROM ghcr.io/pixelgentechnologies/pixelatorr:0.16.0 as build
 ARG QUARTO_VERSION="1.5.54"
-ARG GITHUB_PAT=
-# Set the environment variable for the GitHub Personal Access Token
-# This is needed to access private repositories during the build process
-ENV GITHUB_PAT=${GITHUB_PAT}
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* &&\
     export QUARTO_VERSION=${QUARTO_VERSION} &&\
@@ -18,6 +14,9 @@ WORKDIR /workspace
 
 # Install dependencies
 COPY renv.lock /workspace/
+COPY .Rprofile /workspace/
+COPY renv/settings.json /workspace/renv/
+COPY renv/activate.R /workspace/renv/
 RUN Rscript -e "install.packages('renv'); renv::restore()"
 
 # Move the quarto files into the container

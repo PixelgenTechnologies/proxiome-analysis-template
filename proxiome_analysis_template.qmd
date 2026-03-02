@@ -1032,7 +1032,7 @@ pg_data <-
   pg_data |>
   RunHarmony(
     group.by.vars = "sample_alias",
-    plot_convergence = FALSE,
+    plot_convergence = FALSE
   ) |>
   RunUMAP(
     reduction = "harmony",
@@ -1393,7 +1393,7 @@ differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_clus
     breaks = seq(-3, 3, length.out = 101),
     cellwidth = 8,
     cellheight = 8,
-    heatmap_legend_param = list(title = "CLR Difference"),
+    heatmap_legend_param = list(title = "CLR Difference")
   ) |>
   as.ggplot()
 export_plot(
@@ -1518,7 +1518,7 @@ mean_marker_abundance_per_cluster_heatmap <- plot_data |>
     color = PixelgenGradient(100, "Cherry"),
     cellwidth = 8,
     cellheight = 8,
-    heatmap_legend_param = list(title = "Mean CLR"),
+    heatmap_legend_param = list(title = "Mean CLR")
   ) |>
   as.ggplot()
 export_plot(
