@@ -77,6 +77,5 @@ sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libti
 
 To restore the `renv` environment, you can use the following command:
 ```r  
-
 renv::restore()
 ```
