@@ -23,7 +23,7 @@ To style the code, you need to install `styler`. You can then use one of the fol
 styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::pixelatorR_style())
 ```
 
-## renv environment
+## Create renv environment
 
 To create a new `renv` environment, you can use the following command:
 
@@ -67,3 +67,15 @@ To restore the `renv` environment, you can use the following command:
 renv::restore()
 ```
 
+## Set up renv environment on virtual machine
+
+Install system dependencies, run this in the terminal: 
+
+```
+sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
+```
+
+To restore the `renv` environment, you can use the following command:
+```r  
+renv::restore()
+```
