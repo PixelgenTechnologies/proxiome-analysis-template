@@ -1512,7 +1512,8 @@ Users must carefully review all available evidence (differential abundance resul
 ```{r}
 #| label: data_processing_set_manual_annotation
 
-# Specify cell annotation labels for each cluster
+# Specify cell annotation labels for each cluster 
+# (These are example annotations and should be changed according to your dataset)
 cluster_cell_annotation <-
   c(
     "0" = "CD4 T",
@@ -1535,11 +1536,9 @@ cluster_cell_annotation <-
 pg_data[[]] <-
   pg_data[[]] |>
   mutate(
-    cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
+    manual_cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
   )
 
-# Save annotated Seurat object
-saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
 ```
 
 ### 2.6.5. Comparison of automatic and manual annotations
@@ -1549,12 +1548,12 @@ Compare automatic and manual annotations. This can help to identify any discrepa
 ```{r}
 #| label: data_processing_comparison_automatic_manual_annotation
 
-FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
-  group_by(seurat_clusters, l1_annotation, cell_annotation) |>
+FetchData(pg_data, c("seurat_clusters", "l1_annotation", "manual_cell_annotation")) |>
+  group_by(seurat_clusters, l1_annotation, manual_cell_annotation) |>
   count() |>
   group_by(seurat_clusters) |>
   mutate(frac = n / sum(n)) |>
-  ggplot(aes(l1_annotation, cell_annotation, fill = frac)) +
+  ggplot(aes(l1_annotation, manual_cell_annotation, fill = frac)) +
   geom_tile() +
   facet_wrap(~seurat_clusters, scales = "free") +
   scale_fill_gradient(low = "white", high = "darkblue") +
@@ -1611,7 +1610,7 @@ Below is an example of how to use the gating strategy to annotate CD4 T cell sub
 cd4_subtype_markers <- c("CD45RA", "CD45RO")
 
 # subset to CD4 T cells: only these will be used for the gating strategy
-pg_data_cd4_t <- subset(pg_data, subset = cell_annotation == "CD4 T")
+pg_data_cd4_t <- subset(pg_data, subset = l1_annotation_summary == "CD4 T")
 
 # Create density scatter plot to distinguish CD4 subtypes
 # CD45RA vs CD45RO is a classic combination for naive vs memory distinction
@@ -1700,7 +1699,7 @@ cd4_subtype_classification <-
   )
 
 # Add subtype annotation to pg_data
-pg_data$cd4_subtype <- pg_data$cell_annotation
+pg_data$cd4_subtype <- pg_data$l1_annotation_summary
 pg_data$cd4_subtype[rownames(cd4_subtype_classification)] <- cd4_subtype_classification$cd4_subtype
 
 # Visualize CD4 subtypes on UMAP
@@ -1719,8 +1718,30 @@ export_plot(
 )
 ```
 
+### 2.6.7. Choose a cell annotation to use
 
-### 2.6.7. Marker selection per cell type
+After performing both automatic and manual annotation (either through cluster-based or gating-based approaches), we need to choose which annotation to use for downstream analyses.
+
+In this tutorial, we will proceed using the automatic annotation because it does not require additional user input and therefore keeps the workflow fully reproducible within the notebook. In practice, however, it is generally recommended to rely on manual annotation, as it allows for incorporation of biological knowledge and experiment context when assigning cell types. 
+
+```{r}
+#| label: annotation_choose_annotation
+
+pg_data[[]] <-
+  pg_data[[]] |>
+  mutate(
+    cell_annotation = l1_annotation_summary,
+    # To use the manual annotation instead, uncomment this and comment out the line above:
+    # cell_annotation = manual_cell_annotation
+  )
+
+
+# Save annotated Seurat object
+saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+
+```
+
+### 2.6.8. Marker selection per cell type
 
 When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
 
@@ -1732,7 +1753,7 @@ We utilize the `isotype_pls` helper function to perform the PLS regression. The 
 #| label: statistical_testing_marker_selection
 
 cell_annotation_column <-
-  "l1_annotation_summary"
+  "cell_annotation"
 isotype_markers <-
   c("mIgG1", "mIgG2a", "mIgG2b")
 
