@@ -49,6 +49,8 @@ gh_deps <- c(pixelatorR = "PixelgenTechnologies/pixelatorR")
 
 deps <- setdiff(deps, names(gh_deps))
 
+deps <- c(deps, "RcppML", "pls")
+
 # Install dependencies
 renv::install(deps)
 renv::install(gh_deps)
