@@ -371,8 +371,7 @@ export_plot(
     "results/01_quality_control/violin_plots/quality_control_read_depth"
   ),
   width = 10,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 ```
 
@@ -427,8 +426,7 @@ export_plot(
     "results/01_quality_control/violin_plots/quality_control_average_k_core"
   ),
   width = 10,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 ```
 
@@ -493,8 +491,7 @@ export_plot(
     "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
   ),
   width = 10,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 ```
 
@@ -614,8 +611,7 @@ MoleculeRankPlot(pg_data, group_by = "sample_alias") +
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
   width = 10,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 
 # Separate annotated molecule rank plot for each sample
@@ -750,8 +746,7 @@ pg_data[[]] |>
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
   width = 15,
-  height = 12,
-  create_dir = TRUE
+  height = 12
 )
 ```
 
@@ -829,8 +824,7 @@ export_plot(
     "results/01_quality_control/tau_plots/quality_control_tau_score"
   ),
   width = 10,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 ```
 
@@ -1790,8 +1784,7 @@ FeaturePlot(
 export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_featureplot"),
   width = 6,
-  height = 5,
-  create_dir = TRUE
+  height = 5
 )
 
 # Background loadings
@@ -2263,8 +2256,7 @@ for (sample in unique_samples) {
     filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
     plot = tmp_plot,
     width = plot_width,
-    height = plot_height,
-    create_dir = TRUE
+    height = plot_height
   )
 
   # Store plot for combined visualization
@@ -2288,8 +2280,7 @@ export_plot(
   filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
   plot = combined_plot,
   width = combined_width,
-  height = combined_height,
-  create_dir = TRUE
+  height = combined_height
 )
 ```
 
@@ -2424,8 +2415,7 @@ for (cell_type in cell_types) {
         filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
         plot = tmp_plot,
         width = plot_width,
-        height = plot_height,
-        create_dir = TRUE
+        height = plot_height
       )
     } else {
       # Create an empty plot with a message indicating insufficient markers
@@ -2457,8 +2447,7 @@ for (cell_type in cell_types) {
     filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
     plot = combined_plot,
     width = combined_width,
-    height = combined_height,
-    create_dir = TRUE
+    height = combined_height
   )
 }
 ```
@@ -2508,7 +2497,7 @@ df_net <- summary_proximity_data %>%
   mutate(from = marker_1, to = marker_2) %>%
   select(from, to, mean_log2_ratio, sample_alias)
 
-network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
+tidygraph::as_tbl_graph(df_net) %>%
   ggraph(layout = "kk") +
   geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
   geom_node_label(aes(label = name), size = 2.5) +
@@ -2533,10 +2522,8 @@ network_plot_all_cell_types <- tidygraph::as_tbl_graph(df_net) %>%
 
 export_plot(
   filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
-  plot = network_plot_all_cell_types,
   width = 12,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 ```
 
@@ -2578,7 +2565,7 @@ df_net <- summary_proximity_data %>%
   mutate(from = marker_1, to = marker_2) %>%
   select(from, to, mean_log2_ratio, sample_alias)
 
-network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
+tidygraph::as_tbl_graph(df_net) %>%
   ggraph(layout = "kk") +
   geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
   geom_node_label(aes(label = name), size = 2.5) +
@@ -2609,10 +2596,8 @@ network_plot_cell_type_of_interest <- tidygraph::as_tbl_graph(df_net) %>%
 
 export_plot(
   filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
-  plot = network_plot_cell_type_of_interest,
   width = 12,
-  height = 8,
-  create_dir = TRUE
+  height = 8
 )
 ```
 
@@ -2768,8 +2753,7 @@ for (target_condition in target_conditions) {
     filename = file.path(base_output_dir, "differential_abundance_volcano"),
     plot = volcano_plot_differential_abundance,
     width = 12,
-    height = 8,
-    create_dir = TRUE
+    height = 8
   )
 
   # Plot 2: Non-faceted volcano plots per cell type
@@ -2831,8 +2815,7 @@ for (target_condition in target_conditions) {
       filename = file.path(cell_type_dir, "volcano_plot"),
       plot = volcano_plot_cell_type,
       width = 8,
-      height = 6,
-      create_dir = FALSE # Directory already created
+      height = 6
     )
   }
 
@@ -2874,8 +2857,7 @@ for (target_condition in target_conditions) {
       filename = file.path(base_output_dir, "differential_abundance_heatmap"),
       plot = heatmap_differential_abundance,
       width = 10,
-      height = max(6, nrow(significant_markers) * 0.3),
-      create_dir = TRUE
+      height = max(6, nrow(significant_markers) * 0.3)
     )
   } else {
     warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
@@ -3042,8 +3024,7 @@ for (target_condition in target_conditions) {
     filename = file.path(base_output_dir, "differential_clustering_volcano"),
     plot = volcano_plot_differential_clustering,
     width = 12,
-    height = 8,
-    create_dir = TRUE
+    height = 8
   )
 
   # Plot 2: Non-faceted volcano plots per cell type
@@ -3105,8 +3086,7 @@ for (target_condition in target_conditions) {
       filename = file.path(cell_type_dir, "volcano_plot"),
       plot = volcano_plot_cell_type,
       width = 8,
-      height = 6,
-      create_dir = FALSE # Directory already created
+      height = 6
     )
   }
 
@@ -3148,8 +3128,7 @@ for (target_condition in target_conditions) {
       filename = file.path(base_output_dir, "differential_clustering_heatmap"),
       plot = heatmap_differential_clustering,
       width = 10,
-      height = max(6, nrow(significant_markers) * 0.3),
-      create_dir = TRUE
+      height = max(6, nrow(significant_markers) * 0.3)
     )
   } else {
     warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
@@ -3285,8 +3264,7 @@ for (target_condition in target_conditions) {
       filename = file.path(cell_type_dir, "colocalization_heatmap"),
       plot = colocalization_heatmap,
       width = 10,
-      height = 8,
-      create_dir = FALSE # Directory already created
+      height = 8
     )
   }
 }
