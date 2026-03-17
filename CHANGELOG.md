@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Updated
 
 - Plots are now overwritten by default.
+- Plots are now shown diretly in the IDE.
 
+### Fixed
+- Fixed bug where `slot` was used instead of `layer`, causing an error.
 
 ## [0.2.1] 2026-02-26
 

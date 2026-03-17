@@ -1779,17 +1779,16 @@ pg_data[[]] <-
   left_join(bg_scores, by = "component") |>
   column_to_rownames("component")
 
-isotype_background_score_featureplot <-
-  FeaturePlot(
-    pg_data,
-    features = "bg_score"
-  ) +
+
+FeaturePlot(
+  pg_data,
+  features = "bg_score"
+) +
   scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
   labs(title = "Isotype background score")
 
 export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_featureplot"),
-  plot = isotype_background_score_featureplot,
   width = 6,
   height = 5,
   create_dir = TRUE
@@ -1822,9 +1821,7 @@ bg_loadings |>
 export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_loading_heatmap"),
   width = 15,
-  height = 6,
-  plot = last_plot(),
-  create_dir = TRUE
+  height = 6
 )
 
 
@@ -1862,9 +1859,7 @@ FetchData(pg_data,
 export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
   width = 12,
-  height = 5,
-  plot = last_plot(),
-  create_dir = TRUE
+  height = 5
 )
 
 isotype_levels <-
@@ -1942,9 +1937,7 @@ abundance_data_per_celltype |>
 export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/marker_selection_scatterplot"),
   width = 15,
-  height = 10,
-  plot = last_plot(),
-  create_dir = TRUE
+  height = 10
 )
 
 markers_per_cell_type <-
@@ -1970,16 +1963,13 @@ abundance_data_per_celltype |>
   labs(
     title = "Selected markers per cell type",
     x = "Marker",
-    y = "Condition",
-    fill = "Mean abundance (CLR)"
+    y = "Condition"
   )
 
 export_plot(
   filename = here::here("results/02_data_processing/isotype_background_score/selected_markers_heatmap"),
   width = 12,
-  height = 8,
-  plot = last_plot(),
-  create_dir = TRUE
+  height = 8
 )
 
 markers_per_cell_type |>
