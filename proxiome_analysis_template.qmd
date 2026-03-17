@@ -130,7 +130,7 @@ here::i_am("proxiome_analysis_template.qmd")
 options(
   # Overwrite existing files when saving plots - set to FALSE if you want to keep old versions of the plots
   export_plot.overwrite = TRUE
-  )
+)
 # Set global options for file formats to save plots in both PNG and PDF
 options(export_plot.file_formats = c("png", "pdf"))
 ```
@@ -1120,7 +1120,7 @@ This section visualizes the distribution of markers of interest on the harmonize
 ```{r}
 #| label: data_processing_marker_distribution_on_umap
 
-markers_of_interest <- 
+markers_of_interest <-
   c("CD3e", "CD4", "CD8", "CD19", "CD56", "CD14", "CD16", "HLA-DR", "CD11c", "CD123")
 
 for (marker in markers_of_interest) {
@@ -1515,7 +1515,7 @@ Users must carefully review all available evidence (differential abundance resul
 ```{r}
 #| label: data_processing_set_manual_annotation
 
-# Specify cell annotation labels for each cluster 
+# Specify cell annotation labels for each cluster
 # (These are example annotations and should be changed according to your dataset)
 cluster_cell_annotation <-
   c(
@@ -1541,7 +1541,6 @@ pg_data[[]] <-
   mutate(
     manual_cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
   )
-
 ```
 
 ### 2.6.5. Comparison of automatic and manual annotations
@@ -1642,13 +1641,13 @@ naive_cd4_gate <- data.frame(
   ymax = 1.5 # CD45RO threshold (adjust based on data)
 )
 # Create plot with gates
-p1 <- 
+p1 <-
   DensityScatterPlot(
-  pg_data_cd4_t,
-  marker1 = "CD45RA",
-  marker2 = "CD45RO",
-  plot_gate = naive_cd4_gate
-) +
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
+    plot_gate = naive_cd4_gate
+  ) +
   labs(
     title = "CD4 T Cell Subtypes with Gates",
     subtitle = "Gate 1: Naive CD4 T (CD45RA+ CD45RO-)"
@@ -1664,13 +1663,13 @@ memory_cd4_gate <- data.frame(
   ymax = 5
 )
 
-p2 <- 
+p2 <-
   DensityScatterPlot(
-  pg_data_cd4_t,
-  marker1 = "CD45RA",
-  marker2 = "CD45RO",
-  plot_gate = memory_cd4_gate
-) +
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
+    plot_gate = memory_cd4_gate
+  ) +
   labs(
     title = "CD4 T Cell Subtypes with Gates",
     subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
@@ -1691,7 +1690,7 @@ cd4_cell_data <- FetchData(pg_data_cd4_t, vars = c("CD45RA", "CD45RO", "CD4", "C
 # Define subtypes based on marker expression thresholds
 # Adjust thresholds based on your data distribution
 
-cd4_subtype_classification <- 
+cd4_subtype_classification <-
   cd4_cell_data |>
   mutate(
     cd4_subtype = case_when(
@@ -1743,16 +1742,20 @@ pg_data[[]] <-
 saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
 
 
-
 # L1 automatic annotation - summarised by cluster
 Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
-  left_join(FetchData(pg_data, 
-                      c("sample_alias", 
-                        "condition", 
-                        "seurat_clusters", 
-                        "cell_annotation")) |> 
-              as_tibble(rownames = "cell_id"),
+  left_join(
+    FetchData(
+      pg_data,
+      c(
+        "sample_alias",
+        "condition",
+        "seurat_clusters",
+        "cell_annotation"
+      )
+    ) |>
+      as_tibble(rownames = "cell_id"),
     by = "cell_id"
   ) |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = cell_annotation)) +
