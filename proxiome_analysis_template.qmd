@@ -1115,12 +1115,15 @@ export_plot(
 
 ## 2.5. Marker Distribution on UMAP
 
-This section visualizes the distribution of all markers on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
+This section visualizes the distribution of markers of interest on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
 
 ```{r}
 #| label: data_processing_marker_distribution_on_umap
 
-for (marker in rownames(pg_data)) {
+markers_of_interest <- 
+  c("CD3e", "CD4", "CD8", "CD19", "CD56", "CD14", "CD16", "HLA-DR", "CD11c", "CD123")
+
+for (marker in markers_of_interest) {
   feature_plot <- FeaturePlot(pg_data, features = marker, reduction = "harmony_umap") &
     theme(aspect.ratio = 1)
 
@@ -1744,19 +1747,24 @@ saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotat
 # L1 automatic annotation - summarised by cluster
 Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata,
+  left_join(FetchData(pg_data, 
+                      c("sample_alias", 
+                        "condition", 
+                        "seurat_clusters", 
+                        "cell_annotation")) |> 
+              as_tibble(rownames = "cell_id"),
     by = "cell_id"
   ) |>
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = cell_annotation)) +
   geom_point() +
   geom_text(
     data = . %>%
-      group_by(l1_annotation_summary) %>%
+      group_by(cell_annotation) %>%
       summarise(
         harmonyumap_1 = median(harmonyumap_1),
         harmonyumap_2 = median(harmonyumap_2)
       ),
-    aes(label = l1_annotation_summary),
+    aes(label = cell_annotation),
     size = 3,
     color = "black"
   ) +
@@ -1765,107 +1773,19 @@ Embeddings(pg_data, "harmony_umap") |>
   theme_bw() +
   theme(panel.grid = element_blank())
 export_plot(
-  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
+  filename = here::here("results/02_data_processing/annotation_plots/final_annotation/data_processing_harmonyumap_cell_annotation"),
   width = 6,
   height = 4
 )
 
-
-# L1 automatic annotation - annotated by cell
-Embeddings(pg_data, "harmony_umap") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata,
-    by = "cell_id"
-  ) |>
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
-  geom_point() +
-  geom_text(
-    data = . %>%
-      group_by(l1_annotation) %>%
-      summarise(
-        harmonyumap_1 = median(harmonyumap_1),
-        harmonyumap_2 = median(harmonyumap_2)
-      ),
-    aes(label = l1_annotation),
-    size = 3,
-    color = "black"
-  ) +
-  coord_fixed() +
-  scale_color_manual(values = cell_palette) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
-export_plot(
-  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
-  width = 6,
-  height = 4
-)
-
-
-# L2 automatic annotation - summarised by cluster
-Embeddings(pg_data, "harmony_umap") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata,
-    by = "cell_id"
-  ) |>
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation_summary)) +
-  geom_point() +
-  geom_text(
-    data = . %>%
-      group_by(l2_annotation_summary) %>%
-      summarise(
-        harmonyumap_1 = median(harmonyumap_1),
-        harmonyumap_2 = median(harmonyumap_2)
-      ),
-    aes(label = l2_annotation_summary),
-    size = 3,
-    color = "black"
-  ) +
-  coord_fixed() +
-  scale_color_manual(values = cell_palette) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
-export_plot(
-  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
-  width = 6,
-  height = 4
-)
-
-# L2 automatic annotation - annotated by cell
-Embeddings(pg_data, "harmony_umap") |>
-  as_tibble(rownames = "cell_id") |>
-  left_join(cell_metadata,
-    by = "cell_id"
-  ) |>
-  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
-  geom_point() +
-  geom_text(
-    data = . %>%
-      group_by(l2_annotation) %>%
-      summarise(
-        harmonyumap_1 = median(harmonyumap_1),
-        harmonyumap_2 = median(harmonyumap_2)
-      ),
-    aes(label = l2_annotation),
-    size = 3,
-    color = "black"
-  ) +
-  coord_fixed() +
-  scale_color_manual(values = cell_palette) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
-export_plot(
-  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
-  width = 6,
-  height = 4
-)
 
 # L1 cell type composition per sample (annotated by cell)
-FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
-  group_by(sample_alias, l1_annotation_summary) |>
+FetchData(pg_data, c("sample_alias", "cell_annotation")) |>
+  group_by(sample_alias, cell_annotation) |>
   count(name = "n_cells") |>
   group_by(sample_alias) |>
   mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
-  ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
+  ggplot(aes(sample_alias, prc_cells, fill = cell_annotation)) +
   geom_col(position = "fill") +
   geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
     position = position_fill(vjust = 0.5),
