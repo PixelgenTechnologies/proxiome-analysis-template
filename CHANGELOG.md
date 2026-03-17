@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Updated
 
 - Plots are now overwritten by default.
-- Plots are now shown diretly in the IDE.
+- Plots are now shown directly in the IDE.
 - Added an annotation checkpoint where the user can decide which annotation to use for the downstream analysis.
 
 ### Fixed

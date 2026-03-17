@@ -43,12 +43,18 @@ options(repos = BiocManager::repositories())
 # Install yaml to enable parsing of dependencies
 install.packages("yaml")
 
+install.packages(
+  "duckdb",
+  repos = c("https://duckdb.r-universe.dev", "https://cloud.r-project.org")
+)
+
 # Locate dependencies
 deps <- unique(renv::dependencies()$Package)
 gh_deps <- c(pixelatorR = "PixelgenTechnologies/pixelatorR")
 
 deps <- setdiff(deps, names(gh_deps))
 
+# Add missing dependencies
 deps <- c(deps, "RcppML", "pls")
 
 # Install dependencies
