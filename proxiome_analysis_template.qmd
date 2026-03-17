@@ -600,7 +600,7 @@ Setting correct thresholds is crucial for downstream analysis quality. Threshold
 #| label: quality_control_select_cells
 
 # Combined molecule rank plots
-molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_alias") +
+MoleculeRankPlot(pg_data, group_by = "sample_alias") +
   geom_hline(
     yintercept = n_umi_min_threshold,
     linetype = "dashed",
@@ -613,16 +613,6 @@ molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_
   )
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
-  plot = molecule_rank_plot_w_thresholds,
-  width = 10,
-  height = 8,
-  create_dir = TRUE
-)
-
-molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
-export_plot(
-  filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
-  plot = molecule_rank_plot,
   width = 10,
   height = 8,
   create_dir = TRUE
@@ -688,7 +678,7 @@ point_colors <- pg_data[[]] |>
     )
   )
 
-annotated_molecule_rank_plot <- pg_data[[]] |>
+pg_data[[]] |>
   select(sample_id, rank, n_umi, tau_type) |>
   filter(tau_type == "normal") |>
   ggplot(aes(x = rank, y = n_umi)) +
@@ -759,7 +749,6 @@ annotated_molecule_rank_plot <- pg_data[[]] |>
   )
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
-  plot = annotated_molecule_rank_plot,
   width = 15,
   height = 12,
   create_dir = TRUE
@@ -833,13 +822,12 @@ The Tau score measures the heterogeneity of protein composition per cell, and ca
 ```{r}
 #| label: quality_control_tau_score
 
-tau_score_plot <- TauPlot(pg_data, group_by = "sample_alias")
+TauPlot(pg_data, group_by = "sample_alias")
 
 export_plot(
   filename = here::here(
     "results/01_quality_control/tau_plots/quality_control_tau_score"
   ),
-  plot = tau_score_plot,
   width = 10,
   height = 8,
   create_dir = TRUE
@@ -875,7 +863,7 @@ cpm_quantiles <-
   as_tibble(rownames = "marker") |>
   mutate(kept = `95%` > marker_cpm_p95_threshold)
 
-scatter_percentile_cpm_quantiles <- cpm_quantiles |>
+cpm_quantiles |>
   ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
   geom_point(size = 0.1) +
   geom_text(aes(label = marker), vjust = -0.5, size = 2) +
@@ -889,13 +877,12 @@ scatter_percentile_cpm_quantiles <- cpm_quantiles |>
   )
 export_plot(
   filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
-  plot = scatter_percentile_cpm_quantiles,
   width = 12,
   height = 4
 )
 
 
-barplot_percentile_cpm_quantiles <- cpm_quantiles |>
+cpm_quantiles |>
   arrange(`95%`) |>
   mutate(marker = factor(marker, levels = marker)) |>
   ggplot(aes(x = marker, y = `95%`, fill = kept)) +
@@ -911,8 +898,7 @@ barplot_percentile_cpm_quantiles <- cpm_quantiles |>
 export_plot(
   filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
   width = 12,
-  height = 4,
-  plot = barplot_percentile_cpm_quantiles
+  height = 4
 )
 
 selected_markers <-
@@ -966,7 +952,7 @@ pg_data <-
 pca_red <-
   Reductions(pg_data, "pca")
 
-elbow_plot_pca <- pca_red@stdev |>
+pca_red@stdev |>
   as_tibble(rownames = "PC") |>
   mutate(PC = PC |>
     str_remove("PC_") |>
@@ -983,15 +969,14 @@ elbow_plot_pca <- pca_red@stdev |>
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
   width = 6,
-  height = 4,
-  plot = elbow_plot_pca
+  height = 4
 )
 
 cell_metadata <-
   FetchData(pg_data, c("sample_alias", "condition")) |>
   as_tibble(rownames = "cell_id")
 
-pca_embeddings <- Embeddings(pg_data, "pca") |>
+Embeddings(pg_data, "pca") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(PC_1, PC_2, color = sample_alias)) +
@@ -1003,12 +988,11 @@ pca_embeddings <- Embeddings(pg_data, "pca") |>
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
   width = 6,
-  height = 4,
-  plot = pca_embeddings
+  height = 4
 )
 
-umap_embeddings <-
-  Embeddings(pg_data, "umap") |>
+
+Embeddings(pg_data, "umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(umap_1, umap_2, color = sample_alias)) +
@@ -1020,8 +1004,7 @@ umap_embeddings <-
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
   width = 6,
-  height = 4,
-  plot = umap_embeddings
+  height = 4
 )
 ```
 
@@ -1054,7 +1037,7 @@ cell_metadata <-
   FetchData(pg_data, c("sample_alias", "condition")) |>
   as_tibble(rownames = "cell_id")
 
-harmony_embeddings <- Embeddings(pg_data, "harmony") |>
+Embeddings(pg_data, "harmony") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
@@ -1066,11 +1049,10 @@ harmony_embeddings <- Embeddings(pg_data, "harmony") |>
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
   width = 6,
-  height = 4,
-  plot = harmony_embeddings
+  height = 4
 )
 
-harmony_umap_embeddings <- Embeddings(pg_data, "harmony_umap") |>
+Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
@@ -1082,8 +1064,7 @@ harmony_umap_embeddings <- Embeddings(pg_data, "harmony_umap") |>
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
   width = 6,
-  height = 4,
-  plot = harmony_umap_embeddings
+  height = 4
 )
 ```
 
@@ -1107,7 +1088,7 @@ cell_metadata <-
   FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
   as_tibble(rownames = "cell_id")
 
-harmony_clusters_embeddings <- Embeddings(pg_data, "harmony") |>
+Embeddings(pg_data, "harmony") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
@@ -1119,11 +1100,10 @@ harmony_clusters_embeddings <- Embeddings(pg_data, "harmony") |>
 export_plot(
   filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
   width = 6,
-  height = 4,
-  plot = harmony_clusters_embeddings
+  height = 4
 )
 
-harmony_umap_clusters_embeddings <- Embeddings(pg_data, "harmony_umap") |>
+Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
@@ -1135,8 +1115,7 @@ harmony_umap_clusters_embeddings <- Embeddings(pg_data, "harmony_umap") |>
 export_plot(
   filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
   width = 6,
-  height = 4,
-  plot = harmony_umap_clusters_embeddings
+  height = 4
 )
 ```
 
@@ -1205,7 +1184,7 @@ cell_metadata <-
   as_tibble(rownames = "cell_id")
 
 # L1 automatic annotation - summarised by cluster
-harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
+Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata,
     by = "cell_id"
@@ -1230,13 +1209,12 @@ harmony_umap_l1_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
   width = 6,
-  height = 4,
-  plot = harmony_umap_l1_annotation_summary_plot
+  height = 4
 )
 
 
 # L1 automatic annotation - annotated by cell
-harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
+Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata,
     by = "cell_id"
@@ -1261,13 +1239,12 @@ harmony_umap_l1_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
   width = 6,
-  height = 4,
-  plot = harmony_umap_l1_annotation_plot
+  height = 4
 )
 
 
 # L2 automatic annotation - summarised by cluster
-harmony_umap_l2_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |>
+Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata,
     by = "cell_id"
@@ -1292,12 +1269,11 @@ harmony_umap_l2_annotation_summary_plot <- Embeddings(pg_data, "harmony_umap") |
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
   width = 6,
-  height = 4,
-  plot = harmony_umap_l2_annotation_summary_plot
+  height = 4
 )
 
 # L2 automatic annotation - annotated by cell
-harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
+Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata,
     by = "cell_id"
@@ -1322,12 +1298,11 @@ harmony_umap_l2_annotation_plot <- Embeddings(pg_data, "harmony_umap") |>
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
   width = 6,
-  height = 4,
-  plot = harmony_umap_l2_annotation_plot
+  height = 4
 )
 
 # L1 cell type composition per sample (annotated by cell)
-cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
+FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
   group_by(sample_alias, l1_annotation_summary) |>
   count(name = "n_cells") |>
   group_by(sample_alias) |>
@@ -1352,8 +1327,7 @@ cell_type_composition_per_sample <- FetchData(pg_data, c("sample_alias", "l1_ann
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
   width = 12,
-  height = 8,
-  plot = cell_type_composition_per_sample
+  height = 8
 )
 ```
 
@@ -1390,7 +1364,7 @@ diff_abundant_markers_cluster <-
   rename(marker = gene)
 
 # Heatmap of differential abundance markers per cluster
-differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_cluster |>
+diff_abundant_markers_cluster |>
   group_by(marker) |>
   filter(any(p_val_adj < 0.05 & difference > 1)) |>
   select(marker, difference, cluster) |>
@@ -1408,12 +1382,11 @@ differential_abundance_markers_per_cluster_heatmap <- diff_abundant_markers_clus
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
   width = 10,
-  height = 4,
-  plot = differential_abundance_markers_per_cluster_heatmap
+  height = 4
 )
 
 # Volcano plot of differential abundance markers per cluster
-volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers_cluster |>
+diff_abundant_markers_cluster |>
   ggplot(aes(difference, -log10(p_val))) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
@@ -1438,8 +1411,7 @@ volcano_plot_differential_abundance_markers_per_cluster <- diff_abundant_markers
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster_volcano"),
   width = 8,
-  height = 6,
-  plot = volcano_plot_differential_abundance_markers_per_cluster
+  height = 6
 )
 
 # Write differential abundance markers per cluster to csv
@@ -1465,7 +1437,7 @@ plot_data <-
       "seurat_clusters",
       markers_of_interest
     ),
-    slot = "data"
+    layer = "data"
   ) |>
   pivot_longer(
     cols = all_of(markers_of_interest),
@@ -1473,7 +1445,7 @@ plot_data <-
     values_to = "CLR"
   )
 
-marker_abundance_harmonyumap_plot <- plot_data |>
+plot_data |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
   geom_point(size = 0.1) +
   facet_wrap(~marker) +
@@ -1490,11 +1462,10 @@ marker_abundance_harmonyumap_plot <- plot_data |>
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_harmonyumap"),
   width = 6,
-  height = 4,
-  plot = marker_abundance_harmonyumap_plot
+  height = 4
 )
 
-marker_abundance_per_cluster_plot <- plot_data |>
+plot_data |>
   ggplot(aes(sample_alias, CLR, fill = condition)) +
   geom_violin(quantiles = 0.5, quantile.linetype = 1) +
   facet_grid(marker ~ seurat_clusters) +
@@ -1513,11 +1484,10 @@ marker_abundance_per_cluster_plot <- plot_data |>
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
   width = 8,
-  height = 8,
-  plot = marker_abundance_per_cluster_plot
+  height = 8
 )
 
-mean_marker_abundance_per_cluster_heatmap <- plot_data |>
+plot_data |>
   group_by(marker, seurat_clusters) |>
   summarise(mean_CLR = mean(CLR)) |>
   pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
@@ -1533,8 +1503,7 @@ mean_marker_abundance_per_cluster_heatmap <- plot_data |>
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
   width = 6,
-  height = 4,
-  plot = mean_marker_abundance_per_cluster_heatmap
+  height = 4
 )
 ```
 
@@ -1586,7 +1555,7 @@ Compare automatic and manual annotations. This can help to identify any discrepa
 ```{r}
 #| label: data_processing_comparison_automatic_manual_annotation
 
-comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
+FetchData(pg_data, c("seurat_clusters", "l1_annotation", "cell_annotation")) |>
   group_by(seurat_clusters, l1_annotation, cell_annotation) |>
   count() |>
   group_by(seurat_clusters) |>
@@ -1608,8 +1577,7 @@ comparison_automatic_manual_annotation <- FetchData(pg_data, c("seurat_clusters"
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
   width = 8,
-  height = 6,
-  plot = comparison_automatic_manual_annotation
+  height = 6
 )
 ```
 
@@ -1654,7 +1622,7 @@ pg_data_cd4_t <- subset(pg_data, subset = cell_annotation == "CD4 T")
 # Create density scatter plot to distinguish CD4 subtypes
 # CD45RA vs CD45RO is a classic combination for naive vs memory distinction
 # CD4 T cell subtypes: Naive (CD45RA+ CD45RO-) vs Memory (CD45RA- CD45RO+)
-cd4_subtype_density_plot <- DensityScatterPlot(
+DensityScatterPlot(
   pg_data_cd4_t,
   marker1 = "CD45RA",
   marker2 = "CD45RO"
@@ -1666,9 +1634,7 @@ cd4_subtype_density_plot <- DensityScatterPlot(
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter"),
   width = 8,
-  height = 6,
-  plot = cd4_subtype_density_plot,
-  create_dir = TRUE
+  height = 6
 )
 
 # Define gates for CD4 subtypes
@@ -1680,7 +1646,8 @@ naive_cd4_gate <- data.frame(
   ymax = 1.5 # CD45RO threshold (adjust based on data)
 )
 # Create plot with gates
-cd4_subtype_density_plot_naive_cd4_gate <- DensityScatterPlot(
+p1 <- 
+  DensityScatterPlot(
   pg_data_cd4_t,
   marker1 = "CD45RA",
   marker2 = "CD45RO",
@@ -1691,6 +1658,8 @@ cd4_subtype_density_plot_naive_cd4_gate <- DensityScatterPlot(
     subtitle = "Gate 1: Naive CD4 T (CD45RA+ CD45RO-)"
   )
 
+p1
+
 # Define gate for Memory CD4 T cells: Low CD45RA, High CD45RO
 memory_cd4_gate <- data.frame(
   xmin = 0,
@@ -1698,7 +1667,9 @@ memory_cd4_gate <- data.frame(
   ymin = 2.0, # CD45RO threshold (adjust based on data)
   ymax = 5
 )
-cd4_subtype_density_plot_memory_cd4_gate <- DensityScatterPlot(
+
+p2 <- 
+  DensityScatterPlot(
   pg_data_cd4_t,
   marker1 = "CD45RA",
   marker2 = "CD45RO",
@@ -1708,12 +1679,14 @@ cd4_subtype_density_plot_memory_cd4_gate <- DensityScatterPlot(
     title = "CD4 T Cell Subtypes with Gates",
     subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
   )
+
+p2
+
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter_w_gates"),
   width = 16,
   height = 6,
-  plot = cd4_subtype_density_plot_naive_cd4_gate + cd4_subtype_density_plot_memory_cd4_gate,
-  create_dir = TRUE
+  plot = p1 + p2
 )
 
 # Classify CD4 cells into subtypes
@@ -1722,7 +1695,8 @@ cd4_cell_data <- FetchData(pg_data_cd4_t, vars = c("CD45RA", "CD45RO", "CD4", "C
 # Define subtypes based on marker expression thresholds
 # Adjust thresholds based on your data distribution
 
-cd4_subtype_classification <- cd4_cell_data |>
+cd4_subtype_classification <- 
+  cd4_cell_data |>
   mutate(
     cd4_subtype = case_when(
       CD45RA > naive_cd4_gate$xmin & CD45RA < naive_cd4_gate$xmax & CD45RO > naive_cd4_gate$ymin & CD45RO < naive_cd4_gate$ymax ~ "Naive CD4 T",
@@ -1736,7 +1710,7 @@ pg_data$cd4_subtype <- pg_data$cell_annotation
 pg_data$cd4_subtype[rownames(cd4_subtype_classification)] <- cd4_subtype_classification$cd4_subtype
 
 # Visualize CD4 subtypes on UMAP
-cd4_subtype_umap <- DimPlot(
+DimPlot(
   pg_data,
   group.by = "cd4_subtype",
   reduction = "harmony_umap"
@@ -1747,9 +1721,7 @@ cd4_subtype_umap <- DimPlot(
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_umap"),
   width = 8,
-  height = 6,
-  plot = cd4_subtype_umap,
-  create_dir = TRUE
+  height = 6
 )
 ```
 
