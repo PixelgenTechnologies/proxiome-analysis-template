@@ -127,7 +127,10 @@ if (packageVersion("pixelatorR") < "0.16.0") {
 here::i_am("proxiome_analysis_template.qmd")
 
 # Set global options for saving plots
-options(export_plot.overwrite = FALSE)
+options(
+  # Overwrite existing files when saving plots - set to FALSE if you want to keep old versions of the plots
+  export_plot.overwrite = TRUE
+  )
 # Set global options for file formats to save plots in both PNG and PDF
 options(export_plot.file_formats = c("png", "pdf"))
 ```
