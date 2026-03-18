@@ -199,7 +199,6 @@ pg_data <-
     add.cell.ids = metadata$sample_id
   ) |>
   JoinLayers()
-
 ```
 
 ### 0.2.3. Add metadata
@@ -222,19 +221,19 @@ pg_data[[]] <-
   column_to_rownames("cell_id")
 
 
-# Set the sample_id, sample_alias and condition as factors with levels defined by the metadata file 
+# Set the sample_id, sample_alias and condition as factors with levels defined by the metadata file
 # to ensure the correct order of the samples and conditions in the plots
-pg_data$sample_id <- 
+pg_data$sample_id <-
   factor(
-    pg_data$sample_id, 
+    pg_data$sample_id,
     metadata$sample_id
   )
-pg_data$sample_alias <- 
+pg_data$sample_alias <-
   factor(
     pg_data$sample_alias,
     metadata$sample_alias
   )
-pg_data$condition <- 
+pg_data$condition <-
   factor(
     pg_data$condition,
     unique(metadata$condition)
@@ -797,8 +796,10 @@ pg_data[[]] |>
     # annotate median values above points
     fun = median,
     geom = "text",
-    aes(label = paste(round(after_stat(y), 2),
-                      "%")),
+    aes(label = paste(
+      round(after_stat(y), 2),
+      "%"
+    )),
     vjust = -1,
     size = 3,
     color = "black",
@@ -818,7 +819,7 @@ pg_data[[]] |>
   labs(
     x = "Sample",
     y = "% of isotype counts",
-  ) 
+  )
 
 export_plot(
   filename = here::here(
@@ -1535,15 +1536,15 @@ The example annotations provided here are placeholders. You should review the av
 #| label: data_processing_set_manual_annotation
 
 # Inspect the automatic annotation results to inform manual annotation
-# The `l1_annotation` and `l2_annotation` columns contain the automatic annotation per each individual cell, 
+# The `l1_annotation` and `l2_annotation` columns contain the automatic annotation per each individual cell,
 # while `l1_annotation_summary` and `l2_annotation_summary` contain the majority vote annotation per cluster
 
-# This plot shows the distribution of automatic annotations across clusters, 
-# which can help to identify which clusters correspond to which cell types, 
-# and to identify whether the clustering resolves all cell identities of interest. 
+# This plot shows the distribution of automatic annotations across clusters,
+# which can help to identify which clusters correspond to which cell types,
+# and to identify whether the clustering resolves all cell identities of interest.
 
 # Cell counts per cluster
-table(pg_data$seurat_clusters, pg_data$l1_annotation) %>% 
+table(pg_data$seurat_clusters, pg_data$l1_annotation) %>%
   ComplexHeatmap::pheatmap(
     .,
     color = PixelgenGradient(100, "Cherry"),
@@ -1551,12 +1552,12 @@ table(pg_data$seurat_clusters, pg_data$l1_annotation) %>%
     cellwidth = 16,
     cellheight = 8,
     heatmap_legend_param = list(title = "Number of cells")
-  ) 
+  )
 
-table(pg_data$seurat_clusters, pg_data$l1_annotation) %>% 
+table(pg_data$seurat_clusters, pg_data$l1_annotation) %>%
   sweep(1, rowSums(.), FUN = "/") %>%
   `*`(100) %>% # Multiply by 100
-  round(1) %>% 
+  round(1) %>%
   ComplexHeatmap::pheatmap(
     .,
     color = PixelgenGradient(100, "Cherry"),
@@ -1564,7 +1565,7 @@ table(pg_data$seurat_clusters, pg_data$l1_annotation) %>%
     cellwidth = 16,
     cellheight = 8,
     heatmap_legend_param = list(title = "% of cells")
-  ) 
+  )
 
 # Specify cell annotation labels for each cluster
 # (These are example annotations and should be changed according to your dataset)
