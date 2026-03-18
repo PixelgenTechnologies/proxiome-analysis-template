@@ -938,7 +938,7 @@ pg_data <-
   subset(tau_type == "normal") |>
   subset(n_umi > n_umi_min_threshold &
     n_umi < n_umi_max_threshold) |>
-  subset(isotype_fraction < isotype_percent_threshold) |>
+  subset(isotype_fraction < isotype_percent_threshold / 100) |>
   # Data normalization
   NormalizeData(normalization.method = "CLR", margin = 2) |>
   # Z score scaling
