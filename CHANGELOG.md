@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Plots are now overwritten by default.
 - Plots are now shown directly in the IDE.
+- The reference condition for differential testing is now selected at the beginning of the statistical analysis section.
 
 ### Fixed
 - Fixed bug where `slot` was used instead of `layer`, causing an error.
