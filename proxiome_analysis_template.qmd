@@ -1534,6 +1534,38 @@ The example annotations provided here are placeholders. You should review the av
 ```{r}
 #| label: data_processing_set_manual_annotation
 
+# Inspect the automatic annotation results to inform manual annotation
+# The `l1_annotation` and `l2_annotation` columns contain the automatic annotation per each individual cell, 
+# while `l1_annotation_summary` and `l2_annotation_summary` contain the majority vote annotation per cluster
+
+# This plot shows the distribution of automatic annotations across clusters, 
+# which can help to identify which clusters correspond to which cell types, 
+# and to identify whether the clustering resolves all cell identities of interest. 
+
+# Cell counts per cluster
+table(pg_data$seurat_clusters, pg_data$l1_annotation) %>% 
+  ComplexHeatmap::pheatmap(
+    .,
+    color = PixelgenGradient(100, "Cherry"),
+    display_numbers = ifelse(. == 0, "", .),
+    cellwidth = 16,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "Number of cells")
+  ) 
+
+table(pg_data$seurat_clusters, pg_data$l1_annotation) %>% 
+  sweep(1, rowSums(.), FUN = "/") %>%
+  `*`(100) %>% # Multiply by 100
+  round(1) %>% 
+  ComplexHeatmap::pheatmap(
+    .,
+    color = PixelgenGradient(100, "Cherry"),
+    display_numbers = ifelse(. == 0, "", .),
+    cellwidth = 16,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "% of cells")
+  ) 
+
 # Specify cell annotation labels for each cluster
 # (These are example annotations and should be changed according to your dataset)
 cluster_cell_annotation <-

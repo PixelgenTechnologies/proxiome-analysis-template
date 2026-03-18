@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an annotation checkpoint where the user can decide which annotation to use for the downstream analysis.
 - Added content to visualize the final cell annotation.
+- Added a cell annotation assignment matrix that can be used to assess the results of automatic annotation per cluster.
 
 ### Updated
 
