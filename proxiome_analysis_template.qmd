@@ -514,7 +514,7 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 
 - **`n_umi_min_threshold`**: The minimum number of UMI counts per cell. Cells with fewer than this number of UMI counts are likely to be cell fragments.
 - **`n_umi_max_threshold`**: The maximum number of UMI counts per cell. Cells with more than this number of UMI counts are likely to be doublets or technical artifacts.
-- **`isotype_fraction_threshold`**: The maximum fraction of UMI counts that can be attributed to isotype control antibodies. Cells with more than this fraction of UMI counts attributed to isotype control antibodies are likely to have high levels of nonspecific background.
+- **`isotype_percent_threshold`**: The maximum fraction of UMI counts that can be attributed to isotype control antibodies. Cells with more than this fraction of UMI counts attributed to isotype control antibodies are likely to have high levels of nonspecific background.
 
 ```{r}
 #| label: quality_control_define_thresholds
@@ -522,7 +522,7 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 # Define threshold for minimum molecule counts per cell
 n_umi_min_threshold <- 15000
 n_umi_max_threshold <- 200000
-isotype_fraction_threshold <- 0.0025
+isotype_percent_threshold <- 0.25
 ```
 
 
@@ -752,7 +752,7 @@ export_plot(
 
 ### 1.3.3. Unspecific Background filtering
 
-In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The fraction of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
+In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The percentage of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
 
 ```{r}
 #| label: quality_control_isotype_controls
@@ -760,7 +760,7 @@ In PNA experiments, isotype control antibodies are included to measure unspecifi
 pg_data[[]] |>
   ggplot(aes(
     sample_alias,
-    isotype_fraction,
+    100 * isotype_fraction,
     color = condition
   )) +
   ggbeeswarm::geom_quasirandom() +
@@ -777,29 +777,28 @@ pg_data[[]] |>
     # annotate median values above points
     fun = median,
     geom = "text",
-    aes(label = round(after_stat(y), 1)),
+    aes(label = paste(round(after_stat(y), 2),
+                      "%")),
     vjust = -1,
     size = 3,
     color = "black",
     position = position_dodge(width = 0.75)
   ) +
-  theme_bw() +
-  labs(
-    x = "Sample",
-    y = "Fraction of isotype counts",
+  geom_hline(
+    yintercept = isotype_percent_threshold,
+    linetype = "dashed",
+    color = "red"
   ) +
   scale_color_manual(values = condition_palette) +
-  scale_y_log10() +
+  theme_bw() +
   theme(
     legend.position = "bottom",
     axis.text.x = element_text(angle = 60, hjust = 1)
   ) +
-  geom_hline(
-    yintercept = isotype_fraction_threshold,
-    linetype = "dashed",
-    color = "red"
-  )
-
+  labs(
+    x = "Sample",
+    y = "% of isotype counts",
+  ) 
 
 export_plot(
   filename = here::here(
@@ -918,7 +917,7 @@ pg_data <-
   subset(tau_type == "normal") |>
   subset(n_umi > n_umi_min_threshold &
     n_umi < n_umi_max_threshold) |>
-  subset(isotype_fraction < isotype_fraction_threshold) |>
+  subset(isotype_fraction < isotype_percent_threshold) |>
   # Data normalization
   NormalizeData(normalization.method = "CLR", margin = 2) |>
   # Z score scaling
