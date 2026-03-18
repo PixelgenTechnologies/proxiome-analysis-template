@@ -1784,9 +1784,8 @@ In this tutorial, we will proceed using the automatic annotation because it does
 pg_data[[]] <-
   pg_data[[]] |>
   mutate(
-    cell_annotation = l1_annotation_summary,
-    # To use the manual annotation instead, uncomment this and comment out the line above:
-    # cell_annotation = manual_cell_annotation
+    # To use the manual annotation instead, exchange `l1_annotation_summary` with `manual_cell_annotation` in the line below
+    cell_annotation = l1_annotation_summary
   )
 
 
