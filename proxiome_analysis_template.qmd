@@ -2754,7 +2754,7 @@ export_plot(
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state. 
 
 ```{r}
-#| statistical_testing_set_reference
+#| label: statistical_testing_set_reference
 
 reference_condition <- "resting"
 
