@@ -367,8 +367,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_read_depth"
   ),
-  width = 10,
-  height = 8,
+  width = 7,
+  height = 5,
   create_dir = TRUE
 )
 ```
@@ -423,8 +423,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_average_k_core"
   ),
-  width = 10,
-  height = 8,
+  width = 7,
+  height = 5,
   create_dir = TRUE
 )
 ```
@@ -489,8 +489,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
   ),
-  width = 10,
-  height = 8,
+  width = 7,
+  height = 5,
   create_dir = TRUE
 )
 ```
@@ -582,8 +582,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_n_umi"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -611,8 +611,8 @@ molecule_rank_plot_w_thresholds <- MoleculeRankPlot(pg_data, group_by = "sample_
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
   plot = molecule_rank_plot_w_thresholds,
-  width = 10,
-  height = 8,
+  width = 7,
+  height = 5,
   create_dir = TRUE
 )
 
@@ -620,8 +620,8 @@ molecule_rank_plot <- MoleculeRankPlot(pg_data, group_by = "sample_alias")
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot"),
   plot = molecule_rank_plot,
-  width = 10,
-  height = 8,
+  width = 7,
+  height = 5,
   create_dir = TRUE
 )
 
@@ -757,8 +757,8 @@ annotated_molecule_rank_plot <- pg_data[[]] |>
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
   plot = annotated_molecule_rank_plot,
-  width = 15,
-  height = 12,
+  width = 10,
+  height = 8,
   create_dir = TRUE
 )
 ```
@@ -818,8 +818,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_isotype_controls"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -837,8 +837,8 @@ export_plot(
     "results/01_quality_control/tau_plots/quality_control_tau_score"
   ),
   plot = tau_score_plot,
-  width = 10,
-  height = 8,
+  width = 7,
+  height = 5,
   create_dir = TRUE
 )
 ```
@@ -887,8 +887,8 @@ scatter_percentile_cpm_quantiles <- cpm_quantiles |>
 export_plot(
   filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
   plot = scatter_percentile_cpm_quantiles,
-  width = 12,
-  height = 4
+  width = 8,
+  height = 3
 )
 
 
@@ -907,8 +907,8 @@ barplot_percentile_cpm_quantiles <- cpm_quantiles |>
   )
 export_plot(
   filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
-  width = 12,
-  height = 4,
+  width = 8,
+  height = 3,
   plot = barplot_percentile_cpm_quantiles
 )
 
