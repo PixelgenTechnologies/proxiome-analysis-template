@@ -533,7 +533,7 @@ Revisit these thresholds according to your data. Sometimes it is necessary to us
 
 - **`n_umi_min_threshold`**: The minimum number of UMI counts per cell. Cells with fewer than this number of UMI counts are likely to be cell fragments.
 - **`n_umi_max_threshold`**: The maximum number of UMI counts per cell. Cells with more than this number of UMI counts are likely to be doublets or technical artifacts.
-- **`isotype_percent_threshold`**: The maximum fraction of UMI counts that can be attributed to isotype control antibodies. Cells with more than this fraction of UMI counts attributed to isotype control antibodies are likely to have high levels of nonspecific background.
+- **`isotype_percent_threshold`**: The maximum percent of UMI counts that can be attributed to isotype control antibodies. Cells with more than this percent of UMI counts attributed to isotype control antibodies are likely to have high levels of nonspecific background.
 
 ```{r}
 #| label: quality_control_define_thresholds
