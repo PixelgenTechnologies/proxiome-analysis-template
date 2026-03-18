@@ -1525,11 +1525,11 @@ export_plot(
 
 ### 2.6.4. Set manual annotation 
 
-This step assigns cell type annotations to each cluster based on the comprehensive analysis performed in the previous sections. The annotations are determined by integrating information from multiple sources: (1) differential abundance analysis identifying cluster-specific markers, (2) marker abundance visualizations on UMAP and per cluster, (3) automated annotation results, and (4) knowledge of established cell type marker expression patterns.
+In this step we assign cell type labels to each cluster based on the analysis performed in the previous sections. Annotations should be informed by a combination of differential abundance results, marker abundance patterns, automated predictions, and known biology, as well as experiment context.
 
-Each cluster is assigned a cell type label through a named vector that maps cluster numbers to cell type annotations. Importantly, multiple clusters can share the same annotation when they represent different states or subtypes of the same cell type. For example, multiple clusters may all be annotated as "CD4 T" if they represent different CD4+ T cell subsets (e.g., naive, memory, effector) that are distinguished by additional markers but share core CD4+ T cell characteristics.
+Clusters are mapped to cell types using a named vector. Multiple clusters can share the same label if they represent different states or subtypes of the same cell type (e.g., several clusters annotated as “CD4 T”).
 
-Users must carefully review all available evidence (differential abundance results, marker visualizations, automated annotations, and biological knowledge) before assigning annotations. The example annotations provided here are placeholders and must be customized according to the specific characteristics of your dataset. Incorrect annotations will propagate through all downstream analyses, so this step requires careful consideration and validation.
+The example annotations provided here are placeholders. You should review the available evidence and adapt them to your dataset before proceeding. Alternatively, if you wish to use the automatic annotations without modification, you can skip this step and e.g. use the `l1_annotation_summary` column for downstream analyses instead of `manual_cell_annotation`.
 
 ```{r}
 #| label: data_processing_set_manual_annotation
