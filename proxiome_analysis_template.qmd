@@ -818,7 +818,7 @@ pg_data[[]] |>
   ) +
   labs(
     x = "Sample",
-    y = "% of isotype counts",
+    y = "% of isotype counts"
   )
 
 export_plot(
