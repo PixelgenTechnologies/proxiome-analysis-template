@@ -199,6 +199,7 @@ pg_data <-
     add.cell.ids = metadata$sample_id
   ) |>
   JoinLayers()
+
 ```
 
 ### 0.2.3. Add metadata
@@ -219,6 +220,25 @@ pg_data[[]] <-
     by = "sample_id"
   ) |> # Do not add the file path to the PNA object
   column_to_rownames("cell_id")
+
+
+# Set the sample_id, sample_alias and condition as factors with levels defined by the metadata file 
+# to ensure the correct order of the samples and conditions in the plots
+pg_data$sample_id <- 
+  factor(
+    pg_data$sample_id, 
+    metadata$sample_id
+  )
+pg_data$sample_alias <- 
+  factor(
+    pg_data$sample_alias,
+    metadata$sample_alias
+  )
+pg_data$condition <- 
+  factor(
+    pg_data$condition,
+    unique(metadata$condition)
+  )
 
 # Sanity check the metadata
 for (col in colnames(metadata |> select(-file_path))) {
