@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed bug where `slot` was used instead of `layer`, causing an error.
 - `RcppML` and `pls` are now added as dependencies and installed when creating the `renv` environment.
+- Typos.
 
 ## [0.2.1] 2026-02-26
 

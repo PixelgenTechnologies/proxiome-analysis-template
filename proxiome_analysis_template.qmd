@@ -834,7 +834,7 @@ This optional step allows users to filter markers based on expression levels, re
 
 This section demonstrates one approach using counts per million (CPM) thresholds. For each marker, the 50th percentile (median) and 95th percentile of CPM values are calculated across all cells. Markers are then selected based on whether their 95th percentile exceeds a defined threshold. This threshold should be adjusted according to the background signal levels in the dataset and the expected presence of specific markers based on the experimental design.
 
-In the example provided here, the threshold is set to 500 CPM at the 95th percentile. This effectively means that markers are retained if they are expressed at detectable levels in cell populations comprising at least 5% of the sample. Comparing the 95th percentile to the 50th percentile (median) provides insight into the variability of marker expression across cells, helping to distinguish markers with consistent expression from those with highly variable or rare expression patterns.
+In the example provided here, the threshold is set to 2000 CPM at the 95th percentile. This effectively means that markers are retained if they are expressed at detectable levels in cell populations comprising at least 5% of the sample. Comparing the 95th percentile to the 50th percentile (median) provides insight into the variability of marker expression across cells, helping to distinguish markers with consistent expression from those with highly variable or rare expression patterns.
 
 
 ```{r}
