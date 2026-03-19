@@ -2483,7 +2483,7 @@ for (cell_type in cell_types) {
   plot_markers <-
     grouped_marker_abundance[cell_type, ] %>%
     unlist() %>%
-    sort(decreasing = T) %>%
+    sort(decreasing = TRUE) %>%
     head(max_heatmap_markers) %>%
     names()
 
