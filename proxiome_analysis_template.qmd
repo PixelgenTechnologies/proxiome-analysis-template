@@ -3147,39 +3147,42 @@ for (target_condition in target_conditions) {
     slice_max(order_by = abs(effect_size), n = 5) |>
     ungroup()
 
-  volcano_plot_differential_clustering <- plot_data |>
+  volcano_plot_differential_clustering <- 
+    plot_data |>
     ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
     geom_point(size = 0.5) +
-    scale_color_gradient2(
-      low = "#0066FFFF",
-      mid = "#74D055FF",
-      high = "#FF0000FF",
-      midpoint = 0
-    ) +
-    geom_hline(yintercept = 0) +
     geom_vline(xintercept = 0) +
     geom_vline(xintercept = c(-1, 1), col = "grey") +
-    coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
-    facet_wrap(~group, scales = "free") +
     geom_text(
       data = top_markers_faceted,
       aes(label = marker),
-      hjust = -0.2,
-      vjust = 0
+      hjust = 0.5,
+      vjust = -0.5,
+      size = 2
+    ) +
+    facet_wrap(~group, scales = "free") +
+    scale_x_continuous(
+      limits = c(min(plot_data$effect_size, na.rm = TRUE), max(plot_data$effect_size, na.rm = TRUE)),
+      expand = expansion(0.1)
+    ) +
+    scale_y_continuous(
+      expand = expansion(c(0, 0.1))
+    ) +
+    scale_color_gradientn(
+      colors = gradient_palette, 
+      limits = c(-1, 1) * max(abs(plot_data$effect_size), na.rm = TRUE)
     ) +
     theme_bw() +
+    theme(
+      panel.grid = element_blank()
+    ) +
     labs(
       title = paste("Differential clustering analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
       subtitle = "Effect size vs statistical significance by cell type",
       x = paste("Effect size (", effect_size_col, ")", sep = ""),
       y = "-log10(adjusted p-value)",
       color = "Effect size"
-    ) +
-    theme(
-      strip.background = element_rect(fill = "lightblue", color = "black"),
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_blank()
-    )
+    ) 
 
   # Save faceted volcano plot in the comparison directory
   export_plot(
@@ -3209,54 +3212,60 @@ for (target_condition in target_conditions) {
     top_markers_cell_type <- cell_type_plot_data |>
       slice_max(order_by = abs(effect_size), n = 5)
 
-    volcano_plot_cell_type <- cell_type_plot_data |>
+    volcano_plot_cell_type <-
+      cell_type_plot_data |>
       ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
       geom_point(size = 0.5) +
-      scale_color_gradient2(
-        low = "#0066FFFF",
-        mid = "#74D055FF",
-        high = "#FF0000FF",
-        midpoint = 0
-      ) +
-      geom_hline(yintercept = 0) +
       geom_vline(xintercept = 0) +
       geom_vline(xintercept = c(-1, 1), col = "grey") +
-      coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
       geom_text(
         data = top_markers_cell_type,
         aes(label = marker),
-        hjust = -0.2,
-        vjust = 0
+        hjust = 0.5,
+        vjust = -0.5,
+        size = 3
+      ) +
+      facet_wrap(~group, scales = "free") +
+      scale_x_continuous(
+        limits = c(min(cell_type_plot_data$effect_size, na.rm = TRUE), 
+                   max(cell_type_plot_data$effect_size, na.rm = TRUE)),
+        expand = expansion(0.1)
+      ) +
+      scale_y_continuous(
+        expand = expansion(c(0, 0.1))
+      ) +
+      scale_color_gradientn(
+        colors = gradient_palette, 
+        limits = c(-1, 1) * max(abs(cell_type_plot_data$effect_size), na.rm = TRUE)
       ) +
       theme_bw() +
+      theme(
+        panel.grid = element_blank()
+      ) +
       labs(
         title = paste("Differential clustering analysis: Volcano plot", sep = ""),
         subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
         x = paste("Effect size (", effect_size_col, ")", sep = ""),
         y = "-log10(adjusted p-value)",
         color = "Effect size"
-      ) +
-      theme(
-        plot.title = element_text(size = 14, face = "bold"),
-        plot.subtitle = element_text(size = 12),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank()
-      )
-
+      ) 
+    
     # Save non-faceted volcano plot
     export_plot(
       filename = file.path(cell_type_dir, "volcano_plot"),
       plot = volcano_plot_cell_type,
-      width = 8,
-      height = 6
+      width = 5.5,
+      height = 4.5
     )
   }
 
   # Plot 3: Heatmap showing significant markers across cell types
   # This provides an overview of which markers are differentially clustered in which cell types
   # Filter for significant markers and prepare data for heatmap
-  significant_markers <- plot_data |>
-    filter(significant) |>
+  significant_markers <- 
+    plot_data |>
+    group_by(marker) |>
+    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
     select(marker, group, effect_size) |>
     # Pivot to wide format for heatmap
     pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
@@ -3271,30 +3280,28 @@ for (target_condition in target_conditions) {
     max_abs_effect <- max(abs(effect_quantiles))
     breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
 
-    # Transpose to landscape orientation: cell types as rows, markers as columns.
-    # Dimensions are driven by the number of markers (width) and cell types (height).
-    heatmap_differential_clustering <- t(significant_markers) |>
+    heatmap_differential_clustering <- 
+      significant_markers |>
+      t() |>
       pheatmap(
         color = PixelgenGradient(100, "BluesCherry"),
         breaks = breaks_range,
-        cellwidth = 12,
-        cellheight = 10,
+        cellwidth = 8,
+        cellheight = 8,
         cluster_rows = TRUE,
         cluster_cols = TRUE,
         heatmap_legend_param = list(title = "Effect size"),
-        fontsize = 8,
-        fontsize_row = 8,
-        fontsize_col = 6
+        fontsize = 8
       ) |>
       as.ggplot()
 
     export_plot(
       filename = file.path(base_output_dir, "differential_clustering_heatmap"),
       plot = heatmap_differential_clustering,
-      # After transposing: columns = markers (nrow of original), rows = cell types (ncol of original).
+
       # ~0.3 in per marker column + 4 in base margin; ~0.5 in per cell-type row + 2 in base margin.
-      width = max(6, nrow(significant_markers) * 0.3 + 4),
-      height = max(4, ncol(significant_markers) * 0.5 + 2)
+      width = max(6, nrow(significant_markers) * 0.15 + 1.5),
+      height = max(4, ncol(significant_markers) * 0.2 + 1.5)
     )
   } else {
     warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
