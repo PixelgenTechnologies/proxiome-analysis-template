@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added new gradient palette. 
 - Added `min_p_value_threshold` global variable to floor p-values before `-log10()` transforms in volcano plots, preventing `Inf` values when `p_adj == 0`.
 - Added instructional text in Section 1.4 explaining how to customize the marker selection, and a `print(selected_markers)` statement to display selected markers in the IDE.
+- Added `heatmap_grouping_column` variable (default: `"condition"`) to control whether colocalization heatmaps (Sections 4.1.1 and 4.1.2) are summarized per condition or per sample; set to `"sample_alias"` to restore the previous per-sample behavior.
+- Added `max_heatmap_markers` (default: `60`) and `heatmap_marker_selection` (default: `"top_abundant"`) variables to limit colocalization heatmaps to the top most abundant or most variable proteins when many markers are present.
+- Added `markers_for_abundance_plots` variable to restrict marker-wise abundance distribution plots to a user-defined subset (default: first 20 markers); users should replace this with their markers of interest.
+- Added `abundance_plots_grouping_column` variable (default: `"condition"`) to control whether per-cell-type abundance plots are faceted by condition or by sample; set to `"sample_alias"` to facet by individual sample.
 
 ### Updated
 
@@ -31,12 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `differential_abundance_heatmap` and `differential_clustering_heatmap`: transposed to landscape orientation with improved dimension heuristics.
 - Moved `data_processing_marker_abundance_per_cluster` and `data_processing_mean_marker_abundance_per_cluster_heatmap` to the `cluster_specific_markers/` subfolder.
 - Unified volcano plot styling across sections with consistent gradient colors, reference lines, grid removal, and point sizing.
+- Colocalization heatmap color scale is now capped to `c(-1, 1)` for more consistent and readable visualizations.
+- Section 4.1.1 (`colocalization_raw_heatmap_per_sample`) now groups heatmaps by `heatmap_grouping_column` (default: condition) instead of always grouping by sample; the combined output file is named `all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap`.
+- Per-cell-type colocalization heatmaps (Section 4.1.2) likewise group by `heatmap_grouping_column`.
+- Abundance distribution plots (Section 3) now only plot a user-defined subset of markers and facet "per cell type" plots by `abundance_plots_grouping_column` (default: condition) rather than always by sample.
 
 ### Fixed
 - Fixed bug where `slot` was used instead of `layer`, causing an error.
 - `RcppML` and `pls` are now added as dependencies and installed when creating the `renv` environment.
 - Fixed issue in isotype fraction violin plot, where the displayed median would be rounded to zero. 
 - Typos.
+- Fixed hardcoded reference sample (`"S1_resting"`) in Section 4.1.1 reference heatmap; it now automatically uses the first group in the data.
 
 ## [0.2.1] 2026-02-26
 

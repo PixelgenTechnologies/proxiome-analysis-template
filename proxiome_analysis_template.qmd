@@ -53,13 +53,13 @@ This analysis workflow creates the following folder structure for organizing inp
     │
     ├── 03_abundance/                          # Section 3: Abundance distribution analysis
     │   └── abundance_plots/
-    │       ├── per_sample/                    # Abundance plots per sample
-    │       ├── per_cell_type/                 # Abundance plots per cell type
-    │       ├── per_cell_type_faceted_by_sample/  # Faceted plots by sample
+    │       ├── per_sample/                    # Abundance plots per sample (selected markers only)
+    │       ├── per_cell_type/                 # Abundance plots per cell type (selected markers only)
+    │       ├── per_cell_type_faceted_by_{grouping_column}/  # Faceted plots by condition (default) or sample
     │       └── per_condition_faceted_by_celltype/ # Faceted plots by condition
     │
     ├── 04_raw_proximity/                      # Section 4: Colocalization score analysis
-    │   ├── raw_colocalization_heatmap_per_sample/      # Heatmaps per sample
+    │   ├── raw_colocalization_heatmap_per_{grouping_column}/  # Heatmaps per condition (default) or sample
     │   ├── raw_colocalization_heatmap_per_cell_type/   # Heatmaps per cell type
     │   │   └── {cell_type}/                  # Subdirectories for each cell type
     │   └── colocalization_score_network/      # Network visualizations
@@ -2116,21 +2116,29 @@ markers_to_test <-
 
 # 3. Abundance distribution
 
-This section generates  abundance distribution plots for all markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
+This section generates abundance distribution plots for a selected subset of markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
 
-The analysis creates multiple visualization perspectives to facilitate  exploration:
+The analysis creates multiple visualization perspectives to facilitate exploration:
 
 - **Per sample**: Shows marker abundance distributions across all samples, useful for identifying sample-specific expression patterns or batch effects
 - **Per cell type**: Displays marker expression within each annotated cell type, helping to identify cell type-specific markers and expression heterogeneity
-- **Per cell type faceted by sample**: Combines cell type and sample information, enabling identification of cell type-specific expression differences between samples
+- **Per cell type faceted by group**: Combines cell type and group information (by default: condition), enabling identification of group-specific expression differences per cell type; switch `abundance_plots_grouping_column` to `"sample_alias"` to facet by individual sample instead
 - **Per condition faceted by cell type**: Compares marker abundance across experimental conditions within each cell type, useful for identifying condition-specific changes in marker expression
 
 These visualizations are valuable for quality control, marker validation, and exploratory data analysis. They help identify markers with high variability, detect potential batch effects, and understand marker expression patterns across the experimental design.
 
-**Note**: This section generates a large number of plots (multiple plots per marker), which can take approximately 10-15 minutes to complete depending on the number of markers and cells in the dataset.
+**Note**: By default, only a selected subset of markers is plotted to keep runtime manageable. Adjust `markers_for_abundance_plots` to the markers relevant to your project.
 
 ```{r}
-# PLOTTING THIS TAKES AROUND 10-15 MIN!
+# Markers to generate abundance distribution plots for. Replace with the markers
+# relevant to your project, e.g.: c("CD3e", "CD4", "CD8", "CD19", "CD56").
+# By default the first 20 markers are used as a placeholder only.
+# To plot all markers set: markers_for_abundance_plots <- rownames(pg_data)
+markers_for_abundance_plots <- rownames(pg_data)[seq_len(min(20, nrow(pg_data)))]
+
+# Column used to facet the "per cell type" plots. Set to "condition" (default) to
+# facet by experimental condition, or "sample_alias" to facet by individual sample.
+abundance_plots_grouping_column <- "condition"
 
 all_markers <- rownames(pg_data)
 
@@ -2149,6 +2157,7 @@ plot_data <- plot_data_clr |>
   )
 
 plot_data |>
+  filter(marker %in% markers_for_abundance_plots) |>
   group_by(marker) |>
   group_map(~ {
     marker_savename <- str_remove(.y, "\\.") # remove dot from marker name for saving files
@@ -2212,34 +2221,35 @@ plot_data |>
       plot = p_abundance_distribution_per_celltype
     )
 
-    # Save per cell type plots faceted by sample
-    p_clr_per_celltype_faceted_by_sample <- .x |>
+    # Save per cell type plots faceted by grouping column (default: condition;
+    # change abundance_plots_grouping_column to "sample_alias" to facet by sample)
+    p_clr_per_celltype_faceted_by_group <- .x |>
       filter(metric == "CLR") |>
       ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
       theme(legend.position = "none") +
       scale_color_manual(values = cell_palette) +
-      labs(title = "CLR per cell type", x = "", y = "CLR") +
-      facet_wrap(~sample_alias)
+      labs(title = glue::glue("CLR per cell type faceted by {abundance_plots_grouping_column}"), x = "", y = "CLR") +
+      facet_wrap(~ .data[[abundance_plots_grouping_column]])
 
-    p_count_per_celltype_faceted_by_sample <- .x |>
+    p_count_per_celltype_faceted_by_group <- .x |>
       filter(metric == "Count") |>
       ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
       theme(legend.position = "none") +
       scale_color_manual(values = cell_palette) +
-      labs(title = "Count per cell type", x = "", y = "Count") +
-      facet_wrap(~sample_alias) +
+      labs(title = glue::glue("Count per cell type faceted by {abundance_plots_grouping_column}"), x = "", y = "Count") +
+      facet_wrap(~ .data[[abundance_plots_grouping_column]]) +
       ylim(NA, count_99)
 
-    p_abundance_distribution_per_celltype_faceted_by_sample <- (p_clr_per_celltype_faceted_by_sample + p_count_per_celltype_faceted_by_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
+    p_abundance_distribution_per_celltype_faceted_by_group <- (p_clr_per_celltype_faceted_by_group + p_count_per_celltype_faceted_by_group) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
     export_plot(
-      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_sample/{marker_savename}_abundance_distribution_per_celltype_faceted_by_sample")),
+      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_{abundance_plots_grouping_column}/{marker_savename}_abundance_distribution_per_celltype_faceted_by_{abundance_plots_grouping_column}")),
       width = 16,
       height = 12,
-      plot = p_abundance_distribution_per_celltype_faceted_by_sample
+      plot = p_abundance_distribution_per_celltype_faceted_by_group
     )
 
     # Create plots for the current marker: CLR per condition per cell type, Count per condition per cell type
@@ -2281,32 +2291,66 @@ plot_data |>
 
 This section generates colocalization heatmaps that visualize the spatial proximity patterns between marker pairs expressed in the dataset. Colocalization scores quantify the extent to which two markers are found in close proximity to each other within cells, providing insights into protein co-localization and potential molecular interactions or co-expression patterns.
 
-### 4.1.1. Per Sample
+### 4.1.1. Per Group (condition or sample)
 
-For each sample, a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score) for all expressed marker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events.
+For each group (defined by `heatmap_grouping_column`, default: `"condition"`), a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score) for expressed marker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events. The color scale is capped to `c(-1, 1)` to keep the range comparable across experiments.
 
-To enable direct comparison across samples, all heatmaps use a consistent marker ordering (determined by hierarchical clustering of a reference sample) and identical color and size scales. This standardization ensures that differences in colocalization patterns between samples reflect true biological or experimental differences rather than visualization artifacts. Individual heatmaps are saved for each sample, and a combined visualization showing all samples side-by-side is also generated to facilitate cross-sample comparison.
+To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant or most variable proteins (controlled by `max_heatmap_markers` and `heatmap_marker_selection`).
+
+To enable direct comparison across groups, all heatmaps use a consistent marker ordering (determined by hierarchical clustering of a reference group) and identical color and size scales. This standardization ensures that differences in colocalization patterns between groups reflect true biological or experimental differences rather than visualization artifacts. Individual heatmaps are saved for each group, and a combined visualization showing all groups side-by-side is also generated to facilitate cross-group comparison.
 
 ```{r}
 #| label: colocalization_raw_heatmap_per_sample
 
+# Column used to group proximity data for heatmaps. Set to "condition" (default) to
+# summarize by experimental condition, or "sample_alias" to summarize per sample.
+heatmap_grouping_column <- "condition"
+
+# Maximum number of markers to display in the heatmap. When expressed_markers
+# contains more than max_heatmap_markers proteins, they are filtered to the top
+# most abundant ("top_abundant") or most variable ("top_variable") proteins.
+# Set max_heatmap_markers to Inf to always show all expressed markers.
+max_heatmap_markers <- 60
+heatmap_marker_selection <- "top_abundant" # "top_abundant" or "top_variable"
+
 expressed_markers <- unique(unlist(markers_to_test))
+
+# Optionally limit markers shown in the heatmap to the top most abundant or variable
+if (length(expressed_markers) > max_heatmap_markers) {
+  marker_scores <- if (heatmap_marker_selection == "top_variable") {
+    apply(
+      GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+      1, var, na.rm = TRUE
+    )
+  } else {
+    rowMeans(
+      GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+      na.rm = TRUE
+    )
+  }
+  marker_scores <- marker_scores[!is.na(marker_scores)]
+  expressed_markers <- names(sort(marker_scores, decreasing = TRUE))[seq_len(min(max_heatmap_markers, length(marker_scores)))]
+  message(glue::glue(
+    "Limiting heatmap to top {max_heatmap_markers} markers by {heatmap_marker_selection}."
+  ))
+}
 
 proximity_data <- ProximityScores(pg_data,
   lazy = TRUE,
-  meta_data_columns = c("sample_alias")
+  meta_data_columns = c(heatmap_grouping_column)
 ) |>
   filter(marker_1 %in% expressed_markers) |>
   filter(marker_2 %in% expressed_markers) |>
   collect()
 
-summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = heatmap_grouping_column)
 rm(proximity_data)
 gc()
 
 # Create reference heatmap to determine marker ordering
+reference_group <- sort(unique(summary_proximity_data[[heatmap_grouping_column]]))[1]
 reference_heatmap <- ColocalizationHeatmap(
-  summary_proximity_data |> filter(sample_alias == "S1_resting"),
+  summary_proximity_data |> filter(.data[[heatmap_grouping_column]] == reference_group),
   marker1_col = "marker_1",
   marker2_col = "marker_2",
   value_col = "mean_log2_ratio",
@@ -2331,29 +2375,25 @@ marker_scaling_factor <- 0.15 # Additional inches per marker
 plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
 plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
 
-# Calculate global scale ranges across all samples
-# This ensures all heatmaps have consistent color and size scales for fair comparison
-global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
+# Cap the color scale to c(-1, 1) for consistent and readable heatmaps
+global_value_limits <- c(-1, 1)
+
+# Calculate global size range across all groups for consistent size scaling
 global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
 
-# Use symmetric range for value scale (centered around 0) to match legend_range behavior
-# But ensure it covers the actual data range
-max_abs_value <- max(abs(global_value_range))
-global_value_limits <- c(-max_abs_value, max_abs_value)
+# Get all unique group values
+unique_groups <- unique(summary_proximity_data[[heatmap_grouping_column]])
 
-# Get all unique sample_alias values
-unique_samples <- unique(summary_proximity_data$sample_alias)
-
-# Create heatmaps for each sample using the reference marker order
+# Create heatmaps for each group using the reference marker order
 # Store plots in a list to combine them later
-sample_heatmaps <- list()
+group_heatmaps <- list()
 
-for (sample in unique_samples) {
-  # Filter data for current sample
-  sample_data <- summary_proximity_data |> filter(sample_alias == sample)
+for (group in unique_groups) {
+  # Filter data for current group
+  group_data <- summary_proximity_data |> filter(.data[[heatmap_grouping_column]] == group)
 
   tmp_plot <- ColocalizationHeatmap(
-    sample_data,
+    group_data,
     marker1_col = "marker_1",
     marker2_col = "marker_2",
     value_col = "mean_log2_ratio",
@@ -2361,9 +2401,9 @@ for (sample in unique_samples) {
     type = "dots",
     cluster_cols = FALSE,
     cluster_rows = FALSE,
-    legend_range = global_value_limits # Use global range for consistent scaling
+    legend_range = global_value_limits # Use capped range for consistent scaling
   ) +
-    ggtitle(glue::glue("Raw colocalization heatmap for {sample}"))
+    ggtitle(glue::glue("Raw colocalization heatmap for {group}"))
 
   # Apply the reference marker order to the ggplot object by modifying the scales
   # This ensures all heatmaps have consistent marker ordering
@@ -2371,7 +2411,7 @@ for (sample in unique_samples) {
     scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
     scale_y_discrete(limits = rev(marker_order), drop = FALSE)
 
-  # Ensure consistent scales across all samples for fair comparison
+  # Ensure consistent scales across all groups for fair comparison
   # The legend_range parameter already handles the value scale, but we need to ensure
   # the size scale is also consistent. Try both fill and color aesthetics in case
   # ColocalizationHeatmap uses either one
@@ -2387,36 +2427,35 @@ for (sample in unique_samples) {
     tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
   }
 
-  # Ensure consistent size scale across all samples
+  # Ensure consistent size scale across all groups
   tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
 
   # Save individual plot with dimensions scaled to number of markers
   export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/{sample}_raw_colocalization_heatmap")),
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/{group}_raw_colocalization_heatmap")),
     plot = tmp_plot,
     width = plot_width,
     height = plot_height
   )
 
   # Store plot for combined visualization
-  sample_heatmaps[[sample]] <- tmp_plot
+  group_heatmaps[[group]] <- tmp_plot
 }
 
-# Create a combined plot with all samples side by side
-# Use patchwork to combine plots (install with: install.packages("patchwork"))
-n_samples <- length(unique_samples)
+# Create a combined plot with all groups side by side
+n_groups <- length(unique_groups)
 n_rows <- 2
-n_cols <- ceiling(n_samples / n_rows)
-combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = n_rows)
+n_cols <- ceiling(n_groups / n_rows)
+combined_plot <- patchwork::wrap_plots(group_heatmaps, nrow = n_rows)
 
 # Calculate combined plot dimensions: scale width by number of columns, height by number of rows
-# Each subplot maintains its aspect ratio while accommodating multiple samples
+# Each subplot maintains its aspect ratio while accommodating multiple groups
 combined_width <- plot_width * n_cols
 combined_height <- plot_height * n_rows
 
 # Save the combined plot
 export_plot(
-  filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_sample/all_samples_combined_raw_colocalization_heatmap")),
+  filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
   plot = combined_plot,
   width = combined_width,
   height = combined_height
@@ -2425,9 +2464,11 @@ export_plot(
 
 ### 4.1.2. Per cluster
 
-This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each sample within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across samples within the same cell type.
+This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each group (defined by `heatmap_grouping_column`, default: `"condition"`) within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across groups within the same cell type.
 
-The visualization follows the same principles as the per-sample analysis: color intensity represents the mean log2 ratio of observed versus expected colocalization, and dot size indicates the percentage of cells in which the marker pair was detected. All heatmaps for a given cell type use consistent marker ordering and scales to enable direct comparison across samples. Individual heatmaps are saved for each sample-cell type combination, and combined visualizations showing all samples side-by-side are generated for each cell type. Results are organized in separate subdirectories for each cell type to facilitate navigation and interpretation.
+To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant or most variable proteins (controlled by `max_heatmap_markers` and `heatmap_marker_selection`, defined in Section 4.1.1). The color scale is capped to `c(-1, 1)`.
+
+The visualization follows the same principles as the per-group analysis: color intensity represents the mean log2 ratio of observed versus expected colocalization, and dot size indicates the percentage of cells in which the marker pair was detected. All heatmaps for a given cell type use consistent marker ordering and scales to enable direct comparison across groups. Individual heatmaps are saved for each group-cell type combination, and combined visualizations showing all groups side-by-side are generated for each cell type. Results are organized in separate subdirectories for each cell type to facilitate navigation and interpretation.
 
 ```{r}
 #| label: colocalization_raw_heatmap_per_cell_type
@@ -2437,17 +2478,36 @@ cell_types <- cell_types[!is.na(cell_types)]
 
 for (cell_type in cell_types) {
   expressed_markers <- markers_to_test[[cell_type]]
+
+  # Optionally limit markers shown in the heatmap to the top most abundant or variable
+  # Uses heatmap_marker_selection and max_heatmap_markers defined in Section 4.1.1
+  if (length(expressed_markers) > max_heatmap_markers) {
+    marker_scores <- if (heatmap_marker_selection == "top_variable") {
+      apply(
+        GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+        1, var, na.rm = TRUE
+      )
+    } else {
+      rowMeans(
+        GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+        na.rm = TRUE
+      )
+    }
+    marker_scores <- marker_scores[!is.na(marker_scores)]
+    expressed_markers <- names(sort(marker_scores, decreasing = TRUE))[seq_len(min(max_heatmap_markers, length(marker_scores)))]
+  }
+
   pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
 
   proximity_data <- ProximityScores(pg_data_cell_type,
     lazy = TRUE,
-    meta_data_columns = c("sample_alias")
+    meta_data_columns = c(heatmap_grouping_column)
   ) |>
     filter(marker_1 %in% expressed_markers) |>
     filter(marker_2 %in% expressed_markers) |>
     collect()
 
-  summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+  summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = heatmap_grouping_column)
   rm(proximity_data)
   gc()
 
@@ -2484,35 +2544,31 @@ for (cell_type in cell_types) {
   plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
   plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
 
-  # Calculate global scale ranges across all samples for this cell type
-  # This ensures all heatmaps have consistent color and size scales for fair comparison
-  global_value_range <- range(summary_proximity_data$mean_log2_ratio, na.rm = TRUE)
+  # Cap the color scale to c(-1, 1) for consistent and readable heatmaps
+  global_value_limits <- c(-1, 1)
+
+  # Calculate global size range across all groups for this cell type
   global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
 
-  # Use symmetric range for value scale (centered around 0) to match legend_range behavior
-  # But ensure it covers the actual data range
-  max_abs_value <- max(abs(global_value_range))
-  global_value_limits <- c(-max_abs_value, max_abs_value)
+  # Get all unique group values
+  unique_groups <- unique(summary_proximity_data[[heatmap_grouping_column]])
 
-  # Get all unique sample_alias values
-  unique_samples <- unique(summary_proximity_data$sample_alias)
-
-  # Create heatmaps for each sample using the reference marker order
+  # Create heatmaps for each group using the reference marker order
   # Store plots in a list to combine them later
-  sample_heatmaps <- list()
+  group_heatmaps <- list()
 
-  for (sample in unique_samples) {
-    # Filter data for current sample
-    sample_data <-
+  for (group in unique_groups) {
+    # Filter data for current group
+    group_data <-
       summary_proximity_data |>
-      filter(sample_alias == sample)
+      filter(.data[[heatmap_grouping_column]] == group)
 
     if (n_distinct(c(
-      sample_data$marker_1,
-      sample_data$marker_2
+      group_data$marker_1,
+      group_data$marker_2
     )) >= 2) {
       tmp_plot <- ColocalizationHeatmap(
-        sample_data,
+        group_data,
         marker1_col = "marker_1",
         marker2_col = "marker_2",
         value_col = "mean_log2_ratio",
@@ -2520,9 +2576,9 @@ for (cell_type in cell_types) {
         type = "dots",
         cluster_cols = FALSE,
         cluster_rows = FALSE,
-        legend_range = global_value_limits # Use global range for consistent scaling
+        legend_range = global_value_limits # Use capped range for consistent scaling
       ) +
-        ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {sample}"))
+        ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {group}"))
 
       # Apply the reference marker order to the ggplot object by modifying the scales
       # This ensures all heatmaps have consistent marker ordering
@@ -2530,7 +2586,7 @@ for (cell_type in cell_types) {
         scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
         scale_y_discrete(limits = rev(marker_order), drop = FALSE)
 
-      # Ensure consistent scales across all samples for fair comparison
+      # Ensure consistent scales across all groups for fair comparison
       # The legend_range parameter already handles the value scale, but we need to ensure
       # the size scale is also consistent. Try both fill and color aesthetics in case
       # ColocalizationHeatmap uses either one
@@ -2546,12 +2602,12 @@ for (cell_type in cell_types) {
         tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
       }
 
-      # Ensure consistent size scale across all samples
+      # Ensure consistent size scale across all groups
       tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
 
       # Save individual plot with dimensions scaled to number of markers
       export_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{sample}_{cell_type}_raw_colocalization_heatmap")),
+        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{group}_{cell_type}_raw_colocalization_heatmap")),
         plot = tmp_plot,
         width = plot_width,
         height = plot_height
@@ -2560,30 +2616,29 @@ for (cell_type in cell_types) {
       # Create an empty plot with a message indicating insufficient markers
       tmp_plot <- ggplot() +
         theme_void() +
-        geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {sample}"))) +
+        geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {group}"))) +
         xlim(-1, 1) +
         ylim(-1, 1)
     }
 
     # Store plot for combined visualization
-    sample_heatmaps[[sample]] <- tmp_plot
+    group_heatmaps[[group]] <- tmp_plot
   }
 
-  # Create a combined plot with all samples side by side
-  # Use patchwork to combine plots (install with: install.packages("patchwork"))
-  n_samples <- length(unique_samples)
+  # Create a combined plot with all groups side by side
+  n_groups <- length(unique_groups)
   n_rows <- 2
-  n_cols <- ceiling(n_samples / n_rows)
-  combined_plot <- patchwork::wrap_plots(sample_heatmaps, nrow = n_rows)
+  n_cols <- ceiling(n_groups / n_rows)
+  combined_plot <- patchwork::wrap_plots(group_heatmaps, nrow = n_rows)
 
   # Calculate combined plot dimensions: scale width by number of columns, height by number of rows
-  # Each subplot maintains its aspect ratio while accommodating multiple samples
+  # Each subplot maintains its aspect ratio while accommodating multiple groups
   combined_width <- plot_width * n_cols
   combined_height <- plot_height * n_rows
 
   # Save the combined plot
   export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_samples_combined_raw_colocalization_heatmap")),
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
     plot = combined_plot,
     width = combined_width,
     height = combined_height
