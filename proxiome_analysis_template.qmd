@@ -2308,8 +2308,8 @@ heatmap_grouping_column <- "condition"
 
 # Maximum number of markers to display in the heatmap. When expressed_markers
 # contains more than max_heatmap_markers proteins, they are filtered to the top
-# most abundant ("top_abundant") or most variable ("top_variable") proteins.
-# Set max_heatmap_markers to Inf to always show all expressed markers.
+# most abundant proteins. Set max_heatmap_markers to Inf to always show all
+# expressed markers.
 max_heatmap_markers <- 60
 
 expressed_markers <- unique(unlist(markers_to_test))
@@ -2648,12 +2648,16 @@ This section provides two complementary analyses: a whole-dataset network visual
 
 ### 4.2.1. All Cell Types
 
-This section generates network visualizations that capture colocalization patterns across all cell types in the dataset, with separate network plots created for each sample. This whole-dataset approach provides a global view of marker colocalization relationships and enables comparison of how these relationships vary across samples. The analysis includes all cells regardless of cell type annotation, making it useful for identifying sample-wide colocalization patterns and detecting potential batch effects or experimental condition-specific changes.
+This section generates network visualizations that capture colocalization patterns across all cell types in the dataset, with separate network plots created for each group (defined by `network_grouping_column`, default: condition). This whole-dataset approach provides a global view of marker colocalization relationships and enables comparison of how these relationships vary across conditions. The analysis includes all cells regardless of cell type annotation, making it useful for identifying condition-specific colocalization patterns and detecting potential batch effects or experimental condition-specific changes. Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
 
 Users should specify a focused set of `network_markers` for visualization, as network graphs become difficult to interpret with too many nodes. The filtering thresholds (`metric_threshold` and `pct_detected_threshold`) help focus the visualization on the most robust colocalization relationships. The `only_positive_mean_log2_ratio` parameter can be set to filter for only positive colocalization (markers that co-occur more frequently than expected) or to include both positive and negative colocalization relationships.
 
 ```{r}
 #| label: colocalization_score_network_all_cell_types
+
+# Column used to facet network plots. Set to "condition" (default) to facet by 
+# experimental condition, or "sample_alias" to facet by individual sample.
+network_grouping_column <- "condition"
 
 network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
 only_positive_mean_log2_ratio <- TRUE
@@ -2663,13 +2667,13 @@ pct_detected_threshold <- 0.5
 
 proximity_data <- ProximityScores(pg_data,
   lazy = TRUE,
-  meta_data_columns = c("sample_alias")
+  meta_data_columns = c(network_grouping_column)
 ) |>
   filter(marker_1 %in% network_markers) |>
   filter(marker_2 %in% network_markers) |>
   collect()
 
-summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = network_grouping_column)
 rm(proximity_data)
 gc()
 
@@ -2678,7 +2682,7 @@ df_net <- summary_proximity_data %>%
   filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
   filter(pct_detected > pct_detected_threshold) %>%
   mutate(from = marker_1, to = marker_2) %>%
-  select(from, to, mean_log2_ratio, sample_alias)
+  select(from, to, mean_log2_ratio, !!sym(network_grouping_column))
 
 tidygraph::as_tbl_graph(df_net) %>%
   ggraph(layout = "kk") +
@@ -2690,7 +2694,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   ) +
   scale_x_continuous(expand = c(0.2, 0.2)) +
   scale_y_continuous(expand = c(0.2, 0.2)) +
-  facet_edges(~sample_alias, nrow = 2) +
+  facet_edges(as.formula(paste0("~", network_grouping_column)), nrow = 2) +
   theme(
     aspect.ratio = 1,
     panel.background = element_rect(fill = "white", color = "black"),
@@ -2709,7 +2713,7 @@ export_plot(
 
 ### 4.2.2. Per Cell Type
 
-This section generates cell type-specific network visualizations, analyzing colocalization patterns within a single cell type of interest. By focusing on a specific cell type, this analysis can reveal cell type-specific colocalization signatures that may be masked in whole-dataset analyses. The network visualization helps identify which markers form strong colocalization relationships within the selected cell type and how these relationships vary across samples.
+This section generates cell type-specific network visualizations, analyzing colocalization patterns within a single cell type of interest. By focusing on a specific cell type, this analysis can reveal cell type-specific colocalization signatures that may be masked in whole-dataset analyses. The network visualization helps identify which markers form strong colocalization relationships within the selected cell type and how these relationships vary across groups (defined by `network_grouping_column`, default: condition). Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
 
 Users should specify the `cell_type_of_interest` variable to select which cell type to analyze. The same filtering criteria and visualization principles apply as in the all-cell-types analysis, but the proximity data is filtered to include only cells belonging to the specified cell type. This enables identification of cell type-specific marker interactions and comparison of how colocalization networks differ between cell types.
 
@@ -2725,7 +2729,7 @@ pct_detected_threshold <- 0.5
 
 proximity_data <- ProximityScores(pg_data,
   lazy = TRUE,
-  meta_data_columns = c("sample_alias", "cell_annotation")
+  meta_data_columns = c(network_grouping_column, "cell_annotation")
 ) |>
   filter(cell_annotation == cell_type_of_interest) |>
   filter(marker_1 %in% network_markers) |>
@@ -2733,7 +2737,7 @@ proximity_data <- ProximityScores(pg_data,
   filter(marker_1 != marker_2) |>
   collect()
 
-summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = "sample_alias")
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = network_grouping_column)
 rm(proximity_data)
 gc()
 
@@ -2742,7 +2746,7 @@ df_net <- summary_proximity_data %>%
   filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
   filter(pct_detected > pct_detected_threshold) %>%
   mutate(from = marker_1, to = marker_2) %>%
-  select(from, to, mean_log2_ratio, sample_alias)
+  select(from, to, mean_log2_ratio, !!sym(network_grouping_column))
 
 tidygraph::as_tbl_graph(df_net) %>%
   ggraph(layout = "kk") +
@@ -2754,7 +2758,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   ) +
   scale_x_continuous(expand = c(0.2, 0.2)) +
   scale_y_continuous(expand = c(0.2, 0.2)) +
-  facet_edges(~sample_alias, nrow = 2) +
+  facet_edges(as.formula(paste0("~", network_grouping_column)), nrow = 2) +
   theme(
     aspect.ratio = 1,
     panel.background = element_rect(fill = "white", color = "black"),
