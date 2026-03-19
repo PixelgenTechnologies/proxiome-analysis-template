@@ -2132,13 +2132,13 @@ These visualizations are valuable for quality control, marker validation, and ex
 ```{r}
 # Markers to generate abundance distribution plots for. Replace with the markers
 # relevant to your project, e.g.: c("CD3e", "CD4", "CD8", "CD19", "CD56").
-# By default the first 20 markers are used as a placeholder only.
+# By default the first 10 markers are used as a placeholder only.
 # To plot all markers set: markers_for_abundance_plots <- rownames(pg_data)
-markers_for_abundance_plots <- rownames(pg_data)[seq_len(min(20, nrow(pg_data)))]
+markers_for_abundance_plots <- rownames(pg_data)[seq_len(min(10, nrow(pg_data)))]
 
 # Column used to facet the "per cell type" plots. Set to "condition" (default) to
 # facet by experimental condition, or "sample_alias" to facet by individual sample.
-abundance_plots_grouping_column <- "condition"
+abundance_plots_grouping_column <- "sample_alias"
 
 all_markers <- rownames(pg_data)
 
@@ -2295,7 +2295,7 @@ This section generates colocalization heatmaps that visualize the spatial proxim
 
 For each group (defined by `heatmap_grouping_column`, default: `"condition"`), a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score) for expressed marker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events. The color scale is capped to `c(-1, 1)` to keep the range comparable across experiments.
 
-To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant or most variable proteins (controlled by `max_heatmap_markers` and `heatmap_marker_selection`).
+To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant (controlled by `max_heatmap_markers`).
 
 To enable direct comparison across groups, all heatmaps use a consistent marker ordering (determined by hierarchical clustering of a reference group) and identical color and size scales. This standardization ensures that differences in colocalization patterns between groups reflect true biological or experimental differences rather than visualization artifacts. Individual heatmaps are saved for each group, and a combined visualization showing all groups side-by-side is also generated to facilitate cross-group comparison.
 
@@ -2311,36 +2311,23 @@ heatmap_grouping_column <- "condition"
 # most abundant ("top_abundant") or most variable ("top_variable") proteins.
 # Set max_heatmap_markers to Inf to always show all expressed markers.
 max_heatmap_markers <- 60
-heatmap_marker_selection <- "top_abundant" # "top_abundant" or "top_variable"
 
 expressed_markers <- unique(unlist(markers_to_test))
 
-# Optionally limit markers shown in the heatmap to the top most abundant or variable
-if (length(expressed_markers) > max_heatmap_markers) {
-  marker_scores <- if (heatmap_marker_selection == "top_variable") {
-    apply(
-      GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
-      1, var, na.rm = TRUE
-    )
-  } else {
-    rowMeans(
-      GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
-      na.rm = TRUE
-    )
-  }
-  marker_scores <- marker_scores[!is.na(marker_scores)]
-  expressed_markers <- names(sort(marker_scores, decreasing = TRUE))[seq_len(min(max_heatmap_markers, length(marker_scores)))]
-  message(glue::glue(
-    "Limiting heatmap to top {max_heatmap_markers} markers by {heatmap_marker_selection}."
-  ))
-}
+# Optionally limit markers shown in the heatmap to the top most abundant
+plot_markers <- 
+  head(rowMeans(
+  GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+  na.rm = TRUE
+), max_heatmap_markers) %>% 
+  names()
 
 proximity_data <- ProximityScores(pg_data,
   lazy = TRUE,
   meta_data_columns = c(heatmap_grouping_column)
 ) |>
-  filter(marker_1 %in% expressed_markers) |>
-  filter(marker_2 %in% expressed_markers) |>
+  filter(marker_1 %in% plot_markers) |>
+  filter(marker_2 %in% plot_markers) |>
   collect()
 
 summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = heatmap_grouping_column)
@@ -2348,9 +2335,11 @@ rm(proximity_data)
 gc()
 
 # Create reference heatmap to determine marker ordering
-reference_group <- sort(unique(summary_proximity_data[[heatmap_grouping_column]]))[1]
+# By default, the reference group is the first one to occur in metadata, but you can specify it explicitly if needed
+reference_group <- metadata[[heatmap_grouping_column]][1]
 reference_heatmap <- ColocalizationHeatmap(
-  summary_proximity_data |> filter(.data[[heatmap_grouping_column]] == reference_group),
+  summary_proximity_data |> 
+    filter(.data[[heatmap_grouping_column]] == reference_group),
   marker1_col = "marker_1",
   marker2_col = "marker_2",
   value_col = "mean_log2_ratio",
@@ -2466,7 +2455,7 @@ export_plot(
 
 This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each group (defined by `heatmap_grouping_column`, default: `"condition"`) within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across groups within the same cell type.
 
-To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant or most variable proteins (controlled by `max_heatmap_markers` and `heatmap_marker_selection`, defined in Section 4.1.1). The color scale is capped to `c(-1, 1)`.
+To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant proteins (controlled by `max_heatmap_markers`). The color scale is capped to `c(-1, 1)`.
 
 The visualization follows the same principles as the per-group analysis: color intensity represents the mean log2 ratio of observed versus expected colocalization, and dot size indicates the percentage of cells in which the marker pair was detected. All heatmaps for a given cell type use consistent marker ordering and scales to enable direct comparison across groups. Individual heatmaps are saved for each group-cell type combination, and combined visualizations showing all groups side-by-side are generated for each cell type. Results are organized in separate subdirectories for each cell type to facilitate navigation and interpretation.
 
@@ -2476,35 +2465,35 @@ The visualization follows the same principles as the per-group analysis: color i
 cell_types <- unique(pg_data[[]]$cell_annotation)
 cell_types <- cell_types[!is.na(cell_types)]
 
+expressed_markers <- unique(unlist(markers_to_test))
+
+grouped_marker_abundance <-
+  FetchData(pg_data, 
+            vars = c("cell_annotation", expressed_markers), 
+            layer = "data") %>% 
+  group_by(cell_annotation) %>%
+  summarise(across(all_of(expressed_markers), \(x) mean(x, na.rm = TRUE))) %>% 
+  column_to_rownames("cell_annotation")
+
 for (cell_type in cell_types) {
   expressed_markers <- markers_to_test[[cell_type]]
-
-  # Optionally limit markers shown in the heatmap to the top most abundant or variable
-  # Uses heatmap_marker_selection and max_heatmap_markers defined in Section 4.1.1
-  if (length(expressed_markers) > max_heatmap_markers) {
-    marker_scores <- if (heatmap_marker_selection == "top_variable") {
-      apply(
-        GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
-        1, var, na.rm = TRUE
-      )
-    } else {
-      rowMeans(
-        GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
-        na.rm = TRUE
-      )
-    }
-    marker_scores <- marker_scores[!is.na(marker_scores)]
-    expressed_markers <- names(sort(marker_scores, decreasing = TRUE))[seq_len(min(max_heatmap_markers, length(marker_scores)))]
-  }
-
+  
+  # Optionally limit markers shown in the heatmap to the top most abundant
+  plot_markers <-
+    grouped_marker_abundance[cell_type, ] %>% 
+    unlist() %>% 
+    sort(decreasing = T) %>% 
+    head(max_heatmap_markers) %>%
+    names()
+    
   pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
 
   proximity_data <- ProximityScores(pg_data_cell_type,
     lazy = TRUE,
     meta_data_columns = c(heatmap_grouping_column)
   ) |>
-    filter(marker_1 %in% expressed_markers) |>
-    filter(marker_2 %in% expressed_markers) |>
+    filter(marker_1 %in% plot_markers) |>
+    filter(marker_2 %in% plot_markers) |>
     collect()
 
   summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = heatmap_grouping_column)
@@ -2696,12 +2685,8 @@ tidygraph::as_tbl_graph(df_net) %>%
   geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
   geom_node_label(aes(label = name), size = 2.5) +
   scale_edge_color_gradientn(
-    colours = c(
-      "#1F395F", "#647DA3", "#BBC8DA",
-      "#FFFFFF", "#F0BCCD", "#BE5F7D",
-      "#781534"
-    ),
-    limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    colours = gradient_palette,
+    limits = c(-1, 1) * abs(max(df_net$mean_log2_ratio))
   ) +
   scale_x_continuous(expand = c(0.2, 0.2)) +
   scale_y_continuous(expand = c(0.2, 0.2)) +
@@ -2764,11 +2749,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
   geom_node_label(aes(label = name), size = 2.5) +
   scale_edge_color_gradientn(
-    colours = c(
-      "#1F395F", "#647DA3", "#BBC8DA",
-      "#FFFFFF", "#F0BCCD", "#BE5F7D",
-      "#781534"
-    ),
+    colours = gradient_palette,
     limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
   ) +
   scale_x_continuous(expand = c(0.2, 0.2)) +
