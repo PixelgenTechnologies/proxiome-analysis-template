@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added an annotation checkpoint where the user can decide which annotation to use for the downstream analysis.
 - Added content to visualize the final cell annotation.
 - Added a cell annotation assignment matrix that can be used to assess the results of automatic annotation per cluster.
+- Added new gradient palette. 
 
 ### Updated
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The reference condition for differential testing is now selected at the beginning of the statistical analysis section.
 - Samples should now generally be ordered in plots according to their order in the sample metadata file.
 - Updated some text in the PAT to be short and concise. 
+- The differential colocalization heatmap now only shows differentially colocalized proteins instead of all pairs.
 
 ### Fixed
 - Fixed bug where `slot` was used instead of `layer`, causing an error.
