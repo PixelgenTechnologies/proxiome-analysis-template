@@ -133,6 +133,12 @@ options(
 )
 # Set global options for file formats to save plots in both PNG and PDF
 options(export_plot.file_formats = c("png", "pdf"))
+
+# Minimum p-value to use in -log10 transformations for volcano plots.
+# When p_val_adj == 0 (floating-point underflow), -log10(0) becomes Inf and
+# data-point labels are clipped. Coerce any p-value below this threshold to
+# this value before computing -log10.
+min_p_value_threshold <- 1e-300
 ```
 
 ## 0.2. Create the PNA object
@@ -327,6 +333,21 @@ sample_palette <-
 # Use pixelatorRs palette for coloring cell types
 cell_palette <-
   Pixelgen_cell_palette
+
+gradient_palette <-
+  c(
+    "#1F395F",
+    "#44628E",
+    "#718BB2",
+    "#A8B9D1",
+    "#DBE1EA",
+    "#F1EEE9",
+    "#F0D7E0",
+    "#E3A6B8",
+    "#CB6E8B",
+    "#A23F5E",
+    "#781534"
+  )
 ```
 
 # 1. Quality control
@@ -351,18 +372,9 @@ pg_data[[]] |>
   ggplot(aes(
     sample_alias,
     reads_in_component,
-    color = condition
+    fill = condition
   )) +
-  ggbeeswarm::geom_quasirandom() +
-  stat_summary(
-    fun = median,
-    geom = "point",
-    shape = 23,
-    size = 1,
-    fill = "black",
-    color = "black",
-    position = position_dodge(width = 0.75)
-  ) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
   stat_summary(
     # annotate median values above points
     fun = median,
@@ -370,15 +382,14 @@ pg_data[[]] |>
     aes(label = round(after_stat(y), 1)),
     vjust = -1,
     size = 3,
-    color = "black",
-    position = position_dodge(width = 0.75)
+    color = "black"
   ) +
   theme_bw() +
   labs(
     x = "Sample",
     y = "Reads in Component",
   ) +
-  scale_color_manual(values = condition_palette) +
+  scale_fill_manual(values = condition_palette) +
   scale_y_log10() +
   theme(
     legend.position = "bottom",
@@ -389,8 +400,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_read_depth"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -406,18 +417,9 @@ pg_data[[]] |>
   ggplot(aes(
     sample_alias,
     average_k_core,
-    color = condition
+    fill = condition
   )) +
-  ggbeeswarm::geom_quasirandom() +
-  stat_summary(
-    fun = median,
-    geom = "point",
-    shape = 23,
-    size = 1,
-    fill = "black",
-    color = "black",
-    position = position_dodge(width = 0.75)
-  ) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
   stat_summary(
     # annotate median values above points
     fun = median,
@@ -425,15 +427,14 @@ pg_data[[]] |>
     aes(label = round(after_stat(y), 1)),
     vjust = -1,
     size = 3,
-    color = "black",
-    position = position_dodge(width = 0.75)
+    color = "black"
   ) +
   theme_bw() +
   labs(
     x = "Sample",
     y = "Average k-core",
   ) +
-  scale_color_manual(values = condition_palette) +
+  scale_fill_manual(values = condition_palette) +
   scale_y_log10() +
   theme(
     legend.position = "bottom",
@@ -444,8 +445,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_average_k_core"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -471,18 +472,9 @@ pg_data[[]] |>
   ggplot(aes(
     sample_alias,
     prc_dangling_nodes,
-    color = condition
+    fill = condition
   )) +
-  ggbeeswarm::geom_quasirandom() +
-  stat_summary(
-    fun = median,
-    geom = "point",
-    shape = 23,
-    size = 1,
-    fill = "black",
-    color = "black",
-    position = position_dodge(width = 0.75)
-  ) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
   stat_summary(
     # annotate median values above points
     fun = median,
@@ -490,15 +482,14 @@ pg_data[[]] |>
     aes(label = round(after_stat(y), 1)),
     vjust = -1,
     size = 3,
-    color = "black",
-    position = position_dodge(width = 0.75)
+    color = "black"
   ) +
   theme_bw() +
   labs(
     x = "Sample",
     y = "% Dangling nodes",
   ) +
-  scale_color_manual(values = condition_palette) +
+  scale_fill_manual(values = condition_palette) +
   scale_y_log10() +
   theme(
     legend.position = "bottom",
@@ -509,8 +500,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -553,18 +544,9 @@ pg_data[[]] |>
   ggplot(aes(
     sample_alias,
     n_umi,
-    color = condition
+    fill = condition
   )) +
-  ggbeeswarm::geom_quasirandom() +
-  stat_summary(
-    fun = median,
-    geom = "point",
-    shape = 23,
-    size = 1,
-    fill = "black",
-    color = "black",
-    position = position_dodge(width = 0.75)
-  ) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
   stat_summary(
     # annotate median values above points
     fun = median,
@@ -572,15 +554,14 @@ pg_data[[]] |>
     aes(label = after_stat(round(y, 1))),
     vjust = -1,
     size = 3,
-    color = "black",
-    position = position_dodge(width = 0.75)
+    color = "black"
   ) +
   theme_bw() +
   labs(
     x = "Sample",
     y = "Number of UMIs",
   ) +
-  scale_color_manual(values = condition_palette) +
+  scale_fill_manual(values = condition_palette) +
   scale_y_log10() +
   theme(
     legend.position = "bottom",
@@ -601,8 +582,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_n_umi"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -750,7 +731,7 @@ pg_data[[]] |>
   scale_x_log10() +
   scale_y_log10() +
   coord_equal(ratio = 1.5) +
-  theme_minimal(base_size = 18) +
+  theme_bw() +
   labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
   theme(
     aspect.ratio = 1,
@@ -780,18 +761,9 @@ pg_data[[]] |>
   ggplot(aes(
     sample_alias,
     100 * isotype_fraction,
-    color = condition
+    fill = condition
   )) +
-  ggbeeswarm::geom_quasirandom() +
-  stat_summary(
-    fun = median,
-    geom = "point",
-    shape = 23,
-    size = 1,
-    fill = "black",
-    color = "black",
-    position = position_dodge(width = 0.75)
-  ) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
   stat_summary(
     # annotate median values above points
     fun = median,
@@ -802,15 +774,14 @@ pg_data[[]] |>
     )),
     vjust = -1,
     size = 3,
-    color = "black",
-    position = position_dodge(width = 0.75)
+    color = "black"
   ) +
   geom_hline(
     yintercept = isotype_percent_threshold,
     linetype = "dashed",
     color = "red"
   ) +
-  scale_color_manual(values = condition_palette) +
+  scale_fill_manual(values = condition_palette) +
   theme_bw() +
   theme(
     legend.position = "bottom",
@@ -825,8 +796,8 @@ export_plot(
   filename = here::here(
     "results/01_quality_control/violin_plots/quality_control_isotype_controls"
   ),
-  width = 10,
-  height = 8
+  width = 7,
+  height = 5
 )
 ```
 
@@ -855,6 +826,8 @@ This optional step allows users to filter markers based on expression levels, re
 This section demonstrates one approach using counts per million (CPM) thresholds. For each marker, the 50th percentile (median) and 95th percentile of CPM values are calculated across all cells. Markers are then selected based on whether their 95th percentile exceeds a defined threshold. This threshold should be adjusted according to the background signal levels in the dataset and the expected presence of specific markers based on the experimental design.
 
 In the example provided here, the threshold is set to 2000 CPM at the 95th percentile. This effectively means that markers are retained if they are expressed at detectable levels in cell populations comprising at least 5% of the sample. Comparing the 95th percentile to the 50th percentile (median) provides insight into the variability of marker expression across cells, helping to distinguish markers with consistent expression from those with highly variable or rare expression patterns.
+
+**Customizing the marker list:** After running the code below, the selected markers will be printed. You can freely **add** or **remove** markers from the `selected_markers` vector to tailor the list to your dataset and experimental design. Alternatively, to skip selection entirely and use all available markers, you can replace `selected_markers` with `rownames(pg_data)`. A smaller, focused marker set often leads to cleaner dimensionality reduction and clustering results.
 
 
 ```{r}
@@ -919,6 +892,13 @@ selected_markers <-
   cpm_quantiles |>
   filter(kept) |>
   pull(marker)
+
+# Print the selected markers so they are visible in the IDE.
+# You can manually add or remove markers from this vector below as needed.
+# To use all available markers instead, comment out the selection above and set:
+#   selected_markers <- rownames(pg_data)
+message("Selected markers for dimensionality reduction:")
+print(selected_markers)
 ```
 
 # 2. Data processing
@@ -994,10 +974,11 @@ Embeddings(pg_data, "pca") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(PC_1, PC_2, color = sample_alias)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   coord_fixed() +
   scale_color_manual(values = sample_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
@@ -1010,10 +991,11 @@ Embeddings(pg_data, "umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(umap_1, umap_2, color = sample_alias)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   coord_fixed() +
   scale_color_manual(values = sample_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
@@ -1055,10 +1037,11 @@ Embeddings(pg_data, "harmony") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   coord_fixed() +
   scale_color_manual(values = sample_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
@@ -1070,10 +1053,11 @@ Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   coord_fixed() +
   scale_color_manual(values = sample_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 export_plot(
   filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
@@ -1106,10 +1090,11 @@ Embeddings(pg_data, "harmony") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   coord_fixed() +
   scale_color_manual(values = cluster_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 export_plot(
   filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
@@ -1121,10 +1106,11 @@ Embeddings(pg_data, "harmony_umap") |>
   as_tibble(rownames = "cell_id") |>
   left_join(cell_metadata, by = "cell_id") |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   coord_fixed() +
   scale_color_manual(values = cluster_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 export_plot(
   filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
@@ -1207,7 +1193,7 @@ Embeddings(pg_data, "harmony_umap") |>
     by = "cell_id"
   ) |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   geom_text(
     data = . %>%
       group_by(l1_annotation_summary) %>%
@@ -1237,7 +1223,7 @@ Embeddings(pg_data, "harmony_umap") |>
     by = "cell_id"
   ) |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   geom_text(
     data = . %>%
       group_by(l1_annotation) %>%
@@ -1267,7 +1253,7 @@ Embeddings(pg_data, "harmony_umap") |>
     by = "cell_id"
   ) |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation_summary)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   geom_text(
     data = . %>%
       group_by(l2_annotation_summary) %>%
@@ -1296,7 +1282,7 @@ Embeddings(pg_data, "harmony_umap") |>
     by = "cell_id"
   ) |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   geom_text(
     data = . %>%
       group_by(l2_annotation) %>%
@@ -1398,16 +1384,18 @@ diff_abundant_markers_cluster |>
   as.ggplot()
 export_plot(
   filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
-  width = 10,
-  height = 4
+  width = 14,
+  height = 5
 )
 
-# Volcano plot of differential abundance markers per cluster
+# Volcano plot of differential abundance markers per cluster.
 diff_abundant_markers_cluster |>
-  ggplot(aes(difference, -log10(p_val))) +
+  mutate(neg_log10_p_val = -log10(pmax(p_val_adj, min_p_value_threshold))) |>
+  ggplot(aes(difference, neg_log10_p_val, color = difference)) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  geom_point(size = 0.1) +
+  geom_vline(xintercept = c(-1, 1), col = "grey") +
+  geom_point(size = 0.5) +
   geom_text(
     data = . %>%
       group_by(cluster) %>%
@@ -1417,12 +1405,20 @@ diff_abundant_markers_cluster |>
     size = 2
   ) +
   facet_wrap(~cluster) +
-  scale_fill_manual(values = cluster_palette) +
+  scale_color_gradientn(
+    colors = gradient_palette,
+    limits = c(-1, 1) * max(abs(diff_abundant_markers_cluster$difference))
+  ) +
   theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank()
+  ) +
   labs(
     title = "Differential abundance markers per cluster",
     x = "Average CLR Difference",
-    y = "-log10(p value)"
+    y = "-log10(Adj. p value)",
+    color = "Effect size"
   )
 
 export_plot(
@@ -1499,7 +1495,7 @@ plot_data |>
     y = "CLR"
   )
 export_plot(
-  filename = here::here("results/02_data_processing/annotation_plots/data_processing_marker_abundance_per_cluster"),
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_per_cluster"),
   width = 8,
   height = 8
 )
@@ -1518,7 +1514,7 @@ plot_data |>
   ) |>
   as.ggplot()
 export_plot(
-  filename = here::here("results/02_data_processing/annotation_plots/data_processing_mean_marker_abundance_per_cluster_heatmap"),
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_mean_marker_abundance_per_cluster_heatmap"),
   width = 6,
   height = 4
 )
@@ -1810,7 +1806,7 @@ Embeddings(pg_data, "harmony_umap") |>
     by = "cell_id"
   ) |>
   ggplot(aes(harmonyumap_1, harmonyumap_2, color = cell_annotation)) +
-  geom_point() +
+  geom_point(size = 0.5) +
   geom_text(
     data = . %>%
       group_by(cell_annotation) %>%
@@ -2833,9 +2829,12 @@ if ("target" %in% colnames(differential_abundance_analysis)) {
 }
 
 # Prepare base data for plotting (add target column if it doesn't exist)
+# p_adj values of zero (floating-point underflow) are coerced to
+# min_p_value_threshold before the -log10 transform to prevent Inf values
+# that would clip data-point labels in volcano plots.
 plot_data_base <- differential_abundance_analysis |>
   mutate(
-    neg_log10_p_adj = -log10(p_adj),
+    neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
     significant = p_adj < 0.05,
     effect_size = !!sym(effect_size_col),
     marker = !!sym(feature_col)
@@ -2868,38 +2867,41 @@ for (target_condition in target_conditions) {
     slice_max(order_by = abs(effect_size), n = 5) |>
     ungroup()
 
-  volcano_plot_differential_abundance <- plot_data |>
+  volcano_plot_differential_abundance <-
+    plot_data |>
     ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-    geom_point() +
-    scale_color_gradient2(
-      low = "#0066FFFF",
-      mid = "#74D055FF",
-      high = "#FF0000FF",
-      midpoint = 0
-    ) +
-    geom_hline(yintercept = 0) +
+    geom_point(size = 0.5) +
     geom_vline(xintercept = 0) +
     geom_vline(xintercept = c(-1, 1), col = "grey") +
-    coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
-    facet_wrap(~group, scales = "free") +
     geom_text(
       data = top_markers_faceted,
       aes(label = marker),
-      hjust = -0.2,
-      vjust = 0
+      hjust = 0.5,
+      vjust = -0.5,
+      size = 2
+    ) +
+    facet_wrap(~group, scales = "free") +
+    scale_x_continuous(
+      limits = c(min(plot_data$effect_size, na.rm = TRUE), max(plot_data$effect_size, na.rm = TRUE)),
+      expand = expansion(0.1)
+    ) +
+    scale_y_continuous(
+      expand = expansion(c(0, 0.1))
+    ) +
+    scale_color_gradientn(
+      colors = gradient_palette,
+      limits = c(-1, 1) * max(abs(plot_data$effect_size), na.rm = TRUE)
     ) +
     theme_bw() +
+    theme(
+      panel.grid = element_blank()
+    ) +
     labs(
       title = paste("Differential abundance analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
       subtitle = "Effect size vs statistical significance by cell type",
       x = paste("Effect size (", effect_size_col, ")", sep = ""),
       y = "-log10(adjusted p-value)",
       color = "Effect size"
-    ) +
-    theme(
-      strip.background = element_rect(fill = "lightblue", color = "black"),
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_blank()
     )
 
   # Save faceted volcano plot in the comparison directory
@@ -2930,54 +2932,62 @@ for (target_condition in target_conditions) {
     top_markers_cell_type <- cell_type_plot_data |>
       slice_max(order_by = abs(effect_size), n = 5)
 
-    volcano_plot_cell_type <- cell_type_plot_data |>
+    volcano_plot_cell_type <-
+      cell_type_plot_data |>
       ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-      geom_point() +
-      scale_color_gradient2(
-        low = "#0066FFFF",
-        mid = "#74D055FF",
-        high = "#FF0000FF",
-        midpoint = 0
-      ) +
-      geom_hline(yintercept = 0) +
+      geom_point(size = 0.5) +
       geom_vline(xintercept = 0) +
       geom_vline(xintercept = c(-1, 1), col = "grey") +
-      coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
       geom_text(
         data = top_markers_cell_type,
         aes(label = marker),
-        hjust = -0.2,
-        vjust = 0
+        hjust = 0.5,
+        vjust = -0.5,
+        size = 3
+      ) +
+      facet_wrap(~group, scales = "free") +
+      scale_x_continuous(
+        limits = c(
+          min(cell_type_plot_data$effect_size, na.rm = TRUE),
+          max(cell_type_plot_data$effect_size, na.rm = TRUE)
+        ),
+        expand = expansion(0.1)
+      ) +
+      scale_y_continuous(
+        expand = expansion(c(0, 0.1))
+      ) +
+      scale_color_gradientn(
+        colors = gradient_palette,
+        limits = c(-1, 1) * max(abs(cell_type_plot_data$effect_size), na.rm = TRUE)
       ) +
       theme_bw() +
+      theme(
+        panel.grid = element_blank()
+      ) +
       labs(
         title = paste("Differential abundance analysis: Volcano plot", sep = ""),
         subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
         x = paste("Effect size (", effect_size_col, ")", sep = ""),
         y = "-log10(adjusted p-value)",
         color = "Effect size"
-      ) +
-      theme(
-        plot.title = element_text(size = 14, face = "bold"),
-        plot.subtitle = element_text(size = 12),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank()
       )
 
     # Save non-faceted volcano plot
     export_plot(
       filename = file.path(cell_type_dir, "volcano_plot"),
       plot = volcano_plot_cell_type,
-      width = 8,
-      height = 6
+      width = 5.5,
+      height = 4.5
     )
   }
 
   # Plot 3: Heatmap showing significant markers across cell types
   # This provides an overview of which markers are differentially abundant in which cell types
   # Filter for significant markers and prepare data for heatmap
-  significant_markers <- plot_data |>
-    filter(significant) |>
+  significant_markers <-
+    plot_data |>
+    group_by(marker) |>
+    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
     select(marker, group, effect_size) |>
     # Pivot to wide format for heatmap
     pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
@@ -2992,26 +3002,28 @@ for (target_condition in target_conditions) {
     max_abs_effect <- max(abs(effect_quantiles))
     breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
 
-    heatmap_differential_abundance <- significant_markers |>
+    heatmap_differential_abundance <-
+      significant_markers |>
+      t() |>
       pheatmap(
         color = PixelgenGradient(100, "BluesCherry"),
         breaks = breaks_range,
-        cellwidth = 12,
+        cellwidth = 8,
         cellheight = 8,
         cluster_rows = TRUE,
         cluster_cols = TRUE,
         heatmap_legend_param = list(title = "Effect size"),
-        fontsize = 8,
-        fontsize_row = 6,
-        fontsize_col = 8
+        fontsize = 8
       ) |>
       as.ggplot()
 
     export_plot(
       filename = file.path(base_output_dir, "differential_abundance_heatmap"),
       plot = heatmap_differential_abundance,
-      width = 10,
-      height = max(6, nrow(significant_markers) * 0.3)
+
+      # ~0.3 in per marker column + 4 in base margin; ~0.5 in per cell-type row + 2 in base margin.
+      width = max(6, nrow(significant_markers) * 0.15 + 1.5),
+      height = max(4, ncol(significant_markers) * 0.2 + 1.5)
     )
   } else {
     warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
@@ -3100,9 +3112,11 @@ if ("target" %in% colnames(differential_clustering_analysis)) {
 }
 
 # Prepare base data for plotting (add target column if it doesn't exist)
+# p_adj values of zero are coerced to min_p_value_threshold before the
+# -log10 transform to prevent Inf values that would clip data-point labels.
 plot_data_base <- differential_clustering_analysis |>
   mutate(
-    neg_log10_p_adj = -log10(p_adj),
+    neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
     significant = p_adj < 0.05,
     effect_size = !!sym(effect_size_col),
     marker = !!sym(feature_col)
@@ -3135,38 +3149,41 @@ for (target_condition in target_conditions) {
     slice_max(order_by = abs(effect_size), n = 5) |>
     ungroup()
 
-  volcano_plot_differential_clustering <- plot_data |>
+  volcano_plot_differential_clustering <-
+    plot_data |>
     ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-    geom_point() +
-    scale_color_gradient2(
-      low = "#0066FFFF",
-      mid = "#74D055FF",
-      high = "#FF0000FF",
-      midpoint = 0
-    ) +
-    geom_hline(yintercept = 0) +
+    geom_point(size = 0.5) +
     geom_vline(xintercept = 0) +
     geom_vline(xintercept = c(-1, 1), col = "grey") +
-    coord_cartesian(xlim = c(1.1 * min(plot_data$effect_size, na.rm = TRUE), 1.1 * max(plot_data$effect_size, na.rm = TRUE))) +
-    facet_wrap(~group, scales = "free") +
     geom_text(
       data = top_markers_faceted,
       aes(label = marker),
-      hjust = -0.2,
-      vjust = 0
+      hjust = 0.5,
+      vjust = -0.5,
+      size = 2
+    ) +
+    facet_wrap(~group, scales = "free") +
+    scale_x_continuous(
+      limits = c(min(plot_data$effect_size, na.rm = TRUE), max(plot_data$effect_size, na.rm = TRUE)),
+      expand = expansion(0.1)
+    ) +
+    scale_y_continuous(
+      expand = expansion(c(0, 0.1))
+    ) +
+    scale_color_gradientn(
+      colors = gradient_palette,
+      limits = c(-1, 1) * max(abs(plot_data$effect_size), na.rm = TRUE)
     ) +
     theme_bw() +
+    theme(
+      panel.grid = element_blank()
+    ) +
     labs(
       title = paste("Differential clustering analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
       subtitle = "Effect size vs statistical significance by cell type",
       x = paste("Effect size (", effect_size_col, ")", sep = ""),
       y = "-log10(adjusted p-value)",
       color = "Effect size"
-    ) +
-    theme(
-      strip.background = element_rect(fill = "lightblue", color = "black"),
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_blank()
     )
 
   # Save faceted volcano plot in the comparison directory
@@ -3197,54 +3214,62 @@ for (target_condition in target_conditions) {
     top_markers_cell_type <- cell_type_plot_data |>
       slice_max(order_by = abs(effect_size), n = 5)
 
-    volcano_plot_cell_type <- cell_type_plot_data |>
+    volcano_plot_cell_type <-
+      cell_type_plot_data |>
       ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-      geom_point() +
-      scale_color_gradient2(
-        low = "#0066FFFF",
-        mid = "#74D055FF",
-        high = "#FF0000FF",
-        midpoint = 0
-      ) +
-      geom_hline(yintercept = 0) +
+      geom_point(size = 0.5) +
       geom_vline(xintercept = 0) +
       geom_vline(xintercept = c(-1, 1), col = "grey") +
-      coord_cartesian(xlim = c(1.1 * min(cell_type_plot_data$effect_size, na.rm = TRUE), 1.1 * max(cell_type_plot_data$effect_size, na.rm = TRUE))) +
       geom_text(
         data = top_markers_cell_type,
         aes(label = marker),
-        hjust = -0.2,
-        vjust = 0
+        hjust = 0.5,
+        vjust = -0.5,
+        size = 3
+      ) +
+      facet_wrap(~group, scales = "free") +
+      scale_x_continuous(
+        limits = c(
+          min(cell_type_plot_data$effect_size, na.rm = TRUE),
+          max(cell_type_plot_data$effect_size, na.rm = TRUE)
+        ),
+        expand = expansion(0.1)
+      ) +
+      scale_y_continuous(
+        expand = expansion(c(0, 0.1))
+      ) +
+      scale_color_gradientn(
+        colors = gradient_palette,
+        limits = c(-1, 1) * max(abs(cell_type_plot_data$effect_size), na.rm = TRUE)
       ) +
       theme_bw() +
+      theme(
+        panel.grid = element_blank()
+      ) +
       labs(
         title = paste("Differential clustering analysis: Volcano plot", sep = ""),
         subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
         x = paste("Effect size (", effect_size_col, ")", sep = ""),
         y = "-log10(adjusted p-value)",
         color = "Effect size"
-      ) +
-      theme(
-        plot.title = element_text(size = 14, face = "bold"),
-        plot.subtitle = element_text(size = 12),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank()
       )
 
     # Save non-faceted volcano plot
     export_plot(
       filename = file.path(cell_type_dir, "volcano_plot"),
       plot = volcano_plot_cell_type,
-      width = 8,
-      height = 6
+      width = 5.5,
+      height = 4.5
     )
   }
 
   # Plot 3: Heatmap showing significant markers across cell types
   # This provides an overview of which markers are differentially clustered in which cell types
   # Filter for significant markers and prepare data for heatmap
-  significant_markers <- plot_data |>
-    filter(significant) |>
+  significant_markers <-
+    plot_data |>
+    group_by(marker) |>
+    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
     select(marker, group, effect_size) |>
     # Pivot to wide format for heatmap
     pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
@@ -3259,26 +3284,28 @@ for (target_condition in target_conditions) {
     max_abs_effect <- max(abs(effect_quantiles))
     breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
 
-    heatmap_differential_clustering <- significant_markers |>
+    heatmap_differential_clustering <-
+      significant_markers |>
+      t() |>
       pheatmap(
         color = PixelgenGradient(100, "BluesCherry"),
         breaks = breaks_range,
-        cellwidth = 12,
+        cellwidth = 8,
         cellheight = 8,
         cluster_rows = TRUE,
         cluster_cols = TRUE,
         heatmap_legend_param = list(title = "Effect size"),
-        fontsize = 8,
-        fontsize_row = 6,
-        fontsize_col = 8
+        fontsize = 8
       ) |>
       as.ggplot()
 
     export_plot(
       filename = file.path(base_output_dir, "differential_clustering_heatmap"),
       plot = heatmap_differential_clustering,
-      width = 10,
-      height = max(6, nrow(significant_markers) * 0.3)
+
+      # ~0.3 in per marker column + 4 in base margin; ~0.5 in per cell-type row + 2 in base margin.
+      width = max(6, nrow(significant_markers) * 0.15 + 1.5),
+      height = max(4, ncol(significant_markers) * 0.2 + 1.5)
     )
   } else {
     warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
@@ -3373,12 +3400,24 @@ for (target_condition in target_conditions) {
 
     # Filter data for this target and cell type
     # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
-    plot_data <- differential_colocalization_analysis %>%
-      filter(group == cell_type & target == target_condition) %>%
-      mutate(diff_median = case_when(
-        p_adj < 0.001 ~ diff_median,
-        TRUE ~ 0
-      ))
+    plot_data <-
+      differential_colocalization_analysis %>%
+      filter(group == cell_type & target == target_condition)
+
+    plot_markers <-
+      plot_data %>%
+      filter(p_adj < 0.001) %>%
+      select(marker_1, marker_2) %>%
+      deframe() %>%
+      unique() %>%
+      head(14)
+
+    plot_data <-
+      plot_data %>%
+      filter(
+        marker_1 %in% plot_markers,
+        marker_2 %in% plot_markers
+      )
 
     # Skip if no data for this combination
     if (nrow(plot_data) == 0) {
@@ -3388,30 +3427,32 @@ for (target_condition in target_conditions) {
 
     # Create the colocalization heatmap plot
     # Add title indicating the target and cell type
-    colocalization_heatmap <- ColocalizationHeatmap(
-      plot_data,
-      marker1_col = "marker_1",
-      marker2_col = "marker_2",
-      value_col = "diff_median",
-      type = "dots",
-      size_col_transform = \(x) {
-        -log10(x)
-      }
-    ) &
-      labs(size = "-log10(p_adj)") &
-      scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data$p_adj)))) &
-      labs(fill = "Difference\nin medians") &
-      labs(
-        title = paste("Differential Colocalization Analysis", sep = ""),
-        subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = "")
-      )
+    colocalization_heatmap <-
+      ColocalizationHeatmap(
+        plot_data,
+        marker1_col = "marker_1",
+        marker2_col = "marker_2",
+        value_col = "diff_median",
+        type = "dots",
+        colors = gradient_palette,
+        size_col_transform = \(x) {
+          -log10(x)
+        }
+      ) &
+        labs(size = "-log10(p_adj)") &
+        scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data$p_adj)))) &
+        labs(fill = "Difference\nin medians") &
+        labs(
+          title = paste("Differential Colocalization Analysis", sep = ""),
+          subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = "")
+        )
 
     # Save the plot
     export_plot(
       filename = file.path(cell_type_dir, "colocalization_heatmap"),
       plot = colocalization_heatmap,
-      width = 10,
-      height = 8
+      width = max(c(4, length(plot_markers) * 0.15 + 1.5)),
+      height = max(c(4, length(plot_markers) * 0.15 + 3))
     )
   }
 }

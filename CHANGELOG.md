@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added an annotation checkpoint where the user can decide which annotation to use for the downstream analysis.
 - Added content to visualize the final cell annotation.
 - Added a cell annotation assignment matrix that can be used to assess the results of automatic annotation per cluster.
+- Added new gradient palette. 
+- Added `min_p_value_threshold` global variable to floor p-values before `-log10()` transforms in volcano plots, preventing `Inf` values when `p_adj == 0`.
+- Added instructional text in Section 1.4 explaining how to customize the marker selection, and a `print(selected_markers)` statement to display selected markers in the IDE.
 
 ### Updated
 
@@ -20,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The reference condition for differential testing is now selected at the beginning of the statistical analysis section.
 - Samples should now generally be ordered in plots according to their order in the sample metadata file.
 - Updated some text in the PAT to be short and concise. 
+- The differential colocalization heatmap now only shows differentially colocalized proteins instead of all pairs.
+- QC section violin plots: replaced `geom_quasirandom()` with `geom_violin()` for better handling of large datasets; switched to condition-based fill coloring; reduced plot dimensions from 10×8 to 7×5.
+- QC annotated molecule rank plot: changed from `theme_minimal(base_size = 18)` to `theme_bw()`.
+- UMAP/PCA plots: reduced point size to 0.5 and removed grid lines.
+- `data_processing_differential_abundance_markers_per_cluster` plot: increased dimensions from 10×4 to 14×5.
+- `differential_abundance_heatmap` and `differential_clustering_heatmap`: transposed to landscape orientation with improved dimension heuristics.
+- Moved `data_processing_marker_abundance_per_cluster` and `data_processing_mean_marker_abundance_per_cluster_heatmap` to the `cluster_specific_markers/` subfolder.
+- Unified volcano plot styling across sections with consistent gradient colors, reference lines, grid removal, and point sizing.
 
 ### Fixed
 - Fixed bug where `slot` was used instead of `layer`, causing an error.
