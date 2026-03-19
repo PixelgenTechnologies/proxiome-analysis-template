@@ -2315,11 +2315,11 @@ max_heatmap_markers <- 60
 expressed_markers <- unique(unlist(markers_to_test))
 
 # Optionally limit markers shown in the heatmap to the top most abundant
-plot_markers <- 
+plot_markers <-
   head(rowMeans(
-  GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
-  na.rm = TRUE
-), max_heatmap_markers) %>% 
+    GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+    na.rm = TRUE
+  ), max_heatmap_markers) %>%
   names()
 
 proximity_data <- ProximityScores(pg_data,
@@ -2338,7 +2338,7 @@ gc()
 # By default, the reference group is the first one to occur in metadata, but you can specify it explicitly if needed
 reference_group <- metadata[[heatmap_grouping_column]][1]
 reference_heatmap <- ColocalizationHeatmap(
-  summary_proximity_data |> 
+  summary_proximity_data |>
     filter(.data[[heatmap_grouping_column]] == reference_group),
   marker1_col = "marker_1",
   marker2_col = "marker_2",
@@ -2468,24 +2468,25 @@ cell_types <- cell_types[!is.na(cell_types)]
 expressed_markers <- unique(unlist(markers_to_test))
 
 grouped_marker_abundance <-
-  FetchData(pg_data, 
-            vars = c("cell_annotation", expressed_markers), 
-            layer = "data") %>% 
+  FetchData(pg_data,
+    vars = c("cell_annotation", expressed_markers),
+    layer = "data"
+  ) %>%
   group_by(cell_annotation) %>%
-  summarise(across(all_of(expressed_markers), \(x) mean(x, na.rm = TRUE))) %>% 
+  summarise(across(all_of(expressed_markers), \(x) mean(x, na.rm = TRUE))) %>%
   column_to_rownames("cell_annotation")
 
 for (cell_type in cell_types) {
   expressed_markers <- markers_to_test[[cell_type]]
-  
+
   # Optionally limit markers shown in the heatmap to the top most abundant
   plot_markers <-
-    grouped_marker_abundance[cell_type, ] %>% 
-    unlist() %>% 
-    sort(decreasing = T) %>% 
+    grouped_marker_abundance[cell_type, ] %>%
+    unlist() %>%
+    sort(decreasing = T) %>%
     head(max_heatmap_markers) %>%
     names()
-    
+
   pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
 
   proximity_data <- ProximityScores(pg_data_cell_type,
@@ -2655,7 +2656,7 @@ Users should specify a focused set of `network_markers` for visualization, as ne
 ```{r}
 #| label: colocalization_score_network_all_cell_types
 
-# Column used to facet network plots. Set to "condition" (default) to facet by 
+# Column used to facet network plots. Set to "condition" (default) to facet by
 # experimental condition, or "sample_alias" to facet by individual sample.
 network_grouping_column <- "condition"
 
