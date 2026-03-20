@@ -348,6 +348,15 @@ gradient_palette <-
     "#A23F5E",
     "#781534"
   )
+
+# Helper function to format large numbers compactly (e.g., 11234 -> "11.2k")
+format_thousands <- function(x) {
+  ifelse(
+    abs(x) >= 1000,
+    paste0(round(x / 1000, 1), "k"),
+    as.character(round(x, 1))
+  )
+}
 ```
 
 # 1. Quality control
@@ -379,7 +388,7 @@ pg_data[[]] |>
     # annotate median values above points
     fun = median,
     geom = "text",
-    aes(label = round(after_stat(y), 1)),
+    aes(label = format_thousands(after_stat(y))),
     vjust = -1,
     size = 3,
     color = "black"
@@ -551,7 +560,7 @@ pg_data[[]] |>
     # annotate median values above points
     fun = median,
     geom = "text",
-    aes(label = after_stat(round(y, 1))),
+    aes(label = format_thousands(after_stat(y))),
     vjust = -1,
     size = 3,
     color = "black"
