@@ -45,14 +45,17 @@ git clone https://github.com/PixelgenTechnologies/proxiome-analysis-template.git
 cd proxiome-analysis-template
 ```
 
+Alternatively, you can clone the repository by pressing the "Code" button on GitHub, then "Download ZIP" and extracting the files to your desired location.
+
 Then follow the [Environment Setup](#environment-setup) instructions below.
 
 ### Option 3: Download QMD File Only
 
-This downloads only the template .qmd file, which you can then customize for your own data. 
+This downloads only the template .qmd file, which you can then customize for your own data. Afterwards, you will need to [install packages manually](#manual-package-installation).
 
-Download [`proxiome_analysis_template.qmd`](proxiome_analysis_template.qmd) directly and place it in your project folder. You will need to [install packages manually](#manual-package-installation).
+Download [`proxiome_analysis_template.qmd`](proxiome_analysis_template.qmd) directly and place it in your project folder. 
 
+You can download the QMD file by right-clicking [this link](https://raw.githubusercontent.com/PixelgenTechnologies/proxiome-analysis-template/main/proxiome_analysis_template.qmd) and selecting "Save link as...". Make sure to save it with the `.qmd` extension.
 ---
 
 ## Environment Setup

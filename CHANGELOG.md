@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] 2026-03-25
+
 ### Added
 
 - Comprehensive README with step-by-step getting started guide
@@ -21,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The PAT is now renderable as an .html file.
 - Clarified that `file_path` in metadata should be filename only, not full path
 - Improved folder structure documentation with clearer explanations
+
+### Fixed
+- The `duckdb` installation should now work with `renv::restore()`
 
 ## [0.3.0] 2026-03-20
 

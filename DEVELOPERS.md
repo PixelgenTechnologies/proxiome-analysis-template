@@ -55,6 +55,12 @@ To create a new `renv` environment from scratch:
 
 ```r
 renv::init(bare = TRUE)
+
+# Record repos to use:
+options(repos = c(
+  duckdb = "https://duckdb.r-universe.dev",
+  CRAN = "https://cloud.r-project.org"
+))
 ```
 
 ### Installing Dependencies
@@ -69,10 +75,8 @@ options(repos = BiocManager::repositories())
 # Install yaml to enable parsing of dependencies
 install.packages("yaml")
 
-install.packages(
-  "duckdb",
-  repos = c("https://duckdb.r-universe.dev", "https://cloud.r-project.org")
-)
+# Install duckdb
+renv::install("duckdb")
 
 # Locate dependencies
 deps <- unique(renv::dependencies()$Package)
