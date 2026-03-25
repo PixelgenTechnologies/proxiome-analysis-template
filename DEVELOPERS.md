@@ -75,7 +75,7 @@ options(repos = BiocManager::repositories())
 # Install yaml to enable parsing of dependencies
 install.packages("yaml")
 
-# Intstall duckdb
+# Install duckdb
 renv::install("duckdb")
 
 # Locate dependencies
