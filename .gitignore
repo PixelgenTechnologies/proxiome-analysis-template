@@ -8,4 +8,5 @@
 results/
 data/*.pxl
 single_cell_analysis_sop_files/
+proxiome_analysis_template_files/
 *.html
