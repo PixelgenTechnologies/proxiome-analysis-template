@@ -189,7 +189,7 @@ S3,S3_resting,Sample3_resting.layout.pxl,resting,D2
 S4,S4_stimulated,Sample4_stimulated.layout.pxl,stimulated,D2
 ```
 
-> **Important:** The `file_path` column should contain only the filename, not the full path. The template expects PXL files to be located in the `data/` folder.
+> **Important:** The `file_path` column should contain only the filename (e.g., `Sample1.layout.pxl`), not the full path. The template automatically looks for files in the `data/` folder by prepending `data/` to each filename.
 
 ---
 
