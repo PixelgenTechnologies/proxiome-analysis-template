@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Comprehensive README with step-by-step getting started guide
+- Multiple installation paths: GitHub template, clone, or direct QMD download
+- Detailed prerequisites section covering R, RStudio/VS Code, and Quarto installation
+- Clear instructions for using renv to restore the package environment
+- Troubleshooting section with expandable solutions for common issues
+- Quick reference table for metadata file columns
+
 ### Updated 
 
 - The PAT is now renderable as an .html file.
+- Clarified that `file_path` in metadata should be filename only, not full path
+- Improved folder structure documentation with clearer explanations
 
 ## [0.3.0] 2026-03-20
 

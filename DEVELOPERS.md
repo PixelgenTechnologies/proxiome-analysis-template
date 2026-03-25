@@ -1,3 +1,23 @@
+# Developer Guide
+
+This document contains instructions for developers working on the Proxiome Analysis Template.
+
+## Table of Contents
+
+- [Code Style](#code-style)
+- [Linting](#linting)
+- [Styler](#styler)
+- [Managing the renv Environment](#managing-the-renv-environment)
+- [Setting Up on a Virtual Machine](#setting-up-on-a-virtual-machine)
+
+---
+
+## Code Style
+
+This project uses `lintr` for linting and `styler` for code formatting. The configuration is compatible with `pixelatorR` style conventions.
+
+---
+
 ## Linting
 
 To run the linter, you need to install `lintr`. Then you can use one of the the following commands:
@@ -14,6 +34,8 @@ Alternatively, you can run the linter from RStudio through Addins -> Lint curren
 
 The configuration file `.lintr` is used to specify the rules that the linter should follow. For compatibility with styler, some linting rules have been disabled.
 
+---
+
 ## Styler
 
 To style the code, you need to install `styler`. You can then use one of the following command:
@@ -23,15 +45,19 @@ To style the code, you need to install `styler`. You can then use one of the fol
 styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::pixelatorR_style())
 ```
 
-## Create renv environment
+---
 
-To create a new `renv` environment, you can use the following command:
+## Managing the renv Environment
+
+### Creating a New Environment
+
+To create a new `renv` environment from scratch:
 
 ```r
 renv::init(bare = TRUE)
 ```
 
-Install dependencies:
+### Installing Dependencies
 
 ```r
 # Install BiocManager to enable installation of Bioconductor packages
@@ -62,7 +88,9 @@ renv::install(deps)
 renv::install(gh_deps)
 ```
 
-Create snapshot: 
+### Creating a Snapshot
+
+After installing or updating packages, create a snapshot to update `renv.lock`:
 
 ```r
 renv::settings$snapshot.type("all")
@@ -70,20 +98,28 @@ renv::settings$snapshot.type("all")
 renv::snapshot()
 ```
 
-To restore the `renv` environment, you can use the following command:
+### Restoring an Environment
+
+To restore an existing `renv` environment from `renv.lock`:
+
 ```r  
 renv::restore()
 ```
 
-## Set up renv environment on virtual machine
+---
 
-Install system dependencies, run this in the terminal: 
+## Setting Up on a Virtual Machine
 
-```
+### Install System Dependencies
+
+Run this in the terminal:
+
+```bash
 sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
 ```
 
-To restore the `renv` environment, you can use the following command:
+### Restore the renv Environment
+
 ```r  
 renv::restore()
 ```
