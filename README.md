@@ -93,6 +93,8 @@ sudo apt install r-base r-base-dev
 - Install the [R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r)
 - Install the [Quarto extension](https://marketplace.visualstudio.com/items?itemName=quarto.quarto)
 
+Detailed information on how to set up VS Code for R can be found [here](https://code.visualstudio.com/docs/languages/r).
+
 #### 3. Quarto (Optional, for rendering to HTML)
 
 Download from [quarto.org/docs/get-started](https://quarto.org/docs/get-started/)
@@ -225,7 +227,7 @@ The template is designed for interactive use, where you run code chunks one at a
 1. **Open the template** in RStudio or VS Code
 2. **Run code chunks interactively** using:
    - RStudio: Click "Run" button or press `Ctrl/Cmd + Enter`
-   - VS Code: Use the Quarto extension's run commands
+   - VS Code: Use the Quarto extension's "Run cell" command at the top of each chunk
 3. **Review and adjust** parameters at checkpoints throughout the analysis:
    - **QC thresholds** (Section 1): Decide which cells to keep based on quality metrics
    - **Marker selection** (Section 1.4): Choose which protein markers to include
@@ -239,6 +241,10 @@ To generate a complete HTML report:
 
 **From RStudio:**
 - Click the "Render" button, or
+- Run `quarto::quarto_render("proxiome_analysis_template.qmd")`
+
+**From VS Code:**
+- Click the "Preview" button, or
 - Run `quarto::quarto_render("proxiome_analysis_template.qmd")`
 
 **From command line:**
