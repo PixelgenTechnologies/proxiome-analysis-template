@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Updated 
+
+- The PAT is now renderable as an .html file.
+
 ## [0.3.0] 2026-03-20
 
 ### Added
