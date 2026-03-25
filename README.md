@@ -56,6 +56,7 @@ This downloads only the template .qmd file, which you can then customize for you
 Download [`proxiome_analysis_template.qmd`](proxiome_analysis_template.qmd) directly and place it in your project folder. 
 
 You can download the QMD file by right-clicking [this link](https://raw.githubusercontent.com/PixelgenTechnologies/proxiome-analysis-template/main/proxiome_analysis_template.qmd) and selecting "Save link as...". Make sure to save it with the `.qmd` extension.
+
 ---
 
 ## Environment Setup
