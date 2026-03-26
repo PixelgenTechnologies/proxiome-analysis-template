@@ -92,7 +92,7 @@ Before running the analysis, ensure you have the following installed:
 #### 1. R (version 4.1 or later)
 
 <details>
-<summary>macOS</summary>
+<summary><strong>macOS</summary>
 
 First, install [Homebrew](https://brew.sh/) if you don't have it yet. Open the Terminal app and run:
 ```bash
@@ -109,7 +109,7 @@ Or download directly from [CRAN](https://cran.r-project.org/bin/macosx/)
 </details>
 
 <details>
-<summary>Windows</summary>
+<summary><strong>Windows</summary>
 
 Download and run the installer for R from [CRAN](https://cran.r-project.org/bin/windows/base/)
 
@@ -118,7 +118,7 @@ Some R packages need to be compiled from source, which requires Rtools. Download
 </details>
 
 <details>
-<summary>Linux (Ubuntu/Debian)</summary>
+<summary><strong>Linux (Ubuntu/Debian)</summary>
 
 ```bash
 sudo apt update
@@ -133,7 +133,7 @@ sudo apt install r-base r-base-dev
 - Download from [posit.co/download/rstudio-desktop](https://posit.co/download/rstudio-desktop/)
 
 <details>
-<summary>Visual Studio Code (alternative)</summary>
+<summary><strong>Visual Studio Code (alternative)</summary>
 
 - Download from [code.visualstudio.com](https://code.visualstudio.com/)
 - Install the [R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r)
@@ -151,8 +151,8 @@ Download from [quarto.org/docs/get-started](https://quarto.org/docs/get-started/
 
 #### 4. System Dependencies
 
-details>
-<summary>macOS</summary>
+<details>
+<summary><strong>macOS</summary>
 
 Ensure Xcode command line tools are installed (required for compiling some R packages):
 ```bash
@@ -161,8 +161,8 @@ xcode-select --install
 
 </details>
 
-details>
-<summary>Linux (Ubuntu/Debian)</summary>
+<details>
+<summary><strong>Linux (Ubuntu/Debian)</summary>
 
 Install required system libraries:
 ```bash
@@ -314,6 +314,9 @@ The template is designed for interactive use, where you run code chunks one at a
 
 ### Rendering to HTML (Advanced)
 
+<details>
+<summary>HTML rendering instructions</summary>
+
 Instead of running the analysis interactively, one chunk at a time, you can generate all outputs at once by rendering the `.qmd` file to HTML. This will run all code chunks sequentially and save the outputs in the `results/` folder, and produce a `proxiome_analysis_template.html` file with all figures and code incorporated.
 
 To generate a complete HTML report:
@@ -330,6 +333,9 @@ To generate a complete HTML report:
 ```bash
 quarto render proxiome_analysis_template.qmd
 ```
+```
+
+</details>
 
 ---
 
