@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: Running the Analysis section now starts with opening the `.Rproj` file, includes keyboard shortcuts for running individual chunks, and provides clearer marker selection guidance.
 - README: Troubleshooting section updated to remove renv-centric advice and provide per-OS package compilation guidance.
 
+### Fixed
+- Fixed a bug in `lintr` installation in CI.
+
 ## [0.3.1] 2026-03-25
 
 ### Added
