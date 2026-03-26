@@ -91,7 +91,8 @@ Before running the analysis, ensure you have the following installed:
 
 #### 1. R (version 4.1 or later)
 
-**macOS:**
+<details>
+<summary>macOS</summary>
 
 First, install [Homebrew](https://brew.sh/) if you don't have it yet. Open the Terminal app and run:
 ```bash
@@ -105,30 +106,42 @@ brew install r
 
 Or download directly from [CRAN](https://cran.r-project.org/bin/macosx/)
 
-**Windows:**
-Download and run the installer from [CRAN](https://cran.r-project.org/bin/windows/base/)
+</details>
 
-**Windows - Rtools (required for compiling packages):**
+<details>
+<summary>Windows</summary>
 
-Some R packages need to be compiled from source, which requires Rtools. Download and install the version matching your R version from [CRAN Rtools](https://cran.r-project.org/bin/windows/Rtools/). After installation, restart RStudio.
+Download and run the installer for R from [CRAN](https://cran.r-project.org/bin/windows/base/)
 
-**Linux (Ubuntu/Debian):**
+Some R packages need to be compiled from source, which requires Rtools. Download and run the installer for Rtools from [CRAN Rtools](https://cran.r-project.org/bin/windows/Rtools/). Choose the version that matches your R version. After installation, restart RStudio.
+
+</details>
+
+<details>
+<summary>Linux (Ubuntu/Debian)</summary>
+
 ```bash
 sudo apt update
 sudo apt install r-base r-base-dev
 ```
+
+</details>
 
 #### 2. RStudio (Recommended) or VS Code
 
 **RStudio** (recommended for beginners):
 - Download from [posit.co/download/rstudio-desktop](https://posit.co/download/rstudio-desktop/)
 
-**Visual Studio Code** (alternative):
+<details>
+<summary>Visual Studio Code (alternative)</summary>
+
 - Download from [code.visualstudio.com](https://code.visualstudio.com/)
 - Install the [R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r)
 - Install the [Quarto extension](https://marketplace.visualstudio.com/items?itemName=quarto.quarto)
 
 Detailed information on how to set up VS Code for R can be found [here](https://code.visualstudio.com/docs/languages/r).
+
+</details>
 
 #### 3. Quarto (Optional, for rendering to HTML)
 
@@ -138,17 +151,25 @@ Download from [quarto.org/docs/get-started](https://quarto.org/docs/get-started/
 
 #### 4. System Dependencies
 
-**macOS:**
+details>
+<summary>macOS</summary>
+
 Ensure Xcode command line tools are installed (required for compiling some R packages):
 ```bash
 xcode-select --install
 ```
 
-**Linux (Ubuntu/Debian):**
+</details>
+
+details>
+<summary>Linux (Ubuntu/Debian)</summary>
+
 Install required system libraries:
 ```bash
 sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
 ```
+
+</details>
 
 ### Installing R Packages
 
@@ -386,8 +407,8 @@ If you need help, you can open an issue in the relevant GitHub repository:
 
 This template is developed and maintained by:
 
-- **Max Karlsson** ([@maxkarlsson](https://github.com/maxkarlsson)) — [max.karlsson@pixelgen.com](mailto:max.karlsson@pixelgen.com) · [ORCID 0000-0002-7000-4416](https://orcid.org/0000-0002-7000-4416)
-- **Vincent Van Hoef** ([@vincentvanhoef](https://github.com/vincentvanhoef)) — [vincent.vanhoef@pixelgen.com](mailto:vincent.vanhoef@pixelgen.com)
+- **Max Karlsson** ([@maxkarlsson](https://github.com/maxkarlsson)) - [max.karlsson@pixelgen.com](mailto:max.karlsson@pixelgen.com) · [ORCID 0000-0002-7000-4416](https://orcid.org/0000-0002-7000-4416)
+- **Vincent Van Hoef** ([@vincent-van-hoef](https://github.com/vincent-van-hoef)) - [vincent.vanhoef@pixelgen.com](mailto:vincent.vanhoef@pixelgen.com)
 
 ---
 
