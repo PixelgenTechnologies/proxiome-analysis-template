@@ -18,21 +18,21 @@ The template is designed to be interactive. Users should actively review QC thre
 
 ## Quick Start
 
-There are several ways to get the Proxiome Analysis Template onto your computer. **If you are new to R or GitHub, we recommend Option 1 (Download ZIP)** — it requires no special tools and works on any operating system.
+There are several ways to get the Proxiome Analysis Template onto your computer. **If you are new to R or GitHub, we recommend Option 1 (Download ZIP)**. It requires no special tools and works on any operating system.
 
 ### Option 1: Download ZIP (Recommended for Beginners)
 
 1. Click the green **"Code"** button at the top of the repository page
 2. Select **"Download ZIP"**
 3. Extract the ZIP file to a folder of your choice (e.g., `Documents/my-pna-analysis`)
-4. You can rename the main folder to whatever you want to call your analysis project
-5. Follow the [Environment Setup](#environment-setup) instructions below
+4. You can rename the main folder (the one called `proxiome-analysis-template`) to whatever you want to call your analysis project
+5. Follow the [Environment Setup](#environment-setup) instructions below to install R, RStudio, and the required packages
 
 > **Tip:** When you open the analysis later, always start by double-clicking the `proxiome_analysis_template.Rproj` file inside the folder. This opens RStudio with the correct working directory, so all file paths in the analysis work automatically.
 
 ### Option 2: Use GitHub Desktop
 
-[GitHub Desktop](https://desktop.github.com/download/) provides a visual interface for downloading and managing repositories — no command line needed.
+[GitHub Desktop](https://desktop.github.com/download/) provides a visual interface for downloading and managing repositories - no command line needed.
 
 1. Download and install [GitHub Desktop](https://desktop.github.com/download/)
 2. Click **"File" → "Clone repository"** in GitHub Desktop
@@ -44,7 +44,7 @@ There are several ways to get the Proxiome Analysis Template onto your computer.
 
 This creates your own copy of the repository on GitHub, so you can track your changes with version control. This requires a GitHub account.
 
-1. Click the green **"Use this template"** button at the top of the repository
+1. Click the green **"Use this template"** button at the top of the repository. This button only appears if you are logged into GitHub.
 2. Create your new repository under your GitHub account
 3. Download your new repository using GitHub Desktop or by cloning it with `git clone`
 4. Follow the [Environment Setup](#environment-setup) instructions below
@@ -62,7 +62,7 @@ Then follow the [Environment Setup](#environment-setup) instructions below.
 
 ### Option 5: Download QMD File Only (Advanced)
 
-This downloads only the analysis file. You will need to set up your own project folder and [install packages manually](#manual-package-installation).
+This downloads only the analysis file. You will need to set up your own project folder, data folder, and [install packages manually](#manual-package-installation).
 
 Download [`proxiome_analysis_template.qmd`](proxiome_analysis_template.qmd) directly and place it in your project folder. 
 
@@ -74,7 +74,7 @@ You can download the QMD file by right-clicking [this link](https://raw.githubus
 
 ### New to R?
 
-If you have never used R before, we recommend reading the [Getting Started with R guide](https://rstudio-education.github.io/hopr/starting.html) before proceeding. It covers how to install R, RStudio, and how to run your first R code.
+If you have never used R before, we recommend reading the [Getting Started with R guide](https://rstudio-education.github.io/hopr/starting.html) before proceeding. There you can read more about how to run your first R code.
 
 ### Prerequisites
 
@@ -99,7 +99,7 @@ Or download directly from [CRAN](https://cran.r-project.org/bin/macosx/)
 **Windows:**
 Download and run the installer from [CRAN](https://cran.r-project.org/bin/windows/base/)
 
-**Windows — Rtools (required for compiling packages):**
+**Windows - Rtools (required for compiling packages):**
 
 Some R packages need to be compiled from source, which requires Rtools. Download and install the version matching your R version from [CRAN Rtools](https://cran.r-project.org/bin/windows/Rtools/). After installation, restart RStudio.
 
@@ -169,7 +169,7 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 
 #### Using Docker (Advanced)
 
-A Docker image with all dependencies pre-installed is available for advanced users who want a fully reproducible environment. Refer to the [Dockerfile](Dockerfile) in this repository for details on how to build the image.
+A Docker image with all dependencies pre-installed is available for advanced users who want a fully reproducible environment. Docker images are available [here](quay.io/pixelgen-technologies/proxiome-analysis-template).
 
 #### Using renv (Advanced)
 
@@ -190,25 +190,26 @@ renv::restore()
 
 ### Working Directory and Project File
 
-> **Important for beginners:** The easiest way to get started is to use the repository folder structure directly — just add your own PXL files and metadata to the `data/` folder. You can rename the main folder to whatever you want to call your analysis project.
+> **Important for beginners:** The easiest way to get started is to use the repository folder structure directly. Just add your own PXL files and metadata to the `data/` folder. You can rename the main folder to whatever you want to call your analysis project.
 >
 > **Always open the project by double-clicking `proxiome_analysis_template.Rproj`** in the project folder. This opens RStudio with the correct working directory set automatically, so all file paths in the template work without any changes.
 
 ### Required Files
 
-You need two types of input files:
+You need to prepare two types of input files:
 
-1. **PXL files** (`.pxl`): Output files from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline. These contain the processed PNA data for each sample.
-2. **Metadata file** (`metadata.csv`): A CSV file containing sample information (see below for format).
+1. **PXL files** (`.pxl`): These are your output files from your analysis run using the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline. These contain the processed PNA data for each sample. 
+You can also find publicly available data files to use on the [Pixelgen Technologies software documentation website](https://software.pixelgen.com/datasets/).
+2. **Metadata file** (`metadata.csv`): A CSV file that you create, containing sample information (see below for format and instructions for how to do this).
 
 > **Note:** This repository includes an example `metadata.csv` in the `data/` folder. You should **replace** this file with your own metadata matching your samples.
 
 ### Folder Structure
 
-Organize your files as follows:
+Organize your files as follows. The easiest is to directly use the folder structure already provided by the `proxiome-analysis-template` repository:
 
 ```
-your-project/
+proxiome-analysis-template/             # You can rename this folder if you want
 ├── data/
 │   ├── metadata.csv                    # Required: sample information
 │   ├── Sample1.layout.pxl              # Your PXL data files
@@ -231,14 +232,16 @@ Create a file named `metadata.csv` in the `data/` folder with the following stru
 | `condition` | Yes | Experimental condition | `resting`, `stimulated` |
 | *other columns* | No | Any additional metadata | `age`, `donor`, `batch`, etc. |
 
+> **Note:** The additional *other columns* you add to the `metadata.csv` file (e.g., `age`, `donor`, `batch`) will be available as variables in the template, so you can use them for grouping or covariates in your analysis if needed. They will be ignored by default, unless you explicitly include them by modifying the code in the template.
+
 **Example `metadata.csv`:**
 
 ```csv
-sample_id,sample_alias,condition,donor,age,file_path
-S1,S1_resting,resting,donor1,24,Sample1_resting.layout.pxl
-S2,S2_PHA,PHA,donor1,24,Sample2_PHA.layout.pxl
-S3,S3_resting,resting,donor2,48,Sample3_resting.layout.pxl
-S4,S4_PHA,PHA,donor2,48,Sample4_PHA.layout.pxl
+sample_id,sample_alias,condition,file_path,donor,age
+S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl,donor1,24
+S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl,donor1,24
+S3,S3_resting,resting,PNA064_Sample_3_S3.layout.pxl,donor2,48
+S4,S4_PHA,PHA,PNA064_Sample_5_S5.layout.pxl,donor2,48
 ```
 
 > **Note:** The **order of rows** in `metadata.csv` controls the order samples appear in plots throughout the analysis.
@@ -259,17 +262,19 @@ The template is designed for interactive use, where you run code chunks one at a
 2. **Open `proxiome_analysis_template.qmd`** in RStudio from the Files pane
 3. **Run code chunks one at a time** to work through the analysis step by step:
    - **RStudio:** Click the green **▶ Run** button at the top-right of each code chunk, or place your cursor inside a chunk and press `Ctrl+Shift+Enter` (Windows/Linux) or `Cmd+Shift+Enter` (Mac)
-   - **VS Code:** Click the **▶ Run Cell** button that appears above each code chunk
-   - Run chunks in order from top to bottom — each step builds on the previous one
+   - Run chunks in order from top to bottom. Each step builds on the previous one
 4. **Review and adjust parameters** at key checkpoints throughout the analysis:
    - **QC thresholds** (Section 1.3.1): Decide which cells to keep based on quality metrics. Adjust these variables in that section:
-     - `n_umi_min_threshold` — minimum UMI counts per cell
-     - `n_umi_max_threshold` — maximum UMI counts per cell
-     - `isotype_percent_threshold` — maximum isotype control fraction
-   - **Marker selection** (Section 1.4): Choose which protein markers to include in dimensionality reduction. After running the marker selection code, a list of suggested markers will be printed. You can add markers to or remove markers from the `selected_markers` vector — simply edit the vector directly in the code
+     - `n_umi_min_threshold` - minimum UMI counts per cell
+     - `n_umi_max_threshold` - maximum UMI counts per cell
+     - `isotype_percent_threshold` - maximum isotype control fraction
+   - **Marker selection** (Section 1.4): Choose which protein markers to include in dimensionality reduction. After running the marker selection code, a list of suggested markers will be printed. You can add markers to or remove markers from the `selected_markers` vector - simply edit the vector directly in the code
    - **Cell type annotation** (Section 2): Verify and refine automatic cell type labels
+5. **Expand, adjust, adapt** - This template is just the starting point: You can modify the code, add new sections, or customize the visualizations to fit your specific dataset and research questions. If you are new to R or PNA analysis, you can learn more in our [Tutorials](https://software.pixelgen.com/pna-analysis/introduction/). You can also use AI tools to help modify the code, and sharing relevant parts of the template often improves results.
 
-### Rendering to HTML
+### Rendering to HTML (Advanced)
+
+Instead of running the analysis interactively, one chunk at a time, you can generate all outputs at once by rendering the `.qmd` file to HTML. This will run all code chunks sequentially and save the outputs in the `results/` folder, and produce a `proxiome_analysis_template.html` file with all figures and code incorporated.
 
 To generate a complete HTML report:
 
@@ -351,8 +356,10 @@ Make sure you opened the project by double-clicking `proxiome_analysis_template.
 
 ### Getting Help
 
+If you need help, you can open an issue in the relevant GitHub repository:
+
 - **pixelatorR issues:** [PixelgenTechnologies/pixelatorR](https://github.com/PixelgenTechnologies/pixelatorR/issues)
-- **Template issues:** [Open an issue](https://github.com/PixelgenTechnologies/proxiome-analysis-template/issues)
+- **Proxiome Analysis Template issues:** [Open an issue](https://github.com/PixelgenTechnologies/proxiome-analysis-template/issues)
 
 ---
 

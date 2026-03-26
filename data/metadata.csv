@@ -1,5 +1,5 @@
-sample_id,sample_alias,condition,donor,age,file_path
-S1,S1_resting,resting,donor1,24,PNA064_Sample_1_S1.layout.pxl
-S2,S2_PHA,PHA,donor1,24,PNA064_Sample_2_S2.layout.pxl
-S3,S3_resting,resting,donor2,48,PNA064_Sample_3_S3.layout.pxl
-S4,S4_PHA,PHA,donor2,48,PNA064_Sample_5_S5.layout.pxl
+sample_id,sample_alias,condition,file_path,donor,age
+S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl,donor1,24
+S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl,donor1,24
+S3,S3_resting,resting,PNA064_Sample_3_S3.layout.pxl,donor2,48
+S4,S4_PHA,PHA,PNA064_Sample_5_S5.layout.pxl,donor2,48
