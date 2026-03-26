@@ -93,7 +93,7 @@ cd proxiome-analysis-template
 
 **macOS:** Install Xcode tools: `xcode-select --install`
 
-**Linux:** `sudo apt install r-base r-base-dev cmake libglpk-dev libhdf5-dev`
+**Linux:** `sudo apt install r-base r-base-dev` then system libs: `sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev`
 
 </details>
 
@@ -205,7 +205,7 @@ results/
 Install compiler tools for your OS:
 - **Windows:** [Rtools](https://cran.r-project.org/bin/windows/Rtools/)
 - **macOS:** `xcode-select --install`
-- **Linux:** `sudo apt install cmake libglpk-dev libhdf5-dev`
+- **Linux:** `sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev`
 
 </details>
 
