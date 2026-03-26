@@ -41,7 +41,7 @@ There are several ways to get the Proxiome Analysis Template onto your computer.
 5. Follow the [Environment Setup](#environment-setup) instructions below
 
 <details>
-<summary><strong>Option 3: Use as GitHub Template (Advanced)</strong></summary>
+<summary>Option 3: Use as GitHub Template (Advanced)</strong></summary>
 
 This creates your own copy of the repository on GitHub, so you can track your changes with version control. This requires a GitHub account.
 
@@ -53,7 +53,7 @@ This creates your own copy of the repository on GitHub, so you can track your ch
 </details>
 
 <details>
-<summary><strong>Option 4: Clone with Git (Advanced)</strong></summary>
+<summary>Option 4: Clone with Git (Advanced)</strong></summary>
 
 If you have git installed, run these commands in your terminal:
 
@@ -67,7 +67,7 @@ Then follow the [Environment Setup](#environment-setup) instructions below.
 </details>
 
 <details>
-<summary><strong>Option 5: Download QMD File Only (Advanced)</strong></summary>
+<summary>Option 5: Download QMD File Only (Advanced)</strong></summary>
 
 This downloads only the analysis file. You will need to set up your own project folder, data folder, and [install packages manually](#manual-package-installation).
 
@@ -92,7 +92,7 @@ Before running the analysis, ensure you have the following installed:
 #### 1. R (version 4.1 or later)
 
 <details>
-<summary><strong>macOS</summary>
+<summary>macOS</summary>
 
 First, install [Homebrew](https://brew.sh/) if you don't have it yet. Open the Terminal app and run:
 ```bash
@@ -109,7 +109,7 @@ Or download directly from [CRAN](https://cran.r-project.org/bin/macosx/)
 </details>
 
 <details>
-<summary><strong>Windows</summary>
+<summary>Windows</summary>
 
 Download and run the installer for R from [CRAN](https://cran.r-project.org/bin/windows/base/)
 
@@ -118,7 +118,7 @@ Some R packages need to be compiled from source, which requires Rtools. Download
 </details>
 
 <details>
-<summary><strong>Linux (Ubuntu/Debian)</summary>
+<summary>Linux (Ubuntu/Debian)</summary>
 
 ```bash
 sudo apt update
@@ -133,7 +133,7 @@ sudo apt install r-base r-base-dev
 - Download from [posit.co/download/rstudio-desktop](https://posit.co/download/rstudio-desktop/)
 
 <details>
-<summary><strong>Visual Studio Code (alternative)</summary>
+<summary>Visual Studio Code (alternative)</summary>
 
 - Download from [code.visualstudio.com](https://code.visualstudio.com/)
 - Install the [R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r)
@@ -152,7 +152,7 @@ Download from [quarto.org/docs/get-started](https://quarto.org/docs/get-started/
 #### 4. System Dependencies
 
 <details>
-<summary><strong>macOS</summary>
+<summary>macOS</summary>
 
 Ensure Xcode command line tools are installed (required for compiling some R packages):
 ```bash
@@ -162,7 +162,7 @@ xcode-select --install
 </details>
 
 <details>
-<summary><strong>Linux (Ubuntu/Debian)</summary>
+<summary>Linux (Ubuntu/Debian)</summary>
 
 Install required system libraries:
 ```bash
@@ -360,7 +360,7 @@ All plots are saved in both PDF (publication-quality) and PNG (quick viewing) fo
 ### Common Issues
 
 <details>
-<summary><strong>Package installation fails with compilation errors</strong></summary>
+<summary>Package installation fails with compilation errors</strong></summary>
 
 This usually indicates missing system dependencies or a missing compiler toolchain.
 
@@ -378,7 +378,7 @@ sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libti
 </details>
 
 <details>
-<summary><strong>"Error: cannot find function" when running the template</strong></summary>
+<summary>"Error: cannot find function" when running the template</strong></summary>
 
 This usually means a package was not loaded. Make sure you have run the Setup chunk (Section 0.1) first. You can run it by clicking the green **▶** button inside that chunk.
 
@@ -386,13 +386,13 @@ If packages are not installed, follow the [Manual Package Installation](#manual-
 </details>
 
 <details>
-<summary><strong>File not found errors when loading data</strong></summary>
+<summary>File not found errors when loading data</strong></summary>
 
 Make sure you opened the project by double-clicking `proxiome_analysis_template.Rproj`. This ensures RStudio is working in the correct folder. Then verify that your PXL files are in the `data/` folder and that the filenames in `metadata.csv` match exactly (including capitalisation and file extension).
 </details>
 
 <details>
-<summary><strong>Memory errors with large datasets</strong></summary>
+<summary>Memory errors with large datasets</strong></summary>
 
 - Close other applications to free memory
 - Consider processing fewer samples at once
