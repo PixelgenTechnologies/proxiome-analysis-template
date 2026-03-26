@@ -17,7 +17,7 @@ COPY renv.lock /workspace/
 COPY .Rprofile /workspace/
 COPY renv/settings.json /workspace/renv/
 COPY renv/activate.R /workspace/renv/
-RUN Rscript -e "install.packages('renv'); renv::restore()"
+RUN Rscript -e "install.packages('renv'); source('renv/activate.R'); renv::restore()"
 
 # Move the quarto files into the container
 COPY proxiome_analysis_template.qmd /workspace/proxiome_analysis_template.qmd
