@@ -18,40 +18,51 @@ The template is designed to be interactive. Users should actively review QC thre
 
 ## Quick Start
 
-There are three ways to use this template:
+There are several ways to get the Proxiome Analysis Template onto your computer. **If you are new to R or GitHub, we recommend Option 1 (Download ZIP)** — it requires no special tools and works on any operating system.
 
-| Method | Best For | What You Get |
-|--------|----------|--------------|
-| **Use as GitHub Template** | Starting a new analysis project | Your own version controlled repository with version control and environment |
-| **Clone Repository** | Local development with git tracking | Local repository with renv environment |
-| **Download QMD Only** | Quick analysis, existing project | Just the analysis file |
+### Option 1: Download ZIP (Recommended for Beginners)
 
-### Option 1: Use as GitHub Template (Recommended)
+1. Click the green **"Code"** button at the top of the repository page
+2. Select **"Download ZIP"**
+3. Extract the ZIP file to a folder of your choice (e.g., `Documents/my-pna-analysis`)
+4. You can rename the main folder to whatever you want to call your analysis project
+5. Follow the [Environment Setup](#environment-setup) instructions below
 
-This will create a new repository using the Proxiome Analysis Template under your own GitHub user, copying the whole folder structure and files. You can then clone this repository to your local machine and start customizing the analysis template for your own data.
+> **Tip:** When you open the analysis later, always start by double-clicking the `proxiome_analysis_template.Rproj` file inside the folder. This opens RStudio with the correct working directory, so all file paths in the analysis work automatically.
+
+### Option 2: Use GitHub Desktop
+
+[GitHub Desktop](https://desktop.github.com/download/) provides a visual interface for downloading and managing repositories — no command line needed.
+
+1. Download and install [GitHub Desktop](https://desktop.github.com/download/)
+2. Click **"File" → "Clone repository"** in GitHub Desktop
+3. Paste the URL: `https://github.com/PixelgenTechnologies/proxiome-analysis-template`
+4. Choose a local folder and click **"Clone"**
+5. Follow the [Environment Setup](#environment-setup) instructions below
+
+### Option 3: Use as GitHub Template (Advanced)
+
+This creates your own copy of the repository on GitHub, so you can track your changes with version control. This requires a GitHub account.
 
 1. Click the green **"Use this template"** button at the top of the repository
-2. Create your new repository
-3. Clone your new repository and follow the [Environment Setup](#environment-setup) instructions below
+2. Create your new repository under your GitHub account
+3. Download your new repository using GitHub Desktop or by cloning it with `git clone`
+4. Follow the [Environment Setup](#environment-setup) instructions below
 
-### Option 2: Clone the Repository
+### Option 4: Clone with Git (Advanced)
 
-This will pull down the Proxiome Analysis Template repository to your local machine, where you can then customize the analysis template for your own data. However, you will not be able to push changes back to the original repository, as it is read-only. 
-
-Run these commands in your terminal:
+If you have git installed, run these commands in your terminal:
 
 ```bash
 git clone https://github.com/PixelgenTechnologies/proxiome-analysis-template.git
 cd proxiome-analysis-template
 ```
 
-Alternatively, you can clone the repository by pressing the "Code" button on GitHub, then "Download ZIP" and extracting the files to your desired location.
-
 Then follow the [Environment Setup](#environment-setup) instructions below.
 
-### Option 3: Download QMD File Only
+### Option 5: Download QMD File Only (Advanced)
 
-This downloads only the template .qmd file, which you can then customize for your own data. Afterwards, you will need to [install packages manually](#manual-package-installation).
+This downloads only the analysis file. You will need to set up your own project folder and [install packages manually](#manual-package-installation).
 
 Download [`proxiome_analysis_template.qmd`](proxiome_analysis_template.qmd) directly and place it in your project folder. 
 
@@ -61,6 +72,10 @@ You can download the QMD file by right-clicking [this link](https://raw.githubus
 
 ## Environment Setup
 
+### New to R?
+
+If you have never used R before, we recommend reading the [Getting Started with R guide](https://rstudio-education.github.io/hopr/starting.html) before proceeding. It covers how to install R, RStudio, and how to run your first R code.
+
 ### Prerequisites
 
 Before running the analysis, ensure you have the following installed:
@@ -68,14 +83,25 @@ Before running the analysis, ensure you have the following installed:
 #### 1. R (version 4.1 or later)
 
 **macOS:**
+
+First, install [Homebrew](https://brew.sh/) if you don't have it yet. Open the Terminal app and run:
 ```bash
-# Using Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then install R:
+```bash
 brew install r
 ```
-Or download from [CRAN](https://cran.r-project.org/bin/macosx/)
+
+Or download directly from [CRAN](https://cran.r-project.org/bin/macosx/)
 
 **Windows:**
 Download and run the installer from [CRAN](https://cran.r-project.org/bin/windows/base/)
+
+**Windows — Rtools (required for compiling packages):**
+
+Some R packages need to be compiled from source, which requires Rtools. Download and install the version matching your R version from [CRAN Rtools](https://cran.r-project.org/bin/windows/Rtools/). After installation, restart RStudio.
 
 **Linux (Ubuntu/Debian):**
 ```bash
@@ -117,34 +143,9 @@ sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libti
 
 ### Installing R Packages
 
-#### Using renv (Recommended)
+#### Manual Package Installation (Recommended)
 
-This repository includes an `renv.lock` file that captures the exact package versions used. This ensures reproducibility across different systems.
-
-> **Important:** You can only restore packages using `renv.lock` if you have downloaded the whole Proxiome Analysis Template repository. If you have downloaded only the `.qmd` file, you will have to [install packages manually](#manual-package-installation).
-
-1. **Open the project** in RStudio by double-clicking `proxiome_analysis_template.Rproj`, or open the folder in VS Code
-
-2. **Restore the environment** by running in the R console:
-   ```r
-   # renv should auto-activate; if not, run:
-   # install.packages("renv")
-   
-   renv::restore()
-   ```
-   
-   This will install all required packages with the correct versions. The first time may take 10-30 minutes.
-
-3. **Verify installation:**
-   ```r
-   library(pixelatorR)
-   library(Seurat)
-   library(tidyverse)
-   ```
-
-#### Manual Package Installation
-
-If you downloaded only the QMD file or prefer not to use renv:
+Open RStudio and run the following in the R console:
 
 ```r
 # Install BiocManager for Bioconductor packages
@@ -152,8 +153,10 @@ install.packages("BiocManager")
 
 # Install CRAN packages
 install.packages(c(
-  "tidyverse", "Seurat", "harmony", "here", 
-  "Matrix", "ggraph", "pls", "ggplotify"
+  "tidyverse", "Seurat", "here",
+  "Matrix", "ggraph", "pls", "ggplotify",
+  "harmony",    # batch correction (Section 2.3)
+  "ggbeeswarm"  # beeswarm plots (Section 3 and 5)
 ))
 
 # Install Bioconductor packages
@@ -164,9 +167,32 @@ install.packages("pak")
 pak::pak("PixelgenTechnologies/pixelatorR")
 ```
 
+#### Using Docker (Advanced)
+
+A Docker image with all dependencies pre-installed is available for advanced users who want a fully reproducible environment. Refer to the [Dockerfile](Dockerfile) in this repository for details on how to build the image.
+
+#### Using renv (Advanced)
+
+This repository includes an `renv.lock` file that captures the exact package versions used in development. This is intended for advanced users or CI/CD workflows. 
+
+> **Important:** You can only restore packages using `renv.lock` if you have downloaded the whole Proxiome Analysis Template repository. If you have downloaded only the `.qmd` file, you will have to [install packages manually](#manual-package-installation).
+
+```r
+# renv should auto-activate when you open the project; if not, run:
+# install.packages("renv")
+
+renv::restore()
+```
+
 ---
 
 ## Preparing Your Data
+
+### Working Directory and Project File
+
+> **Important for beginners:** The easiest way to get started is to use the repository folder structure directly — just add your own PXL files and metadata to the `data/` folder. You can rename the main folder to whatever you want to call your analysis project.
+>
+> **Always open the project by double-clicking `proxiome_analysis_template.Rproj`** in the project folder. This opens RStudio with the correct working directory set automatically, so all file paths in the template work without any changes.
 
 ### Required Files
 
@@ -189,6 +215,7 @@ your-project/
 │   ├── Sample2.layout.pxl
 │   └── ...
 ├── results/                            # Will be created automatically
+├── proxiome_analysis_template.Rproj    # Open this to start your analysis
 └── proxiome_analysis_template.qmd      # The analysis template
 ```
 
@@ -207,12 +234,16 @@ Create a file named `metadata.csv` in the `data/` folder with the following stru
 **Example `metadata.csv`:**
 
 ```csv
-sample_id,sample_alias,file_path,condition,donor
-S1,S1_resting,Sample1_resting.layout.pxl,resting,D1
-S2,S2_stimulated,Sample2_stimulated.layout.pxl,stimulated,D1
-S3,S3_resting,Sample3_resting.layout.pxl,resting,D2
-S4,S4_stimulated,Sample4_stimulated.layout.pxl,stimulated,D2
+sample_id,sample_alias,condition,donor,age,file_path
+S1,S1_resting,resting,donor1,24,Sample1_resting.layout.pxl
+S2,S2_PHA,PHA,donor1,24,Sample2_PHA.layout.pxl
+S3,S3_resting,resting,donor2,48,Sample3_resting.layout.pxl
+S4,S4_PHA,PHA,donor2,48,Sample4_PHA.layout.pxl
 ```
+
+> **Note:** The **order of rows** in `metadata.csv` controls the order samples appear in plots throughout the analysis.
+
+> **Note on separators:** Both comma-separated (`,`) and semicolon-separated (`;`) CSV files are supported.
 
 > **Important:** The `file_path` column should contain only the filename (e.g., `Sample1.layout.pxl`), not the full path. The template automatically looks for files in the `data/` folder by prepending `data/` to each filename.
 
@@ -224,16 +255,19 @@ S4,S4_stimulated,Sample4_stimulated.layout.pxl,stimulated,D2
 
 The template is designed for interactive use, where you run code chunks one at a time and review results before proceeding.
 
-1. **Open the template** in RStudio or VS Code
-2. **Run code chunks interactively** using:
-   - RStudio: Click "Run" button or press `Ctrl/Cmd + Enter`
-   - VS Code: Use the Quarto extension's "Run cell" command at the top of each chunk
-3. **Review and adjust** parameters at checkpoints throughout the analysis:
-   - **QC thresholds** (Section 1): Decide which cells to keep based on quality metrics
-   - **Marker selection** (Section 1.4): Choose which protein markers to include
+1. **Open the `proxiome_analysis_template.Rproj`** file by double-clicking it in your project folder. This opens RStudio with the correct working directory.
+2. **Open `proxiome_analysis_template.qmd`** in RStudio from the Files pane
+3. **Run code chunks one at a time** to work through the analysis step by step:
+   - **RStudio:** Click the green **▶ Run** button at the top-right of each code chunk, or place your cursor inside a chunk and press `Ctrl+Shift+Enter` (Windows/Linux) or `Cmd+Shift+Enter` (Mac)
+   - **VS Code:** Click the **▶ Run Cell** button that appears above each code chunk
+   - Run chunks in order from top to bottom — each step builds on the previous one
+4. **Review and adjust parameters** at key checkpoints throughout the analysis:
+   - **QC thresholds** (Section 1.3.1): Decide which cells to keep based on quality metrics. Adjust these variables in that section:
+     - `n_umi_min_threshold` — minimum UMI counts per cell
+     - `n_umi_max_threshold` — maximum UMI counts per cell
+     - `isotype_percent_threshold` — maximum isotype control fraction
+   - **Marker selection** (Section 1.4): Choose which protein markers to include in dimensionality reduction. After running the marker selection code, a list of suggested markers will be printed. You can add markers to or remove markers from the `selected_markers` vector — simply edit the vector directly in the code
    - **Cell type annotation** (Section 2): Verify and refine automatic cell type labels
-
-> **Tip:** The template includes instructional text before each checkpoint explaining what decisions you need to make and how to interpret the visualizations.
 
 ### Rendering to HTML
 
@@ -276,26 +310,35 @@ All plots are saved in both PDF (publication-quality) and PNG (quick viewing) fo
 ### Common Issues
 
 <details>
-<summary><strong>renv::restore() fails with compilation errors</strong></summary>
+<summary><strong>Package installation fails with compilation errors</strong></summary>
 
-This usually indicates missing system dependencies. On Linux:
-```bash
-sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
-```
+This usually indicates missing system dependencies or a missing compiler toolchain.
 
-On macOS, ensure Xcode command line tools are installed:
+**Windows:** Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) (version matching your R installation). After installation, restart RStudio.
+
+**macOS:** Ensure Xcode command line tools are installed:
 ```bash
 xcode-select --install
+```
+
+**Linux:** Install required system libraries:
+```bash
+sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
 ```
 </details>
 
 <details>
 <summary><strong>"Error: cannot find function" when running the template</strong></summary>
 
-Ensure all packages are loaded. Try running the setup chunk (Section 0.1) first, or restart R and run:
-```r
-renv::restore()
-```
+This usually means a package was not loaded. Make sure you have run the Setup chunk (Section 0.1) first. You can run it by clicking the green **▶** button inside that chunk.
+
+If packages are not installed, follow the [Manual Package Installation](#manual-package-installation) instructions above.
+</details>
+
+<details>
+<summary><strong>File not found errors when loading data</strong></summary>
+
+Make sure you opened the project by double-clicking `proxiome_analysis_template.Rproj`. This ensures RStudio is working in the correct folder. Then verify that your PXL files are in the `data/` folder and that the filenames in `metadata.csv` match exactly (including capitalisation and file extension).
 </details>
 
 <details>

@@ -165,8 +165,18 @@ S3,S3_IL2,S3_IL2.pxl,IL2_treated,D1
 ```{r}
 #| label: setup_read_metadata
 
-# Read metadata file into a dataframe
-metadata <- read.csv(here::here("data", "metadata.csv")) |> as_tibble()
+# Read metadata file into a dataframe.
+# Supports both comma-separated (,) and semicolon-separated (;) CSV files.
+metadata_path <- here::here("data", "metadata.csv")
+if (!file.exists(metadata_path)) {
+  stop(
+    "metadata.csv not found in the data/ folder. ",
+    "Please create the file and try again."
+  )
+}
+metadata_raw <- readLines(metadata_path, n = 1)
+metadata_sep <- if (grepl(";", metadata_raw)) ";" else ","
+metadata <- read.csv(metadata_path, sep = metadata_sep) |> as_tibble()
 
 # Check that the metadata file contains the required columns - otherwise stop the script
 if (
