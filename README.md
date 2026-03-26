@@ -40,7 +40,8 @@ There are several ways to get the Proxiome Analysis Template onto your computer.
 4. Choose a local folder and click **"Clone"**
 5. Follow the [Environment Setup](#environment-setup) instructions below
 
-### Option 3: Use as GitHub Template (Advanced)
+<details>
+<summary><strong>Option 3: Use as GitHub Template (Advanced)</strong></summary>
 
 This creates your own copy of the repository on GitHub, so you can track your changes with version control. This requires a GitHub account.
 
@@ -49,7 +50,10 @@ This creates your own copy of the repository on GitHub, so you can track your ch
 3. Download your new repository using GitHub Desktop or by cloning it with `git clone`
 4. Follow the [Environment Setup](#environment-setup) instructions below
 
-### Option 4: Clone with Git (Advanced)
+</details>
+
+<details>
+<summary><strong>Option 4: Clone with Git (Advanced)</strong></summary>
 
 If you have git installed, run these commands in your terminal:
 
@@ -60,13 +64,18 @@ cd proxiome-analysis-template
 
 Then follow the [Environment Setup](#environment-setup) instructions below.
 
-### Option 5: Download QMD File Only (Advanced)
+</details>
+
+<details>
+<summary><strong>Option 5: Download QMD File Only (Advanced)</strong></summary>
 
 This downloads only the analysis file. You will need to set up your own project folder, data folder, and [install packages manually](#manual-package-installation).
 
 Download [`proxiome_analysis_template.qmd`](proxiome_analysis_template.qmd) directly and place it in your project folder. 
 
 You can download the QMD file by right-clicking [this link](https://raw.githubusercontent.com/PixelgenTechnologies/proxiome-analysis-template/main/proxiome_analysis_template.qmd) and selecting "Save link as...". Make sure to save it with the `.qmd` extension.
+
+</details>
 
 ---
 
@@ -169,9 +178,17 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 
 #### Using Docker (Advanced)
 
+<details>
+<summary>Docker setup instructions</summary>
+
 A Docker image with all dependencies pre-installed is available for advanced users who want a fully reproducible environment. Docker images are available [here](quay.io/pixelgen-technologies/proxiome-analysis-template).
 
+</details>
+
 #### Using renv (Advanced)
+
+<details>
+<summary>renv setup instructions</summary>
 
 This repository includes an `renv.lock` file that captures the exact package versions used in development. This is intended for advanced users or CI/CD workflows. 
 
@@ -183,6 +200,8 @@ This repository includes an `renv.lock` file that captures the exact package ver
 
 renv::restore()
 ```
+
+</details>
 
 ---
 
@@ -360,6 +379,15 @@ If you need help, you can open an issue in the relevant GitHub repository:
 
 - **pixelatorR issues:** [PixelgenTechnologies/pixelatorR](https://github.com/PixelgenTechnologies/pixelatorR/issues)
 - **Proxiome Analysis Template issues:** [Open an issue](https://github.com/PixelgenTechnologies/proxiome-analysis-template/issues)
+
+---
+
+## Maintainers
+
+This template is developed and maintained by:
+
+- **Max Karlsson** ([@maxkarlsson](https://github.com/maxkarlsson)) — [max.karlsson@pixelgen.com](mailto:max.karlsson@pixelgen.com) · [ORCID 0000-0002-7000-4416](https://orcid.org/0000-0002-7000-4416)
+- **Vincent Van Hoef** ([@vincentvanhoef](https://github.com/vincentvanhoef)) — [vincent.vanhoef@pixelgen.com](mailto:vincent.vanhoef@pixelgen.com)
 
 ---
 

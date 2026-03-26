@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- README: Link to the [Getting Started with R guide](https://rstudio-education.github.io/hopr/starting.html) for new R users.
+- README: Homebrew installation instructions for macOS.
+- README: Rtools installation instructions for Windows users (required for compiling R packages from source).
+- README: New "Working Directory and Project File" section emphasising that users should always open the project by double-clicking `proxiome_analysis_template.Rproj`.
+- README: `proxiome_analysis_template.Rproj` added to the folder structure diagram.
+- README: Note that the row order of `metadata.csv` controls the order samples appear in plots.
+- README: Note that both comma-separated (`,`) and semicolon-separated (`;`) CSV files are supported for `metadata.csv`.
+- README: [GitHub Desktop](https://desktop.github.com/download/) download option in Quick Start (Option 2, no command line needed).
+- README: Advanced Quick Start options (GitHub Template, Git clone, QMD-only) moved into collapsible `<details>` dropdowns.
+- README: Advanced package installation options (Docker, renv) moved into collapsible `<details>` dropdowns.
+- README: File-not-found troubleshooting entry.
+- README: Maintainers section listing authors and contact details.
+- QMD: Auto-detection of CSV separator (comma or semicolon) when reading `metadata.csv`.
+- QMD: User-friendly file-existence check for `metadata.csv` with a clear error message.
+
+### Updated
+
+- README: Quick Start restructured so that Download ZIP is the recommended beginner option (Option 1) and advanced options are clearly labelled.
+- README: Manual package installation is now the recommended install path; renv and Docker demoted to "Advanced" with collapsible sections.
+- README: `harmony` and `ggbeeswarm` added to the manual package installation list with inline comments indicating which sections use them.
+- README: Metadata example updated to match the actual `data/metadata.csv` column order and values.
+- README: "QC thresholds (Section 1)" corrected to "Section 1.3.1" with threshold variable names listed in a sub-list.
+- README: Running the Analysis section now starts with opening the `.Rproj` file, includes keyboard shortcuts for running individual chunks, and provides clearer marker selection guidance.
+- README: Troubleshooting section updated to remove renv-centric advice and provide per-OS package compilation guidance.
+
 ## [0.3.1] 2026-03-25
 
 ### Added
