@@ -91,7 +91,7 @@ cd proxiome-analysis-template
 
 **Windows:** Also install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) — choose the version matching your R installation (required for some packages).
 
-**macOS:** Install Xcode tools: `xcode-select --install`
+**macOS:** Install Xcode tools by running this in the terminal: `xcode-select --install`
 
 **Linux:** `sudo apt install r-base r-base-dev` then system libs: `sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev`
 
@@ -101,7 +101,7 @@ cd proxiome-analysis-template
 
 ### 2. Install R Packages
 
-Open RStudio and run in the console:
+Open the R project file in RStudio (by opening `proxiome_analysis_template.Rproj`) and run in the console:
 
 ```r
 # Core packages
@@ -135,13 +135,13 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 ### Project structure
 
 ```
-your-project/
+proxiome-analysis-template/           ← Your project folder (can be renamed to whatever you want)
 ├── data/
-│   ├── metadata.csv           ← Your sample info
-│   └── *.layout.pxl           ← Your PXL files
-├── results/                   ← Created automatically
-├── proxiome_analysis_template.Rproj   ← Double-click to open
-└── proxiome_analysis_template.qmd     ← The analysis
+│   ├── metadata.csv                  ← Your sample info
+│   └── *.layout.pxl                  ← Your PXL files
+├── results/                          ← Created automatically when running the PAT
+├── proxiome_analysis_template.Rproj  ← Double-click to open
+└── proxiome_analysis_template.qmd    ← The Proxiome Analysis Template QMD file
 ```
 
 ### Create metadata.csv
