@@ -21,11 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: Advanced package installation options (Docker, renv) moved into collapsible `<details>` dropdowns.
 - README: File-not-found troubleshooting entry.
 - README: Maintainers section listing authors and contact details.
+- README: Badges for R version, Quarto, and license in header.
+- README: Table of contents with emoji section markers.
 - QMD: Auto-detection of CSV separator (comma or semicolon) when reading `metadata.csv`.
 - QMD: User-friendly file-existence check for `metadata.csv` with a clear error message.
 
 ### Updated
 
+- README: Complete UX redesign for better approachability — cleaner layout, more whitespace, consolidated sections, and better visual hierarchy.
 - README: Quick Start restructured so that Download ZIP is the recommended beginner option (Option 1) and advanced options are clearly labelled.
 - README: Manual package installation is now the recommended install path; renv and Docker demoted to "Advanced" with collapsible sections.
 - README: `harmony` and `ggbeeswarm` added to the manual package installation list with inline comments indicating which sections use them.
@@ -33,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: "QC thresholds (Section 1)" corrected to "Section 1.3.1" with threshold variable names listed in a sub-list.
 - README: Running the Analysis section now starts with opening the `.Rproj` file, includes keyboard shortcuts for running individual chunks, and provides clearer marker selection guidance.
 - README: Troubleshooting section updated to remove renv-centric advice and provide per-OS package compilation guidance.
+- README: Key checkpoints and metadata columns now displayed as clean tables.
 
 ### Fixed
 - Fixed a bug in `lintr` installation in CI.
