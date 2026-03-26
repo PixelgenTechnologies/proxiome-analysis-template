@@ -333,7 +333,6 @@ To generate a complete HTML report:
 ```bash
 quarto render proxiome_analysis_template.qmd
 ```
-```
 
 </details>
 
