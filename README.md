@@ -21,7 +21,7 @@
 ## 📋 Contents
 
 - [Quick Start](#-quick-start)
-- [Environment Setup](#-first-time-r-setup)
+- [First-Time R Setup](#-first-time-r-setup)
 - [Prepare Your Data](#-prepare-your-data)
 - [Run the Analysis](#-run-the-analysis)
 - [Troubleshooting](#-troubleshooting)
