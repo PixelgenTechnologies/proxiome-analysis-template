@@ -156,10 +156,9 @@ Additional columns can be added as needed (e.g., `donor`, `time_point`, `batch`,
 **Example metadata file:**
 
 ```csv
-sample_id,sample_alias,file_path,condition,donor
-S1,S1_resting,S1_resting.pxl,resting,D1
-S2,S2_PHA,S2_PHA.pxl,stimulated,D2
-S3,S3_IL2,S3_IL2.pxl,IL2_treated,D1
+sample_id,sample_alias,condition,file_path
+S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl
+S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 ```
 
 ```{r}
