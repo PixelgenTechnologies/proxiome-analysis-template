@@ -16,6 +16,8 @@
 
 ---
 
+<br>
+
 ## 📋 Contents
 
 - [Quick Start](#-quick-start)
@@ -26,6 +28,8 @@
 - [Maintainers](#-maintainers)
 
 ---
+
+<br>
 
 ## 🚀 Quick Start
 
@@ -72,6 +76,8 @@ cd proxiome-analysis-template
 </details>
 
 ---
+
+<br>
 
 ## ⚙️ First-Time R Setup
 
@@ -156,6 +162,8 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 
 ---
 
+<br>
+
 ## 📁 Prepare Your Data
 
 When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below.
@@ -200,6 +208,8 @@ S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 
 ---
 
+<br>
+
 ## ▶️ Run the Analysis
 
 1. **Open** `proxiome_analysis_template.Rproj` (double-click)
@@ -229,6 +239,8 @@ results/
 
 ---
 
+<br>
+
 ## 🎨 Make it yours
 
 This template is a starting point, not a rulebook.
@@ -245,6 +257,8 @@ If it works better for you, it's the right way.
 Happy analyzing!
 
 ---
+
+<br>
 
 ## ❓ Troubleshooting
 
@@ -288,6 +302,8 @@ Run the Setup chunk (Section 0.1) first by clicking the green ▶ button.
 **Need more help?** [Open an issue](https://github.com/PixelgenTechnologies/proxiome-analysis-template/issues) · [pixelatorR issues](https://github.com/PixelgenTechnologies/pixelatorR/issues)
 
 ---
+
+<br>
 
 ## 👥 Maintainers
 
