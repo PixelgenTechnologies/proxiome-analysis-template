@@ -84,7 +84,11 @@ cd proxiome-analysis-template
 
 > 🆕 **New to R?** Read the [Getting Started with R](https://rstudio-education.github.io/hopr/starting.html) guide first.
 
+<br>
+
 ### 2. Install Compiler Tools
+
+Some R packages require compilation. Install the appropriate tools for your operating system:
 
 <br>
 
@@ -154,6 +158,8 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 
 ## 📁 Prepare Your Data
 
+When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below.
+
 ### Project structure
 
 ```
@@ -162,11 +168,13 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   ├── metadata.csv                  ← Your sample info
 │   └── *.layout.pxl                  ← Your PXL files
 ├── results/                          ← Created automatically when running the PAT
-├── proxiome_analysis_template.Rproj  ← Double-click to open
+├── proxiome_analysis_template.Rproj  ← Double-click to open the project in RStudio
 └── proxiome_analysis_template.qmd    ← The Proxiome Analysis Template QMD file
 ```
 
 ### Create metadata.csv
+
+The `metadata.csv` file describes **your** samples and links them to the corresponding PXL files. 
 
 | Column | Required | Description | Example |
 |--------|:--------:|-------------|---------|
@@ -179,6 +187,8 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 > 💡 Extra columns are available as variables in the template for grouping or covariates.
 
 **Example file:**
+
+You can use the placeholder `data/metadata.csv` as a template. Just replace the example rows with your own sample information and filenames:
 
 ```csv
 sample_id,sample_alias,condition,file_path
@@ -216,6 +226,23 @@ results/
 ├── 04_raw_proximity/
 └── 05_statistical_testing/
 ```
+
+---
+
+## 🎨 Make it yours
+
+This template is a starting point, not a rulebook.
+
+Adapt it to fit your science, your questions, and how you like to work.
+
+- Remove sections that don't apply to your data
+- Rewrite code until it makes sense to you
+- Swap out methods, thresholds, or visualizations
+- Add new analysis steps wherever you need them
+
+If it works better for you, it's the right way.
+
+Happy analyzing!
 
 ---
 
