@@ -314,6 +314,8 @@ Run the Setup chunk (Section 0.1) first by clicking the green ▶ button.
 
 ---
 
+<br>
+
 <div align="center">
 
 **License:** [GNU GPL v2](LICENSE.md)
