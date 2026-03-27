@@ -19,7 +19,7 @@
 ## 📋 Contents
 
 - [Quick Start](#-quick-start)
-- [Environment Setup](#-environment-setup)
+- [Environment Setup](#-first-time-r-setup)
 - [Prepare Your Data](#-prepare-your-data)
 - [Run the Analysis](#-run-the-analysis)
 - [Troubleshooting](#-troubleshooting)
@@ -33,24 +33,24 @@ Choose the method that works best for you:
 
 ### Download ZIP *(Recommended)*
 
-The simplest way to get started — no GitHub account or special tools needed.
+The simplest way to get started - no GitHub account or special tools needed.
 
 1. Click the green **Code** button above → **Download ZIP**
 2. Extract to a folder (e.g., `Documents/my-analysis`)
 3. Continue to [Environment Setup](#-environment-setup)
 
-> 💡 **Tip:** Always open your project by double-clicking `proxiome_analysis_template.Rproj` — this sets up file paths automatically.
+> 💡 **Tip:** Always open your project by double-clicking `proxiome_analysis_template.Rproj` - this sets up file paths automatically.
 
 <br>
 
 <details>
-<summary><strong>Other download options</strong></summary>
+<summary><strong>Advanced: Using git to clone this repository</strong></summary>
 
 <br>
 
 #### GitHub Desktop
 
-A visual interface for managing repositories — no command line needed.
+A visual interface for managing repositories - no command line needed.
 
 1. Install [GitHub Desktop](https://desktop.github.com/download/)
 2. **File → Clone repository** → paste: `https://github.com/PixelgenTechnologies/proxiome-analysis-template`
@@ -73,7 +73,7 @@ cd proxiome-analysis-template
 
 ---
 
-## ⚙️ Environment Setup
+## ⚙️ First-Time R Setup
 
 ### 1. Install R and RStudio
 
@@ -84,22 +84,44 @@ cd proxiome-analysis-template
 
 > 🆕 **New to R?** Read the [Getting Started with R](https://rstudio-education.github.io/hopr/starting.html) guide first.
 
-<details>
-<summary><strong>Platform-specific notes</strong></summary>
+### 2. Install Compiler Tools
 
 <br>
 
-**Windows:** Also install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) — choose the version matching your R installation (required for some packages).
+<details>
+<summary><strong>Windows</strong></summary>
 
-**macOS:** Install Xcode tools by running this in the terminal: `xcode-select --install`
+Also install [Rtools](https://cran.r-project.org/bin/windows/Rtools/). Choose the version matching your R installation (required for some packages).
 
-**Linux:** `sudo apt install r-base r-base-dev` then system libs: `sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev`
+</details>
+
+<details>
+<summary><strong>macOS</strong></summary>
+
+Press Command + Spacebar to open Spotlight search, type "Terminal," and hit Enter to open the terminal.
+
+Install Xcode tools by running this in the terminal: 
+
+```bash
+xcode-select --install
+```
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+After installing R, install system libraries: 
+
+```bash
+sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
+```
 
 </details>
 
 <br>
 
-### 2. Install R Packages
+### 3. Install R Packages
 
 Open the R project file in RStudio (by opening `proxiome_analysis_template.Rproj`) and run in the console:
 
@@ -152,7 +174,7 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 | `sample_alias` | ✓ | Descriptive name | `S1_resting` |
 | `condition` | ✓ | Experimental group | `resting` |
 | `file_path` | ✓ | PXL filename (not full path) | `Sample1.layout.pxl` |
-| *other* | | Any extra columns (`donor`, `batch`, etc.) | — |
+| *other* | | Any extra columns (`donor`, `batch`, etc.) | - |
 
 > 💡 Extra columns are available as variables in the template for grouping or covariates.
 
@@ -179,7 +201,7 @@ S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 | Section | What to review |
 |---------|----------------|
 | **1.3.1** | QC thresholds (`n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold`) |
-| **1.4** | Marker selection — edit the `selected_markers` vector |
+| **1.4** | Marker selection - edit the `selected_markers` vector |
 | **2** | Cell type annotations |
 
 ### Output
@@ -245,7 +267,7 @@ Run the Setup chunk (Section 0.1) first by clicking the green ▶ button.
 | | |
 |---|---|
 | **Max Karlsson** [@maxkarlsson](https://github.com/maxkarlsson) | [max.karlsson@pixelgen.com](mailto:max.karlsson@pixelgen.com) · [ORCID](https://orcid.org/0000-0002-7000-4416) |
-| **Vincent Van Hoef** [@vincent-van-hoef](https://github.com/vincent-van-hoef) | [vincent.vanhoef@pixelgen.com](mailto:vincent.vanhoef@pixelgen.com) |
+| **Vincent Van Hoef** [@vincent-van-hoef](https://github.com/vincent-van-hoef) | [vincent.vanhoef@pixelgen.com](mailto:vincent.vanhoef@pixelgen.com) · [ORCID](https://orcid.org/0000-0003-1707-7066) |
 
 ---
 
