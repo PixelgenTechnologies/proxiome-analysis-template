@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] 2026-03-27
+
 ### Added
 
 - README: Link to the [Getting Started with R guide](https://rstudio-education.github.io/hopr/starting.html) for new R users.
