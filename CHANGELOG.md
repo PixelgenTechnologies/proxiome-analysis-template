@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - README: Link to the [Getting Started with R guide](https://rstudio-education.github.io/hopr/starting.html) for new R users.
-- README: Homebrew installation instructions for macOS.
 - README: Rtools installation instructions for Windows users (required for compiling R packages from source).
 - README: New "Working Directory and Project File" section emphasising that users should always open the project by double-clicking `proxiome_analysis_template.Rproj`.
 - README: `proxiome_analysis_template.Rproj` added to the folder structure diagram.
