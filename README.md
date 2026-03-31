@@ -10,7 +10,7 @@
 
 *Analyze PNA data from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline with quality control, clustering, annotation, and publication-ready visualizations.*
 
-[**Get Started →**](#-quick-start) · [Tutorials](https://software.pixelgen.com/pna-analysis/introduction/) · [pixelatorR](https://github.com/PixelgenTechnologies/pixelatorR)
+[**Get Started →**](#quick-start) · [Tutorials](https://software.pixelgen.com/pna-analysis/introduction/) · [pixelatorR](https://github.com/PixelgenTechnologies/pixelatorR)
 
 </div>
 
@@ -18,20 +18,21 @@
 
 <br>
 
-## 📋 Contents
+## Contents
 
-- [Quick Start](#-quick-start)
-- [First-Time R Setup](#-first-time-r-setup)
-- [Prepare Your Data](#-prepare-your-data)
-- [Run the Analysis](#-run-the-analysis)
-- [Troubleshooting](#-troubleshooting)
-- [Maintainers](#-maintainers)
+- [Quick Start](#quick-start)
+- [First-Time R Setup](#first-time-r-setup)
+- [Prepare Your Data](#prepare-your-data)
+- [Run the Analysis](#run-the-analysis)
+- [Make it yours](#make-it-yours)
+- [Troubleshooting](#troubleshooting)
+- [Maintainers](#maintainers)
 
 ---
 
 <br>
 
-## 🚀 Quick Start
+## Quick Start
 
 Choose the method that works best for you:
 
@@ -41,9 +42,9 @@ The simplest way to get started - no GitHub account or special tools needed.
 
 1. Click the green **Code** button above → **Download ZIP**
 2. Extract to a folder (e.g., `Documents/my-analysis`)
-3. Continue to [Environment Setup](#-environment-setup)
+3. Continue to [First-Time R Setup](#first-time-r-setup)
 
-> 💡 **Tip:** Always open your project by double-clicking `proxiome_analysis_template.Rproj` - this sets up file paths automatically.
+> 💡 **Tip:** Always open your project by double-clicking `proxiome_analysis_template.Rproj` (found directly inside the extracted folder) - this sets up file paths automatically.
 
 <br>
 
@@ -79,14 +80,16 @@ cd proxiome-analysis-template
 
 <br>
 
-## ⚙️ First-Time R Setup
+## First-Time R Setup
 
 ### 1. Install R and RStudio
 
-| Software | Download |
-|----------|----------|
-| **R** (4.1+) | [CRAN](https://cran.r-project.org/) |
-| **RStudio** | [Posit](https://posit.co/download/rstudio-desktop/) |
+You need to download and install **both** programs:
+
+| Software | Description | Download |
+|----------|-------------|----------|
+| **R** (4.1+) | The programming language | [Download from CRAN](https://cran.r-project.org/) |
+| **RStudio** | The editor/interface for R | [Download from Posit](https://posit.co/download/rstudio-desktop/) |
 
 > 🆕 **New to R?** Read the [Getting Started with R](https://rstudio-education.github.io/hopr/starting.html) guide first.
 
@@ -110,11 +113,13 @@ Also install [Rtools](https://cran.r-project.org/bin/windows/Rtools/). Choose th
 
 Press Command + Spacebar to open Spotlight search, type "Terminal," and hit Enter to open the terminal.
 
-Install Xcode tools by running this in the terminal: 
+Install Xcode command line tools by running this in the terminal: 
 
 ```bash
 xcode-select --install
 ```
+
+> ⚠️ **Note:** This command will open a separate installation window. Follow the prompts in that window to complete the installation before continuing.
 
 </details>
 
@@ -133,21 +138,18 @@ sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libti
 
 ### 3. Install R Packages
 
-Open the R project file in RStudio (by opening `proxiome_analysis_template.Rproj`) and run in the console:
+Open the R project file in RStudio by double-clicking `proxiome_analysis_template.Rproj` (located directly in the folder you downloaded/extracted). Then copy and paste the following lines into the console **one at a time** (some packages will prompt you for input during installation):
 
 ```r
-# Core packages
-install.packages(c("tidyverse", "Seurat", "here", "Matrix", 
-                   "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm"))
-
-# Bioconductor
-install.packages("BiocManager")
-BiocManager::install("ComplexHeatmap")
-
-# pixelatorR
+# Install pak
 install.packages("pak")
-pak::pak("PixelgenTechnologies/pixelatorR")
+
+# Install packages
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "PixelgenTechnologies/pixelatorR"))
+
 ```
+
+> ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
 
 <details>
 <summary><strong>Advanced: Docker or renv</strong></summary>
@@ -164,7 +166,7 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 
 <br>
 
-## 📁 Prepare Your Data
+## Prepare Your Data
 
 When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below.
 
@@ -210,19 +212,32 @@ S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 
 <br>
 
-## ▶️ Run the Analysis
+## Run the Analysis
 
-1. **Open** `proxiome_analysis_template.Rproj` (double-click)
-2. **Open** `proxiome_analysis_template.qmd` in RStudio
-3. **Run chunks** in order (click ▶ or press `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`)
+### Understanding QMD files and code chunks
 
-### Key checkpoints
+The analysis lives in `proxiome_analysis_template.qmd` — a **Quarto document** (QMD file). Think of it as a notebook that combines text explanations with runnable R code.
 
-| Section | What to review |
-|---------|----------------|
-| **1.3.1** | QC thresholds (`n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold`) |
-| **1.4** | Marker selection - edit the `selected_markers` vector |
-| **2** | Cell type annotations |
+- **QMD file**: A document that mixes formatted text (like this README) with executable code. You run the code section by section.
+- **Code chunk**: A gray block containing R code that you can run. Each chunk has a green **▶ (play) button** in the top-right corner of the chunk.
+
+### How to run the analysis
+
+1. **Open** `proxiome_analysis_template.Rproj` (double-click the file in your downloaded folder)
+2. **Open** `proxiome_analysis_template.qmd` in RStudio (from the Files pane on the right)
+3. **Run chunks** in order by clicking the green ▶ button in the top-right corner of each code chunk (or press `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`)
+
+### ⚠️ Where you need to make choices
+
+The template requires your input at several key points. **Look for these sections and adjust the values to match your data:**
+
+| Section | What to do |
+|---------|------------|
+| **1.3.1 Define thresholds** | Set QC thresholds: `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold`. Review the plots and adjust these values based on your data quality. |
+| **1.5 Select markers** | After running the selection code, review `selected_markers` and add/remove markers as needed for your experiment. |
+| **2.6.4 Set manual annotation** | **Critical step!** Edit the `cluster_cell_annotation` vector to assign cell type names to each cluster number based on the marker patterns you observe. |
+
+> 💡 **Tip:** The QMD file contains comments above each section explaining what values you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
 
 ### Output
 
@@ -241,7 +256,7 @@ results/
 
 <br>
 
-## 🎨 Make it yours
+## Make it yours
 
 This template is a starting point, not a rulebook.
 
@@ -260,7 +275,7 @@ Happy analyzing!
 
 <br>
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 <details>
 <summary><strong>Package installation fails</strong></summary>
@@ -275,7 +290,7 @@ Install compiler tools for your OS:
 <details>
 <summary><strong>"Cannot find function" error</strong></summary>
 
-Run the Setup chunk (Section 0.1) first by clicking the green ▶ button.
+Run the Setup chunk (Section 0.1) first by clicking the green ▶ button in the top-right corner of that code chunk.
 
 </details>
 
@@ -305,7 +320,7 @@ Run the Setup chunk (Section 0.1) first by clicking the green ▶ button.
 
 <br>
 
-## 👥 Maintainers
+## Maintainers
 
 | | |
 |---|---|
