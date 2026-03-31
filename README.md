@@ -144,15 +144,9 @@ Open the R project file in RStudio by double-clicking `proxiome_analysis_templat
 # Install pak
 install.packages("pak")
 
-# Core packages (run each line separately)
-pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML"))
+# Install packages
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "PixelgenTechnologies/pixelatorR"))
 
-# Bioconductor
-install.packages("BiocManager")
-BiocManager::install("ComplexHeatmap")
-
-# pixelatorR
-pak::pak("PixelgenTechnologies/pixelatorR")
 ```
 
 > ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
