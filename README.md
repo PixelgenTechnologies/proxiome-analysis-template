@@ -24,6 +24,7 @@
 - [First-Time R Setup](#first-time-r-setup)
 - [Prepare Your Data](#prepare-your-data)
 - [Run the Analysis](#run-the-analysis)
+- [Make it yours](#make-it-yours)
 - [Troubleshooting](#troubleshooting)
 - [Maintainers](#maintainers)
 
