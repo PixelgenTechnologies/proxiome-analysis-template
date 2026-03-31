@@ -141,23 +141,17 @@ sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libti
 Open the R project file in RStudio by double-clicking `proxiome_analysis_template.Rproj` (located directly in the folder you downloaded/extracted). Then copy and paste the following lines into the console **one at a time** (some packages will prompt you for input during installation):
 
 ```r
+# Install pak
+install.packages("pak")
+
 # Core packages (run each line separately)
-install.packages("tidyverse")
-install.packages("Seurat")
-install.packages("here")
-install.packages("Matrix")
-install.packages("ggraph")
-install.packages("pls")
-install.packages("ggplotify")
-install.packages("harmony")
-install.packages("ggbeeswarm")
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML"))
 
 # Bioconductor
 install.packages("BiocManager")
 BiocManager::install("ComplexHeatmap")
 
 # pixelatorR
-install.packages("pak")
 pak::pak("PixelgenTechnologies/pixelatorR")
 ```
 
