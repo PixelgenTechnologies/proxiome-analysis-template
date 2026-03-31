@@ -18,7 +18,7 @@
 
 <br>
 
-## 📋 Contents
+## Contents
 
 - [Quick Start](#quick-start)
 - [First-Time R Setup](#first-time-r-setup)
@@ -31,7 +31,7 @@
 
 <br>
 
-## 🚀 Quick Start
+## Quick Start
 
 Choose the method that works best for you:
 
@@ -79,7 +79,7 @@ cd proxiome-analysis-template
 
 <br>
 
-## ⚙️ First-Time R Setup
+## First-Time R Setup
 
 ### 1. Install R and RStudio
 
@@ -177,7 +177,7 @@ pak::pak("PixelgenTechnologies/pixelatorR")
 
 <br>
 
-## 📁 Prepare Your Data
+## Prepare Your Data
 
 When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below.
 
@@ -223,7 +223,7 @@ S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 
 <br>
 
-## ▶️ Run the Analysis
+## Run the Analysis
 
 ### Understanding QMD files and code chunks
 
@@ -267,7 +267,7 @@ results/
 
 <br>
 
-## 🎨 Make it yours
+## Make it yours
 
 This template is a starting point, not a rulebook.
 
@@ -286,7 +286,7 @@ Happy analyzing!
 
 <br>
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 <details>
 <summary><strong>Package installation fails</strong></summary>
@@ -331,7 +331,7 @@ Run the Setup chunk (Section 0.1) first by clicking the green ▶ button in the 
 
 <br>
 
-## 👥 Maintainers
+## Maintainers
 
 | | |
 |---|---|
