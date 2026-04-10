@@ -1910,7 +1910,7 @@ pls_fit_celltype <-
       subset(cells = cells$component) %>%
       isotype_pls(isotype_markers,
         model_mat = with(.[[]], model.matrix(~sample_alias)),
-        layer = "scale.data",
+        layer = "data",
         remove_covariates = TRUE
       )
   })
@@ -1923,8 +1923,8 @@ bg_scores <-
   lapply(function(x) enframe(x$scores, "component", "bg_score")) |>
   bind_rows()
 
-pg_data[[]] <-
-  pg_data[[]] |>
+pg_data@meta.data <-
+  pg_data@meta.data |>
   as_tibble(rownames = "component") |>
   left_join(bg_scores, by = "component") |>
   column_to_rownames("component")
