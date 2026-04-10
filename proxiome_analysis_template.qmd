@@ -1923,8 +1923,8 @@ bg_scores <-
   lapply(function(x) enframe(x$scores, "component", "bg_score")) |>
   bind_rows()
 
-pg_data@meta.data <-
-  pg_data@meta.data |>
+pg_data[[]] <-
+  pg_data[[]] |>
   as_tibble(rownames = "component") |>
   left_join(bg_scores, by = "component") |>
   column_to_rownames("component")
