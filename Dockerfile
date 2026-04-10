@@ -1,5 +1,5 @@
 # ----------------------- Base image -----------------------
-FROM ghcr.io/pixelgentechnologies/pixelatorr:0.16.0 as build
+FROM ghcr.io/pixelgentechnologies/pixelatorr:0.17.1 as build
 ARG QUARTO_VERSION="1.5.54"
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* &&\

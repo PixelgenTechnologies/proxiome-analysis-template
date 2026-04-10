@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Updated
+
+- The PAT now depends on `pixelatorR >= v0.17.1`. 
+
 ### Fixed
 
 - `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
