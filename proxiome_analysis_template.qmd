@@ -18,6 +18,8 @@ This template describes a standard workflow for analyzing single cell PNA data u
 
 **Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
+**Where to edit:** A few steps need values that depend on *your* experiment (for example quality cutoffs or cell-type names). Those steps are labeled **Decision checkpoint** so they are easy to spot. Scroll through the file, or open the search box in your editor and type **Decision checkpoint** to go to each one.
+
 ## Project Folder Structure
 
 This analysis workflow creates the following folder structure for organizing input data and output results:
@@ -144,6 +146,9 @@ min_p_value_threshold <- 1e-300
 
 ### 0.2.1. Read metadata file
 
+> **Decision checkpoint** (sample table)  
+> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the next chunks. The template reads `metadata_path` below.
+
 To handle file paths and sample-specific data, a metadata file must be provided as a CSV file. The metadata file must contain the following required columns:
 
 - **`sample_id`**: A short sample identifier (e.g., `S1`, `S2`, `S3`)
@@ -261,6 +266,9 @@ for (col in colnames(metadata |> select(-file_path))) {
 ```
 
 ## 0.3. Theme
+
+> **Optional — plot appearance**  
+> Adjust `cluster_palette`, `condition_palette`, `sample_palette`, or `gradient_palette` if you want different colors in exported figures. Defaults work out of the box.
 
 Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  The color palettes are created using the `PixelgenAccentColors()` function from the `pixelatorR` package, which creates a set of 12 colors for each hue. The color palettes are then used to color the clusters and conditions in the plots.
 
@@ -536,6 +544,9 @@ In the following steps, we will determine which cells to retain for downstream a
 We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds will be excluded during the Data Processing stage.
 
 ### 1.3.1. Define thresholds
+
+> **Decision checkpoint** (QC thresholds — used in §2.1 filtering)  
+> Inspect the violin and rank plots above, then set `n_umi_min_threshold`, `n_umi_max_threshold`, and `isotype_percent_threshold` in the next chunk. Re-run downstream sections after changing these.
 
 Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
 
@@ -820,6 +831,9 @@ export_plot(
 
 ### 1.3.4. Tau score filtering
 
+> **Review before §2.1**  
+> Outlier cells are removed in **Normalize and scale** with `subset(tau_type == "normal")`. Use the Tau plot below to confirm that rule fits your experiment; change the filtering in that chunk only if you understand the trade-offs.
+
 The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
 
 ```{r}
@@ -837,6 +851,9 @@ export_plot(
 ```
 
 ## 1.4. Select markers for dimensionality reduction (optional)
+
+> **Decision checkpoint** (marker set for PCA / UMAP / clustering)  
+> Set `marker_cpm_p95_threshold`, run the chunk, then **edit the `selected_markers` vector** (or assign `selected_markers <- rownames(pg_data)` to use all markers). This list feeds §2.2 onward.
 
 This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
 
@@ -944,6 +961,9 @@ pg_data <-
 
 ## 2.2. Dimensionality reduction
 
+> **Decision checkpoint** (PCA / UMAP hyperparameters)  
+> In the next chunk, adjust `npcs`, `n_neighbors`, and the `dims` passed to `RunUMAP` (and the PCA elbow plot) to match your dataset. `RunPCA(..., features = selected_markers)` uses the marker list from §1.4.
+
 Principal Component Analysis (PCA) is performed to extract the main axes of variation in the data. The first 10-20 principal components (PCs) are typically used for downstream analysis, though this number should be adjusted based on the specific dataset and experimental design. As a general guideline, the selected PCs should explain a substantial portion of the total variance while avoiding overfitting to noise. Principal components often capture technical effects, cell states, or experimental conditions, so the number of PCs can be adjusted according to the expected number of cell states or the complexity of the experimental design. The number of PCs is set to 20 by default, but can be adjusted as needed.
 
 If marker selection was performed in the Quality Control section, those selected markers can be used for PCA instead of all markers. This optional step helps reduce noise from low-abundance or non-informative markers and can improve the interpretability of the results. 
@@ -1023,6 +1043,9 @@ export_plot(
 
 ## 2.3. Data harmonization
 
+> **Decision checkpoint** (batch integration)  
+> If you use Harmony, set `group.by.vars` to the metadata column that defines batches (often `"sample_alias"`). If you **skip** Harmony, do not run the chunk below and replace uses of `"harmony"` / `"harmony_umap"` with `"pca"` / `"umap"` in later chunks (search the file for `harmony`).
+
 Data harmonization is an optional step that can be beneficial when experiments contain multiple samples with similar cell types that do not cluster together well due to technical or biological variability. The goal of data harmonization is to align similar cell types across samples so that they cluster together, facilitating the identification of shared cell types between samples even when they exhibit somewhat different protein expression profiles. This approach is particularly useful in experiments with batch effects, technical variability, or biological sources of variation such as donor differences or stimulation-induced perturbations.
 
 The Harmony algorithm is used here to harmonize the data based on sample ID, though any sample metadata column can be specified for harmonization. The algorithm integrates information across samples while preserving biological variation within each sample.
@@ -1085,6 +1108,9 @@ export_plot(
 
 ## 2.4. Clustering
 
+> **Decision checkpoint** (clustering graph and resolution)  
+> In the next chunk, tune `FindNeighbors` (`reduction`, `dims`) and `FindClusters(..., resolution = ...)`. Try a few resolutions and compare UMAP/cluster plots.
+
 Clustering groups cells with similar protein expression profiles into discrete clusters, which can subsequently be annotated as distinct cell types or cell states. This step is essential for identifying and characterizing the cellular composition of the dataset.
 
 Leiden clustering is performed on a k-nearest neighbor graph constructed from the dimensionality-reduced space (either PCA or Harmony reduction). The algorithm identifies communities of cells that are more densely connected to each other than to cells in other communities, effectively partitioning the data into biologically meaningful groups.
@@ -1139,6 +1165,9 @@ export_plot(
 ## 2.5. Marker Distribution on UMAP
 
 This section visualizes the distribution of markers of interest on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
+
+> **Decision checkpoint** (markers for FeaturePlots)  
+> Set `markers_of_interest` in the next chunk to the markers you want on UMAP for annotation (independent from §2.6.3 unless you choose to align them).
 
 ```{r}
 #| label: data_processing_marker_distribution_on_umap
@@ -1452,6 +1481,9 @@ write_csv(diff_abundant_markers_cluster, here::here("results/02_data_processing/
 
 Here we visualize the abundance of **selected markers** across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
+> **Decision checkpoint** (markers for abundance panels / heatmap)  
+> Edit `markers_of_interest` in the next chunk (can match §2.5 or a tighter set for heatmaps).
+
 ```{r}
 #| label: data_processing_marker_abundance_visualization
 
@@ -1538,6 +1570,9 @@ export_plot(
 ```
 
 ### 2.6.4. Set manual annotation 
+
+> **Decision checkpoint** (manual cell type labels — critical for biology)  
+> Replace the `cluster_cell_annotation` named vector in the next chunk so every `seurat_clusters` level in your data has a label. Add or remove cluster keys if your resolution differs from the example.
 
 In this step we assign cell type labels to each cluster based on the analysis performed in the previous sections. Annotations should be informed by a combination of differential abundance results, marker abundance patterns, automated predictions, and known biology, as well as experiment context.
 
@@ -1642,6 +1677,9 @@ export_plot(
 ```
 
 ### 2.6.6. Alternative: Marker gating 
+
+> **Optional path**  
+> Use this section only if you want gating-based annotation; gate coordinates and marker pairs must match **your** CLR distributions.
 
 Marker gating provides an alternative approach to cell annotation that is analogous to flow cytometry gating strategies. This method uses density scatter plots to visualize the co-expression of two markers, allowing users to identify distinct cell populations based on marker expression patterns and define gates (thresholds) to classify cells.
 
@@ -1787,6 +1825,9 @@ export_plot(
 
 ### 2.6.7. Choose a cell annotation to use
 
+> **Decision checkpoint** (which labels drive §3–5)  
+> In the next chunk, set `cell_annotation` to `manual_cell_annotation` for your own labels, or keep `l1_annotation_summary` for a reproducible default. Downstream plots and statistics follow this column.
+
 After performing both automatic and manual annotation (either through cluster-based or gating-based approaches), we need to choose which annotation to use for downstream analyses.
 
 In this tutorial, we will proceed using the automatic annotation because it does not require additional user input and therefore keeps the workflow fully reproducible within the notebook. In practice, however, it is generally recommended to rely on manual annotation, as it allows for incorporation of biological knowledge and experiment context when assigning cell types. 
@@ -1877,6 +1918,9 @@ export_plot(
 ```
 
 ### 2.6.8. Marker selection per cell type
+
+> **Decision checkpoint** (which markers enter differential testing)  
+> The PLS and filter logic below defines `markers_to_test` for §3–5. Adjust `isotype_markers` if your panel differs, and review the scatter plot / heatmaps before trusting exclusions. Advanced users may also tune the `mean_isotype + … * sd_isotype` rules in the `mutate(passed_filter = …)` block.
 
 When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
 
@@ -2133,6 +2177,9 @@ markers_to_test <-
 
 # 3. Abundance distribution
 
+> **Decision checkpoint** (abundance plots scope)  
+> In the opening chunk, set `markers_for_abundance_plots` and `abundance_plots_grouping_column` (`"condition"` vs `"sample_alias"`) for how faceted plots are grouped.
+
 This section generates abundance distribution plots for a selected subset of markers in the dataset, providing detailed visualizations of marker expression patterns across different experimental dimensions. For each marker, plots are generated using both normalized CLR (centered log-ratio) values and raw count data, allowing users to assess expression patterns in both normalized and absolute terms.
 
 The analysis creates multiple visualization perspectives to facilitate exploration:
@@ -2310,6 +2357,9 @@ This section generates colocalization heatmaps that visualize the spatial proxim
 
 ### 4.1.1. Per Group (condition or sample)
 
+> **Decision checkpoint** (colocalization heatmaps — grouping and size)  
+> In the next chunk, set `heatmap_grouping_column`, `max_heatmap_markers`, and optionally `reference_group` (defaults to the first level in metadata) so heatmaps match your comparison and panel size.
+
 For each group (defined by `heatmap_grouping_column`, default: `"condition"`), a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score) for expressed marker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events. The color scale is capped to `c(-1, 1)` to keep the range comparable across experiments.
 
 To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant (controlled by `max_heatmap_markers`).
@@ -2469,6 +2519,9 @@ export_plot(
 ```
 
 ### 4.1.2. Per cluster
+
+> **Same parameters as §4.1.1**  
+> This chunk uses `heatmap_grouping_column`, `max_heatmap_markers`, and `markers_to_test` from earlier sections—run those chunks first or define the same variables in your session.
 
 This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each group (defined by `heatmap_grouping_column`, default: `"condition"`) within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across groups within the same cell type.
 
@@ -2666,6 +2719,9 @@ This section provides two complementary analyses: a whole-dataset network visual
 
 ### 4.2.1. All Cell Types
 
+> **Decision checkpoint** (network — global view)  
+> In the next chunk, choose `network_grouping_column`, a focused `network_markers` list, and thresholds `metric_threshold` / `pct_detected_threshold` / `only_positive_mean_log2_ratio`.
+
 This section generates network visualizations that capture colocalization patterns across all cell types in the dataset, with separate network plots created for each group (defined by `network_grouping_column`, default: condition). This whole-dataset approach provides a global view of marker colocalization relationships and enables comparison of how these relationships vary across conditions. The analysis includes all cells regardless of cell type annotation, making it useful for identifying condition-specific colocalization patterns and detecting potential batch effects or experimental condition-specific changes. Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
 
 Users should specify a focused set of `network_markers` for visualization, as network graphs become difficult to interpret with too many nodes. The filtering thresholds (`metric_threshold` and `pct_detected_threshold`) help focus the visualization on the most robust colocalization relationships. The `only_positive_mean_log2_ratio` parameter can be set to filter for only positive colocalization (markers that co-occur more frequently than expected) or to include both positive and negative colocalization relationships.
@@ -2730,6 +2786,9 @@ export_plot(
 
 
 ### 4.2.2. Per Cell Type
+
+> **Decision checkpoint** (network — one cell type)  
+> Set `cell_type_of_interest` and the same network parameters as in §4.2.1. Must match a value in `cell_annotation`.
 
 This section generates cell type-specific network visualizations, analyzing colocalization patterns within a single cell type of interest. By focusing on a specific cell type, this analysis can reveal cell type-specific colocalization signatures that may be masked in whole-dataset analyses. The network visualization helps identify which markers form strong colocalization relationships within the selected cell type and how these relationships vary across groups (defined by `network_grouping_column`, default: condition). Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
 
@@ -2804,6 +2863,9 @@ export_plot(
 # 5. Statistical testing
 
 ## 5.0. Set reference sample
+
+> **Decision checkpoint** (statistical contrasts)  
+> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in §5 use this baseline.
 
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state. 
 
