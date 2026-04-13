@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Updated
 
 - The PAT now depends on `pixelatorR >= v0.17.1`. 
+- The PAT now includes clear labels for decision checkpoints.
 
 ### Fixed
 
