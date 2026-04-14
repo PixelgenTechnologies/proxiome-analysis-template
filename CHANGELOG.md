@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Updated
+
+- The PAT now depends on `pixelatorR >= 0.17.1`.
+- The PAT now includes clear labels for decision checkpoints.
+
+### Fixed
+
+- `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
+
 ## [0.3.2] 2026-03-27
 
 ### Added
@@ -40,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: Key checkpoints and metadata columns now displayed as clean tables.
 
 ### Fixed
+
 - Fixed a bug in `lintr` installation in CI.
 
 ## [0.3.1] 2026-03-25
