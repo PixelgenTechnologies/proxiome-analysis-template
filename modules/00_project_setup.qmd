@@ -1,4 +1,4 @@
-﻿# 0. Setup
+# 0. Setup
 
 **Module 00 — Project setup.** Load packages, read metadata, and create the PNA object. Run this module first, then continue with `01_quality_control.qmd` in the same R session. Look for **Decision checkpoint** callouts when editing the sample table.
 
