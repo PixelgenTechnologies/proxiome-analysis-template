@@ -42,6 +42,14 @@ To style the code, you need to install `styler`. You can then use one of the fol
 
 ```r
 # Style single file
+styler::style_file("modules/00_project_setup.qmd", transformers = pixelatorR::pixelatorR_style())
+
+# Style all module files
+for (f in list.files("modules", pattern = "\\.qmd$", full.names = TRUE)) {
+  styler::style_file(f, transformers = pixelatorR::pixelatorR_style())
+}
+
+# Style master document
 styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::pixelatorR_style())
 ```
 

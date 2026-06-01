@@ -27,7 +27,14 @@ jobs:
         shell: Rscript {0}
 
       - name: Lint
-        run: lintr::lint("proxiome_analysis_template.qmd")
+        run: |
+          files <- c(
+            "proxiome_analysis_template.qmd",
+            list.files("modules", pattern = "\\.qmd$", full.names = TRUE)
+          )
+          lint_results <- lintr::lint(files)
+          print(lint_results)
+          if (length(lint_results) > 0) quit(status = 1)
         shell: Rscript {0}
         env:
           LINTR_ERROR_ON_LINT: true

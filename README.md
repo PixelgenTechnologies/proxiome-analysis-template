@@ -177,9 +177,16 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 ├── data/
 │   ├── metadata.csv                  ← Your sample info
 │   └── *.layout.pxl                  ← Your PXL files
+├── modules/                          ← Analysis notebooks (run in order)
+│   ├── 00_project_setup.qmd
+│   ├── 01_quality_control.qmd
+│   ├── 02_clustering_annotation.qmd
+│   ├── 03_abundance.qmd
+│   ├── 04_proximity.qmd
+│   └── 05_statistical_testing.qmd    ← Optional
 ├── results/                          ← Created automatically when running the PAT
 ├── proxiome_analysis_template.Rproj  ← Double-click to open the project in RStudio
-└── proxiome_analysis_template.qmd    ← The Proxiome Analysis Template QMD file
+└── proxiome_analysis_template.qmd  ← Full re-render of all modules (optional)
 ```
 
 ### Create metadata.csv
@@ -216,28 +223,47 @@ S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 
 ### Understanding QMD files and code chunks
 
-The analysis lives in `proxiome_analysis_template.qmd` — a **Quarto document** (QMD file). Think of it as a notebook that combines text explanations with runnable R code.
+The analysis lives in numbered notebooks under `modules/` — **Quarto documents** (QMD files) that combine text explanations with runnable R code. Think of each module as one stage of the workflow.
 
-- **QMD file**: A document that mixes formatted text (like this README) with executable code. You run the code section by section.
-- **Code chunk**: A gray block containing R code that you can run. Each chunk has a green **▶ (play) button** in the top-right corner of the chunk.
+- **QMD file**: A document that mixes formatted text with executable R code. You run the code section by section.
+- **Code chunk**: A gray block containing R code. Each chunk has a green **▶ (play) button** in the top-right corner.
 
-### How to run the analysis
+### How to run the analysis (interactive)
 
 1. **Open** `proxiome_analysis_template.Rproj` (double-click the file in your downloaded folder)
-2. **Open** `proxiome_analysis_template.qmd` in RStudio (from the Files pane on the right)
-3. **Run chunks** in order by clicking the green ▶ button in the top-right corner of each code chunk (or press `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`)
+2. **Open** `modules/00_project_setup.qmd` in RStudio (from the Files pane)
+3. **Run chunks** top to bottom in module `00`, then continue with `01`, `02`, `03`, and `04` **in the same R session** so objects stay in memory
+4. **Optional:** Open `modules/05_statistical_testing.qmd` only if you need differential testing between conditions
+
+> 💡 **Tip:** Each module starts with a short intro explaining what it does and what to run first. Search for **Decision checkpoint** inside the module you are working on to find values you need to edit.
+
+### Full re-render (optional)
+
+To regenerate one HTML report of the entire workflow at the end of a project, render `proxiome_analysis_template.qmd`. This file includes all modules in order. For day-to-day analysis, use the individual modules in `modules/` instead.
+
+### Resuming in a new session
+
+If you closed R and want to continue without re-running everything, modules `03`–`05` include an optional commented chunk at the top to load the saved object from a previous clustering run:
+
+```r
+# pg_data <- readRDS(here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+```
+
+Uncomment that line, run it, then continue with the rest of the module. For module `02`, run modules `00` and `01` again first.
 
 ### ⚠️ Where you need to make choices
 
-The template requires your input at several key points. **Look for these sections and adjust the values to match your data:**
+The template requires your input at several key points. Look for **Decision checkpoint** callouts and adjust values to match your data:
 
-| Section | What to do |
-|---------|------------|
-| **1.3.1 Define thresholds** | Set QC thresholds: `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold`. Review the plots and adjust these values based on your data quality. |
-| **1.5 Select markers** | After running the selection code, review `selected_markers` and add/remove markers as needed for your experiment. |
-| **2.6.4 Set manual annotation** | **Critical step!** Edit the `cluster_cell_annotation` vector to assign cell type names to each cluster number based on the marker patterns you observe. |
+| Module | What to do |
+|--------|------------|
+| **00 — sample table** | Check `metadata.csv` paths and sample IDs match your data |
+| **01 — §1.3.1 Define thresholds** | Set QC thresholds: `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold`. Review the plots and adjust based on your data quality. |
+| **01 — §1.4 Select markers** | After running the selection code, review `selected_markers` and add/remove markers as needed for your experiment. |
+| **02 — §2.6.4 Set manual annotation** | **Critical step!** Edit the `cluster_cell_annotation` vector to assign cell type names to each cluster number based on the marker patterns you observe. |
+| **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"resting"`). |
 
-> 💡 **Tip:** The QMD file contains comments above each section explaining what values you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
+> 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
 
 ### Output
 
@@ -290,7 +316,7 @@ Install compiler tools for your OS:
 <details>
 <summary><strong>"Cannot find function" error</strong></summary>
 
-Run the Setup chunk (Section 0.1) first by clicking the green ▶ button in the top-right corner of that code chunk.
+Run the Setup chunk in `modules/00_project_setup.qmd` (§0.1) first by clicking the green ▶ button in the top-right corner of that code chunk.
 
 </details>
 

@@ -1,0 +1,520 @@
+﻿# 4. Colocalization score
+
+**Module 04 — Proximity.** Colocalization heatmaps and network plots. Run modules `00`–`02` first in the same R session, or use the optional resume chunk below.
+
+```{r}
+#| label: resume_optional_proximity
+#| eval: false
+
+# Optional — only if resuming in a new session and skipping earlier modules:
+# pg_data <- readRDS(here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+```
+
+## 4.1. Heatmap of colocalization score
+
+This section generates colocalization heatmaps that visualize the spatial proximity patterns between marker pairs expressed in the dataset. Colocalization scores quantify the extent to which two markers are found in close proximity to each other within cells, providing insights into protein co-localization and potential molecular interactions or co-expression patterns.
+
+### 4.1.1. Per Group (condition or sample)
+
+> **Decision checkpoint** (colocalization heatmaps — grouping and size)  
+> In the next chunk, set `heatmap_grouping_column`, `max_heatmap_markers`, and optionally `reference_group` (defaults to the first level in metadata) so heatmaps match your comparison and panel size.
+
+For each group (defined by `heatmap_grouping_column`, default: `"condition"`), a heatmap is created showing the mean log2 ratio of observed versus expected colocalization (co-localization score) for expressed marker pairs. The color intensity represents the strength of colocalization (positive values indicate higher-than-expected colocalization, negative values indicate lower-than-expected), while the dot size represents the percentage of cells in which the marker pair was detected. This dual encoding allows simultaneous assessment of both the magnitude and prevalence of colocalization events. The color scale is capped to `c(-1, 1)` to keep the range comparable across experiments.
+
+To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant (controlled by `max_heatmap_markers`).
+
+To enable direct comparison across groups, all heatmaps use a consistent marker ordering (determined by hierarchical clustering of a reference group) and identical color and size scales. This standardization ensures that differences in colocalization patterns between groups reflect true biological or experimental differences rather than visualization artifacts. Individual heatmaps are saved for each group, and a combined visualization showing all groups side-by-side is also generated to facilitate cross-group comparison.
+
+```{r}
+#| label: colocalization_raw_heatmap_per_sample
+
+# Column used to group proximity data for heatmaps. Set to "condition" (default) to
+# summarize by experimental condition, or "sample_alias" to summarize per sample.
+heatmap_grouping_column <- "condition"
+
+# Maximum number of markers to display in the heatmap. When expressed_markers
+# contains more than max_heatmap_markers proteins, they are filtered to the top
+# most abundant proteins. Set max_heatmap_markers to Inf to always show all
+# expressed markers.
+max_heatmap_markers <- 60
+
+expressed_markers <- unique(unlist(markers_to_test))
+
+# Optionally limit markers shown in the heatmap to the top most abundant
+plot_markers <-
+  head(rowMeans(
+    GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
+    na.rm = TRUE
+  ), max_heatmap_markers) %>%
+  names()
+
+proximity_data <- ProximityScores(pg_data,
+  lazy = TRUE,
+  meta_data_columns = c(heatmap_grouping_column)
+) |>
+  filter(marker_1 %in% plot_markers) |>
+  filter(marker_2 %in% plot_markers) |>
+  collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = heatmap_grouping_column)
+rm(proximity_data)
+gc()
+
+# Create reference heatmap to determine marker ordering
+# By default, the reference group is the first one to occur in metadata, but you can specify it explicitly if needed
+reference_group <- metadata[[heatmap_grouping_column]][1]
+reference_heatmap <- ColocalizationHeatmap(
+  summary_proximity_data |>
+    filter(.data[[heatmap_grouping_column]] == reference_group),
+  marker1_col = "marker_1",
+  marker2_col = "marker_2",
+  value_col = "mean_log2_ratio",
+  size_col = "pct_detected",
+  type = "dots",
+  cluster_cols = TRUE,
+  cluster_rows = TRUE,
+  legend_range = c(-1, 1)
+)
+
+marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+# Calculate number of markers for dynamic plot sizing
+n_markers <- length(marker_order)
+
+# Calculate plot dimensions based on number of markers
+# Base size + scaling factor to ensure readability across different marker counts
+# Minimum size ensures small marker sets are still readable, scaling factor accommodates larger sets
+base_width <- 6
+base_height <- 6
+marker_scaling_factor <- 0.15 # Additional inches per marker
+plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
+plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
+
+# Cap the color scale to c(-1, 1) for consistent and readable heatmaps
+global_value_limits <- c(-1, 1)
+
+# Calculate global size range across all groups for consistent size scaling
+global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+
+# Get all unique group values
+unique_groups <- unique(summary_proximity_data[[heatmap_grouping_column]])
+
+# Create heatmaps for each group using the reference marker order
+# Store plots in a list to combine them later
+group_heatmaps <- list()
+
+for (group in unique_groups) {
+  # Filter data for current group
+  group_data <- summary_proximity_data |> filter(.data[[heatmap_grouping_column]] == group)
+
+  tmp_plot <- ColocalizationHeatmap(
+    group_data,
+    marker1_col = "marker_1",
+    marker2_col = "marker_2",
+    value_col = "mean_log2_ratio",
+    size_col = "pct_detected",
+    type = "dots",
+    cluster_cols = FALSE,
+    cluster_rows = FALSE,
+    legend_range = global_value_limits # Use capped range for consistent scaling
+  ) +
+    ggtitle(glue::glue("Raw colocalization heatmap for {group}"))
+
+  # Apply the reference marker order to the ggplot object by modifying the scales
+  # This ensures all heatmaps have consistent marker ordering
+  tmp_plot <- tmp_plot +
+    scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+    scale_y_discrete(limits = rev(marker_order), drop = FALSE)
+
+  # Ensure consistent scales across all groups for fair comparison
+  # The legend_range parameter already handles the value scale, but we need to ensure
+  # the size scale is also consistent. Try both fill and color aesthetics in case
+  # ColocalizationHeatmap uses either one
+  plot_layers <- tmp_plot$layers
+  has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+  has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+
+  # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+  if (has_fill) {
+    tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+  }
+  if (has_color && !has_fill) {
+    tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+  }
+
+  # Ensure consistent size scale across all groups
+  tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.2, 3))
+
+  # Save individual plot with dimensions scaled to number of markers
+  export_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/{group}_raw_colocalization_heatmap")),
+    plot = tmp_plot,
+    width = plot_width,
+    height = plot_height
+  )
+
+  # Store plot for combined visualization
+  group_heatmaps[[group]] <- tmp_plot
+}
+
+# Create a combined plot with all groups side by side
+n_groups <- length(unique_groups)
+n_rows <- 2
+n_cols <- ceiling(n_groups / n_rows)
+combined_plot <- patchwork::wrap_plots(group_heatmaps, nrow = n_rows)
+
+# Calculate combined plot dimensions: scale width by number of columns, height by number of rows
+# Each subplot maintains its aspect ratio while accommodating multiple groups
+combined_width <- plot_width * n_cols
+combined_height <- plot_height * n_rows
+
+# Save the combined plot
+export_plot(
+  filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
+  plot = combined_plot,
+  width = combined_width,
+  height = combined_height
+)
+```
+
+### 4.1.2. Per cluster
+
+> **Same parameters as §4.1.1**  
+> This chunk uses `heatmap_grouping_column`, `max_heatmap_markers`, and `markers_to_test` from earlier sections—run those chunks first or define the same variables in your session.
+
+This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each group (defined by `heatmap_grouping_column`, default: `"condition"`) within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across groups within the same cell type.
+
+To keep heatmaps readable when many markers are used, marker display can be limited to the top most abundant proteins (controlled by `max_heatmap_markers`). The color scale is capped to `c(-1, 1)`.
+
+The visualization follows the same principles as the per-group analysis: color intensity represents the mean log2 ratio of observed versus expected colocalization, and dot size indicates the percentage of cells in which the marker pair was detected. All heatmaps for a given cell type use consistent marker ordering and scales to enable direct comparison across groups. Individual heatmaps are saved for each group-cell type combination, and combined visualizations showing all groups side-by-side are generated for each cell type. Results are organized in separate subdirectories for each cell type to facilitate navigation and interpretation.
+
+```{r}
+#| label: colocalization_raw_heatmap_per_cell_type
+
+cell_types <- unique(pg_data[[]]$cell_annotation)
+cell_types <- cell_types[!is.na(cell_types)]
+
+expressed_markers <- unique(unlist(markers_to_test))
+
+grouped_marker_abundance <-
+  FetchData(pg_data,
+    vars = c("cell_annotation", expressed_markers),
+    layer = "data"
+  ) %>%
+  group_by(cell_annotation) %>%
+  summarise(across(all_of(expressed_markers), \(x) mean(x, na.rm = TRUE))) %>%
+  column_to_rownames("cell_annotation")
+
+for (cell_type in cell_types) {
+  expressed_markers <- markers_to_test[[cell_type]]
+
+  # Optionally limit markers shown in the heatmap to the top most abundant
+  plot_markers <-
+    grouped_marker_abundance[cell_type, ] %>%
+    unlist() %>%
+    sort(decreasing = TRUE) %>%
+    head(max_heatmap_markers) %>%
+    names()
+
+  pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
+
+  proximity_data <- ProximityScores(pg_data_cell_type,
+    lazy = TRUE,
+    meta_data_columns = c(heatmap_grouping_column)
+  ) |>
+    filter(marker_1 %in% plot_markers) |>
+    filter(marker_2 %in% plot_markers) |>
+    collect()
+
+  summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = heatmap_grouping_column)
+  rm(proximity_data)
+  gc()
+
+  # Create reference heatmap to determine marker ordering
+  reference_heatmap <- ColocalizationHeatmap(
+    summary_proximity_data |>
+      group_by(marker_1, marker_2) |>
+      summarise(
+        mean_log2_ratio = mean(mean_log2_ratio, na.rm = TRUE),
+        pct_detected = mean(pct_detected, na.rm = TRUE),
+        .groups = "drop"
+      ),
+    marker1_col = "marker_1",
+    marker2_col = "marker_2",
+    value_col = "mean_log2_ratio",
+    size_col = "pct_detected",
+    type = "dots",
+    cluster_cols = TRUE,
+    cluster_rows = TRUE,
+    legend_range = c(-1, 1)
+  )
+
+  marker_order <- layer_scales(reference_heatmap)$y$range$range
+
+  # Calculate number of markers for dynamic plot sizing
+  n_markers <- length(marker_order)
+
+  # Calculate plot dimensions based on number of markers
+  # Base size + scaling factor to ensure readability across different marker counts
+  # Minimum size ensures small marker sets are still readable, scaling factor accommodates larger sets
+  base_width <- 6
+  base_height <- 6
+  marker_scaling_factor <- 0.15 # Additional inches per marker
+  plot_width <- max(base_width, base_width + (n_markers - 20) * marker_scaling_factor)
+  plot_height <- max(base_height, base_height + (n_markers - 20) * marker_scaling_factor)
+
+  # Cap the color scale to c(-1, 1) for consistent and readable heatmaps
+  global_value_limits <- c(-1, 1)
+
+  # Calculate global size range across all groups for this cell type
+  global_size_range <- range(summary_proximity_data$pct_detected, na.rm = TRUE)
+
+  # Get all unique group values
+  unique_groups <- unique(summary_proximity_data[[heatmap_grouping_column]])
+
+  # Create heatmaps for each group using the reference marker order
+  # Store plots in a list to combine them later
+  group_heatmaps <- list()
+
+  for (group in unique_groups) {
+    # Filter data for current group
+    group_data <-
+      summary_proximity_data |>
+      filter(.data[[heatmap_grouping_column]] == group)
+
+    if (n_distinct(c(
+      group_data$marker_1,
+      group_data$marker_2
+    )) >= 2) {
+      tmp_plot <- ColocalizationHeatmap(
+        group_data,
+        marker1_col = "marker_1",
+        marker2_col = "marker_2",
+        value_col = "mean_log2_ratio",
+        size_col = "pct_detected",
+        type = "dots",
+        cluster_cols = FALSE,
+        cluster_rows = FALSE,
+        legend_range = global_value_limits # Use capped range for consistent scaling
+      ) +
+        ggtitle(glue::glue("Raw colocalization heatmap for {cell_type} in {group}"))
+
+      # Apply the reference marker order to the ggplot object by modifying the scales
+      # This ensures all heatmaps have consistent marker ordering
+      tmp_plot <- tmp_plot +
+        scale_x_discrete(limits = marker_order, drop = FALSE, position = "top") +
+        scale_y_discrete(limits = rev(marker_order), drop = FALSE)
+
+      # Ensure consistent scales across all groups for fair comparison
+      # The legend_range parameter already handles the value scale, but we need to ensure
+      # the size scale is also consistent. Try both fill and color aesthetics in case
+      # ColocalizationHeatmap uses either one
+      plot_layers <- tmp_plot$layers
+      has_fill <- any(sapply(plot_layers, function(l) "fill" %in% names(l$mapping) || "fill" %in% names(l$aes_params)))
+      has_color <- any(sapply(plot_layers, function(l) "colour" %in% names(l$mapping) || "color" %in% names(l$mapping) || "colour" %in% names(l$aes_params)))
+
+      # Apply value scale limits (legend_range should handle this, but ensure it's applied)
+      if (has_fill) {
+        tmp_plot <- tmp_plot + scale_fill_continuous(limits = global_value_limits, oob = scales::oob_squish)
+      }
+      if (has_color && !has_fill) {
+        tmp_plot <- tmp_plot + scale_color_continuous(limits = global_value_limits, oob = scales::oob_squish)
+      }
+
+      # Ensure consistent size scale across all groups
+      tmp_plot <- tmp_plot + scale_size_continuous(limits = global_size_range, range = c(0.5, 5))
+
+      # Save individual plot with dimensions scaled to number of markers
+      export_plot(
+        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{group}_{cell_type}_raw_colocalization_heatmap")),
+        plot = tmp_plot,
+        width = plot_width,
+        height = plot_height
+      )
+    } else {
+      # Create an empty plot with a message indicating insufficient markers
+      tmp_plot <- ggplot() +
+        theme_void() +
+        geom_text(aes(0, 0, label = glue::glue("Insufficient markers in {cell_type} for {group}"))) +
+        xlim(-1, 1) +
+        ylim(-1, 1)
+    }
+
+    # Store plot for combined visualization
+    group_heatmaps[[group]] <- tmp_plot
+  }
+
+  # Create a combined plot with all groups side by side
+  n_groups <- length(unique_groups)
+  n_rows <- 2
+  n_cols <- ceiling(n_groups / n_rows)
+  combined_plot <- patchwork::wrap_plots(group_heatmaps, nrow = n_rows)
+
+  # Calculate combined plot dimensions: scale width by number of columns, height by number of rows
+  # Each subplot maintains its aspect ratio while accommodating multiple groups
+  combined_width <- plot_width * n_cols
+  combined_height <- plot_height * n_rows
+
+  # Save the combined plot
+  export_plot(
+    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
+    plot = combined_plot,
+    width = combined_width,
+    height = combined_height
+  )
+}
+```
+
+
+## 4.2. Colocalization Score network
+
+Network visualizations provide an alternative representation of colocalization patterns that can reveal complex relationships and connectivity structures between markers. Unlike heatmaps, which display all pairwise interactions in a matrix format, network graphs focus on the most significant colocalization relationships by filtering based on statistical and biological criteria. This filtering approach helps reduce visual clutter and highlights the most biologically relevant interactions.
+
+In network visualizations, markers are represented as nodes, and colocalization relationships are shown as edges connecting pairs of markers. Edge color encodes the strength of colocalization (mean log2 ratio), while edge width represents the magnitude of the colocalization effect. The network layout algorithm positions nodes to minimize edge crossings and optimize visual clarity, with markers that share similar colocalization patterns tending to cluster together spatially.
+
+The network is constructed by filtering marker pairs based on two key criteria: (1) a minimum colocalization threshold (`metric_threshold`), which can be applied to either positive colocalization only or absolute values, and (2) a minimum detection threshold (`pct_detected_threshold`), ensuring that only marker pairs detected in a sufficient proportion of cells are included. These filters help focus the visualization on robust, biologically meaningful colocalization relationships while reducing noise from weak or rare interactions.
+
+This section provides two complementary analyses: a whole-dataset network visualization that captures global colocalization patterns across all cell types, and cell type-specific network visualizations that reveal how colocalization patterns differ between cell types. Users should select a focused set of markers of interest (`network_markers`) for network visualization, as including too many markers can make the network difficult to interpret.
+
+### 4.2.1. All Cell Types
+
+> **Decision checkpoint** (network — global view)  
+> In the next chunk, choose `network_grouping_column`, a focused `network_markers` list, and thresholds `metric_threshold` / `pct_detected_threshold` / `only_positive_mean_log2_ratio`.
+
+This section generates network visualizations that capture colocalization patterns across all cell types in the dataset, with separate network plots created for each group (defined by `network_grouping_column`, default: condition). This whole-dataset approach provides a global view of marker colocalization relationships and enables comparison of how these relationships vary across conditions. The analysis includes all cells regardless of cell type annotation, making it useful for identifying condition-specific colocalization patterns and detecting potential batch effects or experimental condition-specific changes. Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
+
+Users should specify a focused set of `network_markers` for visualization, as network graphs become difficult to interpret with too many nodes. The filtering thresholds (`metric_threshold` and `pct_detected_threshold`) help focus the visualization on the most robust colocalization relationships. The `only_positive_mean_log2_ratio` parameter can be set to filter for only positive colocalization (markers that co-occur more frequently than expected) or to include both positive and negative colocalization relationships.
+
+```{r}
+#| label: colocalization_score_network_all_cell_types
+
+# Column used to facet network plots. Set to "condition" (default) to facet by
+# experimental condition, or "sample_alias" to facet by individual sample.
+network_grouping_column <- "condition"
+
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+only_positive_mean_log2_ratio <- TRUE
+# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
+metric_threshold <- 0.1
+pct_detected_threshold <- 0.5
+
+proximity_data <- ProximityScores(pg_data,
+  lazy = TRUE,
+  meta_data_columns = c(network_grouping_column)
+) |>
+  filter(marker_1 %in% network_markers) |>
+  filter(marker_2 %in% network_markers) |>
+  collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = network_grouping_column)
+rm(proximity_data)
+gc()
+
+# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
+df_net <- summary_proximity_data %>%
+  filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+  filter(pct_detected > pct_detected_threshold) %>%
+  mutate(from = marker_1, to = marker_2) %>%
+  select(from, to, mean_log2_ratio, !!sym(network_grouping_column))
+
+tidygraph::as_tbl_graph(df_net) %>%
+  ggraph(layout = "kk") +
+  geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+  geom_node_label(aes(label = name), size = 2.5) +
+  scale_edge_color_gradientn(
+    colours = gradient_palette,
+    limits = c(-1, 1) * abs(max(df_net$mean_log2_ratio))
+  ) +
+  scale_x_continuous(expand = c(0.2, 0.2)) +
+  scale_y_continuous(expand = c(0.2, 0.2)) +
+  facet_edges(as.formula(paste0("~", network_grouping_column)), nrow = 2) +
+  theme(
+    aspect.ratio = 1,
+    panel.background = element_rect(fill = "white", color = "black"),
+    panel.spacing = unit(1, "lines")
+  ) +
+  labs(edge_color = "Mean\nlog2 ratio", title = "Colocalization Score Network All Cell Types", subtitle = glue::glue("Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}")) +
+  guides(edge_width = "none")
+
+export_plot(
+  filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
+  width = 12,
+  height = 8
+)
+```
+
+
+### 4.2.2. Per Cell Type
+
+> **Decision checkpoint** (network — one cell type)  
+> Set `cell_type_of_interest` and the same network parameters as in §4.2.1. Must match a value in `cell_annotation`.
+
+This section generates cell type-specific network visualizations, analyzing colocalization patterns within a single cell type of interest. By focusing on a specific cell type, this analysis can reveal cell type-specific colocalization signatures that may be masked in whole-dataset analyses. The network visualization helps identify which markers form strong colocalization relationships within the selected cell type and how these relationships vary across groups (defined by `network_grouping_column`, default: condition). Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
+
+Users should specify the `cell_type_of_interest` variable to select which cell type to analyze. The same filtering criteria and visualization principles apply as in the all-cell-types analysis, but the proximity data is filtered to include only cells belonging to the specified cell type. This enables identification of cell type-specific marker interactions and comparison of how colocalization networks differ between cell types.
+
+```{r}
+#| label: colocalization_score_network_per_cell_type
+
+network_markers <- c("CD52", "CD59", "CD81", "CD82", "CD43", "CD44", "CD45", "CD45RA", "CD45RB", "CD8")
+cell_type_of_interest <- "CD8 T"
+only_positive_mean_log2_ratio <- TRUE
+# Define the threshold for the metric and the percentage of detected cells - this will be used to filter the data for the network plot
+metric_threshold <- 0.1
+pct_detected_threshold <- 0.5
+
+proximity_data <- ProximityScores(pg_data,
+  lazy = TRUE,
+  meta_data_columns = c(network_grouping_column, "cell_annotation")
+) |>
+  filter(cell_annotation == cell_type_of_interest) |>
+  filter(marker_1 %in% network_markers) |>
+  filter(marker_2 %in% network_markers) |>
+  filter(marker_1 != marker_2) |>
+  collect()
+
+summary_proximity_data <- SummarizeProximityScores(proximity_data, group_vars = network_grouping_column)
+rm(proximity_data)
+gc()
+
+# Create the network plot: filter the data for the network plot based on the metric and the percentage of detected cells, then create the network plot - this is also where you can include additional filtering options, such as for example to only include positive mean_log2_ratio.
+df_net <- summary_proximity_data %>%
+  filter(if (only_positive_mean_log2_ratio) mean_log2_ratio > metric_threshold else abs(mean_log2_ratio) > metric_threshold) %>%
+  filter(pct_detected > pct_detected_threshold) %>%
+  mutate(from = marker_1, to = marker_2) %>%
+  select(from, to, mean_log2_ratio, !!sym(network_grouping_column))
+
+tidygraph::as_tbl_graph(df_net) %>%
+  ggraph(layout = "kk") +
+  geom_edge_link(aes(color = mean_log2_ratio, width = abs(mean_log2_ratio))) +
+  geom_node_label(aes(label = name), size = 2.5) +
+  scale_edge_color_gradientn(
+    colours = gradient_palette,
+    limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+  ) +
+  scale_x_continuous(expand = c(0.2, 0.2)) +
+  scale_y_continuous(expand = c(0.2, 0.2)) +
+  facet_edges(as.formula(paste0("~", network_grouping_column)), nrow = 2) +
+  theme(
+    aspect.ratio = 1,
+    panel.background = element_rect(fill = "white", color = "black"),
+    panel.spacing = unit(1, "lines")
+  ) +
+  labs(
+    edge_color = "Mean\nlog2 ratio",
+    title = glue::glue("Colocalization Score Network {cell_type_of_interest}"),
+    subtitle = glue::glue(
+      "Metric threshold{if (only_positive_mean_log2_ratio) ' (only positive)' else ' (absolute value)'}: {metric_threshold}, Percentage of cells above threshold: {pct_detected_threshold}"
+    )
+  ) +
+  guides(edge_width = "none")
+
+export_plot(
+  filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
+  width = 12,
+  height = 8
+)
+```
+
+
+

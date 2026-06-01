@@ -1,0 +1,1249 @@
+﻿# 2. Data processing
+
+**Module 02 — Clustering and annotation.** Normalize, cluster, and annotate cells. Run modules `00` and `01` first in the same R session. If you start a new R session, run `00` and `01` again before this module. **Decision checkpoint** callouts cover clustering parameters, manual labels, and optional CD4 gating examples below.
+
+```{r}
+#| label: resume_optional_clustering
+#| eval: false
+
+# Optional — only if resuming in a new session after modules 00 and 01 were run previously:
+# Run modules 00 and 01 first, then continue here. There is no saved object between QC and clustering.
+```
+
+## 2.1. Normalize and scale data
+
+PNA data are normalized using centered log-ratio (CLR) transformation over margin 2, which normalizes counts per cell by dividing by the geometric mean across all markers for that cell. This normalization approach effectively accounts for differences in sequencing depth between cells while preserving the relative differences in marker abundance within each cell. The CLR transformation is particularly well-suited for compositional data like PNA, where the total signal per cell can vary substantially.
+
+Following normalization, the data are Z-score scaled per marker. This transformation centers each marker's distribution around zero and scales it to unit variance. Z-score scaling is essential for downstream dimensionality reduction and clustering analyses, as it ensures that all markers contribute equally to the analysis regardless of their absolute abundance levels. Without this scaling step, highly abundant markers would dominate the analysis, potentially obscuring important signals from less abundant but biologically relevant markers.
+
+```{r}
+#| label: data_processing_normalize_scale
+
+pg_data <-
+  pg_data |>
+  # Filter cells based on quality control thresholds
+  subset(tau_type == "normal") |>
+  subset(n_umi > n_umi_min_threshold &
+    n_umi < n_umi_max_threshold) |>
+  subset(isotype_fraction < isotype_percent_threshold / 100) |>
+  # Data normalization
+  NormalizeData(normalization.method = "CLR", margin = 2) |>
+  # Z score scaling
+  ScaleData()
+```
+
+## 2.2. Dimensionality reduction
+
+> **Decision checkpoint** (PCA / UMAP hyperparameters)  
+> In the next chunk, adjust `npcs`, `n_neighbors`, and the `dims` passed to `RunUMAP` (and the PCA elbow plot) to match your dataset. `RunPCA(..., features = selected_markers)` uses the marker list from §1.4.
+
+Principal Component Analysis (PCA) is performed to extract the main axes of variation in the data. The first 10-20 principal components (PCs) are typically used for downstream analysis, though this number should be adjusted based on the specific dataset and experimental design. As a general guideline, the selected PCs should explain a substantial portion of the total variance while avoiding overfitting to noise. Principal components often capture technical effects, cell states, or experimental conditions, so the number of PCs can be adjusted according to the expected number of cell states or the complexity of the experimental design. The number of PCs is set to 20 by default, but can be adjusted as needed.
+
+If marker selection was performed in the Quality Control section, those selected markers can be used for PCA instead of all markers. This optional step helps reduce noise from low-abundance or non-informative markers and can improve the interpretability of the results. 
+
+Following PCA, Uniform Manifold Approximation and Projection (UMAP) is applied to visualize the data in a two-dimensional space. UMAP is a non-linear dimensionality reduction technique that preserves both local neighborhood structure and global relationships in the data. This makes it particularly well-suited for visualizing complex single-cell PNA datasets, where it can reveal cell type clusters and relationships that may not be apparent in higher-dimensional space. The number of neighbors is set to 30 by default, but can be adjusted as needed.
+
+```{r}
+#| label: data_processing_dimensionality_reduction
+
+npcs <- 20
+n_neighbors <- 30
+pg_data <-
+  pg_data |>
+  RunPCA(npcs = npcs, features = selected_markers) |>
+  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
+
+pca_red <-
+  Reductions(pg_data, "pca")
+
+pca_red@stdev |>
+  as_tibble(rownames = "PC") |>
+  mutate(PC = PC |>
+    str_remove("PC_") |>
+    as.integer()) |>
+  ggplot(aes(PC, value)) +
+  geom_line() +
+  geom_point() +
+  theme_bw() +
+  labs(
+    title = "PCA Elbow Plot",
+    x = "Principal Component",
+    y = "Standard Deviation"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca_elbow_plot"),
+  width = 6,
+  height = 4
+)
+
+cell_metadata <-
+  FetchData(pg_data, c("sample_alias", "condition")) |>
+  as_tibble(rownames = "cell_id")
+
+Embeddings(pg_data, "pca") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(PC_1, PC_2, color = sample_alias)) +
+  geom_point(size = 0.5) +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+export_plot(
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_pca"),
+  width = 6,
+  height = 4
+)
+
+
+Embeddings(pg_data, "umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(umap_1, umap_2, color = sample_alias)) +
+  geom_point(size = 0.5) +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+export_plot(
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_umap"),
+  width = 6,
+  height = 4
+)
+```
+
+## 2.3. Data harmonization
+
+> **Decision checkpoint** (batch integration)  
+> If you use Harmony, set `group.by.vars` to the metadata column that defines batches (often `"sample_alias"`). If you **skip** Harmony, do not run the chunk below and replace uses of `"harmony"` / `"harmony_umap"` with `"pca"` / `"umap"` in later chunks (search the file for `harmony`).
+
+Data harmonization is an optional step that can be beneficial when experiments contain multiple samples with similar cell types that do not cluster together well due to technical or biological variability. The goal of data harmonization is to align similar cell types across samples so that they cluster together, facilitating the identification of shared cell types between samples even when they exhibit somewhat different protein expression profiles. This approach is particularly useful in experiments with batch effects, technical variability, or biological sources of variation such as donor differences or stimulation-induced perturbations.
+
+The Harmony algorithm is used here to harmonize the data based on sample ID, though any sample metadata column can be specified for harmonization. The algorithm integrates information across samples while preserving biological variation within each sample.
+
+**Important considerations**: Users should carefully inspect the harmonized data to ensure that harmonization has not removed important biological variation and that similar cell types are indeed clustering together across samples. In many cases, harmonization is not necessary, particularly when samples are already well-mixed and similar cell types cluster together naturally without harmonization.
+
+The harmonization process generates a new dimensional reduction called "harmony", which is used for UMAP visualization and clustering. Importantly, the original data remains unchanged, so harmonization is used primarily to identify common cell identities across samples rather than to modify the underlying expression data.
+
+```{r}
+#| label: data_processing_data_harmonization
+pg_data <-
+  pg_data |>
+  RunHarmony(
+    group.by.vars = "sample_alias",
+    plot_convergence = FALSE
+  ) |>
+  RunUMAP(
+    reduction = "harmony",
+    dims = 1:20,
+    reduction.name = "harmony_umap",
+    n.neighbors = n_neighbors
+  )
+
+cell_metadata <-
+  FetchData(pg_data, c("sample_alias", "condition")) |>
+  as_tibble(rownames = "cell_id")
+
+Embeddings(pg_data, "harmony") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmony_1, harmony_2, color = sample_alias)) +
+  geom_point(size = 0.5) +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+export_plot(
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmony"),
+  width = 6,
+  height = 4
+)
+
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = sample_alias)) +
+  geom_point(size = 0.5) +
+  coord_fixed() +
+  scale_color_manual(values = sample_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+export_plot(
+  filename = here::here("results/02_data_processing/dimensionality_reduction_plots/data_processing_harmonyumap"),
+  width = 6,
+  height = 4
+)
+```
+
+## 2.4. Clustering
+
+> **Decision checkpoint** (clustering graph and resolution)  
+> In the next chunk, tune `FindNeighbors` (`reduction`, `dims`) and `FindClusters(..., resolution = ...)`. Try a few resolutions and compare UMAP/cluster plots.
+
+Clustering groups cells with similar protein expression profiles into discrete clusters, which can subsequently be annotated as distinct cell types or cell states. This step is essential for identifying and characterizing the cellular composition of the dataset.
+
+Leiden clustering is performed on a k-nearest neighbor graph constructed from the dimensionality-reduced space (either PCA or Harmony reduction). The algorithm identifies communities of cells that are more densely connected to each other than to cells in other communities, effectively partitioning the data into biologically meaningful groups.
+
+The resolution parameter is a critical hyperparameter that controls the granularity of the clustering. Higher resolution values result in more fine-grained clusters (more clusters with fewer cells each), while lower values produce broader clusters (fewer clusters with more cells each). The optimal resolution depends on the dataset characteristics, experimental design, and the level of cellular heterogeneity expected. Users should test multiple resolution values (e.g., 0.3, 0.5, 0.7, 1.0) and visually inspect the resulting clusters on UMAP plots to determine which resolution best captures the expected cell type diversity without over-clustering or under-clustering the data. The resolution is set to 0.5 by default, but can be adjusted as needed.
+
+```{r}
+#| label: data_processing_clustering
+
+pg_data <-
+  pg_data |>
+  FindNeighbors(reduction = "harmony", dims = 1:10) |>
+  FindClusters(random.seed = 1, resolution = 0.5)
+
+cell_metadata <-
+  FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
+  as_tibble(rownames = "cell_id")
+
+Embeddings(pg_data, "harmony") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmony_1, harmony_2, color = seurat_clusters)) +
+  geom_point(size = 0.5) +
+  coord_fixed() +
+  scale_color_manual(values = cluster_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+export_plot(
+  filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmony_clusters"),
+  width = 6,
+  height = 4
+)
+
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata, by = "cell_id") |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = seurat_clusters)) +
+  geom_point(size = 0.5) +
+  coord_fixed() +
+  scale_color_manual(values = cluster_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+export_plot(
+  filename = here::here("results/02_data_processing/clustering_plots/data_processing_harmonyumap_clusters"),
+  width = 6,
+  height = 4
+)
+```
+
+## 2.5. Marker Distribution on UMAP
+
+This section visualizes the distribution of markers of interest on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
+
+> **Decision checkpoint** (markers for FeaturePlots)  
+> Set `markers_of_interest` in the next chunk to the markers you want on UMAP for annotation (independent from §2.6.3 unless you choose to align them).
+
+```{r}
+#| label: data_processing_marker_distribution_on_umap
+
+markers_of_interest <-
+  c("CD3e", "CD4", "CD8", "CD19", "CD56", "CD14", "CD16", "HLA-DR", "CD11c", "CD123")
+
+for (marker in markers_of_interest) {
+  feature_plot <- FeaturePlot(pg_data, features = marker, reduction = "harmony_umap") &
+    theme(aspect.ratio = 1)
+
+  savename_marker <- str_remove_all(marker, "\\.") # remove dots from marker names for saving
+  export_plot(
+    filename = glue::glue("results/02_data_processing/marker_umap_plots/{savename_marker}_umap"),
+    plot = feature_plot,
+    width = 6,
+    height = 6
+  )
+}
+```
+
+## 2.6. Annotation
+
+### 2.6.1. Automatic annotation
+
+Automatic cell annotation is performed by matching each cell's protein expression profile to annotated cells in a reference peripheral blood mononuclear cell (PBMC) dataset using label transfer methods. This approach provides an initial annotation framework that can accelerate the annotation process.
+
+**Important limitations and recommendations**: Automated annotations should be interpreted with caution, particularly when the sample composition differs substantially from the PBMC reference dataset. For example, annotations may be unreliable for certain stimulated samples, cell lines, or tissues that are not well-represented in the reference. Additionally, automated methods may not capture cell states or subtypes that are specific to the experimental conditions.
+
+All automated annotations should be inspected, verified, and adjusted as necessary. Automated annotation serves as a starting point, but manual review and refinement are essential to ensure accurate and context-appropriate cell type assignments. Users should carefully examine marker expression patterns, differential abundance results, and UMAP visualizations to validate and refine the automated annotations before proceeding with downstream analyses. 
+
+```{r}
+#| label: data_processing_annotation
+
+# Load reference dataset
+reference <- pixelatorR::read_pbmc_reference()
+
+# Set names of annotation columns in reference
+reference$l1_annotation <- reference$celltype.l1
+reference$l2_annotation <- reference$celltype.l2
+
+# Annotation by label transfer
+pg_data <-
+  pg_data |>
+  AnnotateCells(
+    reference = reference,
+    reference_groups = c("l1_annotation", "l2_annotation"),
+    reference_assay = "PNA",
+    query_assay = "PNA",
+    # Summarise annotations by cluster, adding an extra column with majority vote
+    summarize_by_column = "seurat_clusters",
+    normalization_method = "CLR",
+    method = "nmf"
+  )
+
+
+cell_metadata <-
+  FetchData(pg_data, c(
+    "sample_alias", "condition", "seurat_clusters",
+    "l1_annotation_summary", "l2_annotation_summary",
+    "l1_annotation", "l2_annotation"
+  )) |>
+  as_tibble(rownames = "cell_id")
+
+# L1 automatic annotation - summarised by cluster
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation_summary)) +
+  geom_point(size = 0.5) +
+  geom_text(
+    data = . %>%
+      group_by(l1_annotation_summary) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l1_annotation_summary),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation_summary"),
+  width = 6,
+  height = 4
+)
+
+
+# L1 automatic annotation - annotated by cell
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l1_annotation)) +
+  geom_point(size = 0.5) +
+  geom_text(
+    data = . %>%
+      group_by(l1_annotation) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l1_annotation),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l1_annotation"),
+  width = 6,
+  height = 4
+)
+
+
+# L2 automatic annotation - summarised by cluster
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation_summary)) +
+  geom_point(size = 0.5) +
+  geom_text(
+    data = . %>%
+      group_by(l2_annotation_summary) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l2_annotation_summary),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation_summary"),
+  width = 6,
+  height = 4
+)
+
+# L2 automatic annotation - annotated by cell
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(cell_metadata,
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = l2_annotation)) +
+  geom_point(size = 0.5) +
+  geom_text(
+    data = . %>%
+      group_by(l2_annotation) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = l2_annotation),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/automatic_annotation/data_processing_harmonyumap_l2_annotation"),
+  width = 6,
+  height = 4
+)
+
+# L1 cell type composition per sample (annotated by cell)
+FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
+  group_by(sample_alias, l1_annotation_summary) |>
+  count(name = "n_cells") |>
+  group_by(sample_alias) |>
+  mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
+  ggplot(aes(sample_alias, prc_cells, fill = l1_annotation_summary)) +
+  geom_col(position = "fill") +
+  geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
+    position = position_fill(vjust = 0.5),
+    size = 3
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = cell_palette) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
+  labs(
+    title = "Cell type composition per sample",
+    x = "Sample",
+    y = "Cell type fraction"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
+  width = 12,
+  height = 8
+)
+```
+
+### 2.6.2. Discover Cell Types
+
+While automated annotation provides a useful starting point, manual inspection and refinement are essential to ensure accuracy. This section performs differential abundance analysis to identify cluster-specific marker expression patterns, which serve as the foundation for manual cell type identification.
+
+Differential abundance analysis compares marker expression levels between each cluster and all other clusters, identifying markers that are significantly enriched or depleted in specific clusters. These cluster-specific markers are characteristic features that can be used to identify cell types based on known marker expression patterns. For example, clusters enriched for CD3, CD4, and CD45RA are likely CD4+ T cells, while clusters showing high CD19 and CD20 expression are likely B cells.
+
+The analysis generates two key visualizations to aid interpretation:
+
+1. **Heatmap of differential abundance**: Displays the average CLR difference for each marker across all clusters, allowing rapid identification of which markers distinguish each cluster. Markers with strong positive values (red) are enriched in that cluster, while negative values (blue) indicate depletion. This overview helps identify clusters with similar marker profiles and those with unique expression signatures.
+
+2. **Volcano plots per cluster**: Show the relationship between statistical significance and effect size for each marker within each cluster. Markers in the upper right or upper left quadrants (high significance and large effect size) are the most reliable cluster-defining markers. The top markers for each cluster are automatically labeled, facilitating quick identification of key distinguishing features.
+
+By examining these differential abundance patterns in conjunction with known cell type marker expression profiles, users can systematically identify cell types. The process involves: (1) identifying clusters with characteristic marker combinations, (2) comparing these patterns to established cell type markers, (3) confirming or adjusting automated annotations based on the observed expression patterns, and (4) identifying cell populations that may not be well-represented in the reference dataset. This evidence-based approach complements automated annotation and significantly improves confidence in cell type assignments.
+
+```{r}
+#| label: data_processing_manual_annotation
+
+diff_abundant_markers_cluster <-
+  FindAllMarkers(
+    pg_data,
+    logfc.threshold = 0,
+    min_pct = 0,
+    test.use = "wilcox",
+    assay = "PNA",
+    slot = "data",
+    group.by = "seurat_clusters",
+    mean.fxn = rowMeans,
+    fc.name = "difference"
+  ) |>
+  as_tibble() |>
+  rename(marker = gene)
+
+# Heatmap of differential abundance markers per cluster
+diff_abundant_markers_cluster |>
+  group_by(marker) |>
+  filter(any(p_val_adj < 0.05 & difference > 1)) |>
+  select(marker, difference, cluster) |>
+  pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
+  column_to_rownames("marker") |>
+  t() |>
+  pheatmap(
+    color = PixelgenGradient(100, "BluesCherry"),
+    breaks = seq(-3, 3, length.out = 101),
+    cellwidth = 8,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "CLR Difference")
+  ) |>
+  as.ggplot()
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster"),
+  width = 14,
+  height = 5
+)
+
+# Volcano plot of differential abundance markers per cluster.
+diff_abundant_markers_cluster |>
+  mutate(neg_log10_p_val = -log10(pmax(p_val_adj, min_p_value_threshold))) |>
+  ggplot(aes(difference, neg_log10_p_val, color = difference)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = c(-1, 1), col = "grey") +
+  geom_point(size = 0.5) +
+  geom_text(
+    data = . %>%
+      group_by(cluster) %>%
+      top_n(5, abs(difference)),
+    aes(label = marker),
+    vjust = -0.5,
+    size = 2
+  ) +
+  facet_wrap(~cluster) +
+  scale_color_gradientn(
+    colors = gradient_palette,
+    limits = c(-1, 1) * max(abs(diff_abundant_markers_cluster$difference))
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank()
+  ) +
+  labs(
+    title = "Differential abundance markers per cluster",
+    x = "Average CLR Difference",
+    y = "-log10(Adj. p value)",
+    color = "Effect size"
+  )
+
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster_volcano"),
+  width = 8,
+  height = 6
+)
+
+# Write differential abundance markers per cluster to csv
+write_csv(diff_abundant_markers_cluster, here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster.csv"))
+```
+
+### 2.6.3. Marker abundance visualization
+
+Here we visualize the abundance of **selected markers** across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
+
+> **Decision checkpoint** (markers for abundance panels / heatmap)  
+> Edit `markers_of_interest` in the next chunk (can match §2.5 or a tighter set for heatmaps).
+
+```{r}
+#| label: data_processing_marker_abundance_visualization
+
+# Change markers_of_interest to the markers of interest for your dataset
+markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
+
+plot_data <-
+  FetchData(
+    pg_data,
+    c(
+      "harmonyumap_1", "harmonyumap_2",
+      "sample_alias", "condition",
+      "seurat_clusters",
+      markers_of_interest
+    ),
+    layer = "data"
+  ) |>
+  pivot_longer(
+    cols = all_of(markers_of_interest),
+    names_to = "marker",
+    values_to = "CLR"
+  )
+
+plot_data |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = CLR)) +
+  geom_point(size = 0.1) +
+  facet_wrap(~marker) +
+  scale_color_gradient(low = "lightgrey", high = "darkblue") +
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(
+    title = "Marker expression on Harmony UMAP",
+    x = "Harmony UMAP 1",
+    y = "Harmony UMAP 2",
+    color = "CLR"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_harmonyumap"),
+  width = 6,
+  height = 4
+)
+
+plot_data |>
+  ggplot(aes(sample_alias, CLR, fill = condition)) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  facet_grid(marker ~ seurat_clusters) +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.border = element_rect(color = "gray"),
+    panel.spacing = unit(0, "mm")
+  ) +
+  labs(
+    title = "Marker abundance per cluster",
+    x = "Sample",
+    y = "CLR"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_marker_abundance_per_cluster"),
+  width = 8,
+  height = 8
+)
+
+plot_data |>
+  group_by(marker, seurat_clusters) |>
+  summarise(mean_CLR = mean(CLR)) |>
+  pivot_wider(names_from = seurat_clusters, values_from = mean_CLR) |>
+  column_to_rownames("marker") |>
+  as.matrix() |>
+  pheatmap(
+    color = PixelgenGradient(100, "Cherry"),
+    cellwidth = 8,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "Mean CLR")
+  ) |>
+  as.ggplot()
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cluster_specific_markers/data_processing_mean_marker_abundance_per_cluster_heatmap"),
+  width = 6,
+  height = 4
+)
+```
+
+### 2.6.4. Set manual annotation 
+
+> **Decision checkpoint** (manual cell type labels — critical for biology)  
+> Replace the `cluster_cell_annotation` named vector in the next chunk so every `seurat_clusters` level in your data has a label. Add or remove cluster keys if your resolution differs from the example.
+
+In this step we assign cell type labels to each cluster based on the analysis performed in the previous sections. Annotations should be informed by a combination of differential abundance results, marker abundance patterns, automated predictions, and known biology, as well as experiment context.
+
+Clusters are mapped to cell types using a named vector. Multiple clusters can share the same label if they represent different states or subtypes of the same cell type (e.g., several clusters annotated as “CD4 T”).
+
+The example annotations provided here are placeholders. You should review the available evidence and adapt them to your dataset before proceeding. Alternatively, if you wish to use the automatic annotations without modification, you can skip this step and e.g. use the `l1_annotation_summary` column for downstream analyses instead of `manual_cell_annotation`.
+
+```{r}
+#| label: data_processing_set_manual_annotation
+
+# Inspect the automatic annotation results to inform manual annotation
+# The `l1_annotation` and `l2_annotation` columns contain the automatic annotation per each individual cell,
+# while `l1_annotation_summary` and `l2_annotation_summary` contain the majority vote annotation per cluster
+
+# This plot shows the distribution of automatic annotations across clusters,
+# which can help to identify which clusters correspond to which cell types,
+# and to identify whether the clustering resolves all cell identities of interest.
+
+# Cell counts per cluster
+table(pg_data$seurat_clusters, pg_data$l1_annotation) %>%
+  ComplexHeatmap::pheatmap(
+    .,
+    color = PixelgenGradient(100, "Cherry"),
+    display_numbers = ifelse(. == 0, "", .),
+    cellwidth = 16,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "Number of cells")
+  )
+
+table(pg_data$seurat_clusters, pg_data$l1_annotation) %>%
+  sweep(1, rowSums(.), FUN = "/") %>%
+  `*`(100) %>% # Multiply by 100
+  round(1) %>%
+  ComplexHeatmap::pheatmap(
+    .,
+    color = PixelgenGradient(100, "Cherry"),
+    display_numbers = ifelse(. == 0, "", .),
+    cellwidth = 16,
+    cellheight = 8,
+    heatmap_legend_param = list(title = "% of cells")
+  )
+
+# Specify cell annotation labels for each cluster
+# (These are example annotations and should be changed according to your dataset)
+cluster_cell_annotation <-
+  c(
+    "0" = "CD4 T",
+    "1" = "CD4 T",
+    "2" = "Mono",
+    "3" = "CD8 T",
+    "4" = "CD4 T",
+    "5" = "CD8 T",
+    "6" = "B",
+    "7" = "NK",
+    "8" = "Platelets",
+    "9" = "CD8 T",
+    "10" = "Mono",
+    "11" = "DC",
+    "12" = "B",
+    "13" = "DC"
+  )
+
+# Add annotation to Seurat object
+pg_data[[]] <-
+  pg_data[[]] |>
+  mutate(
+    manual_cell_annotation = cluster_cell_annotation[as.character(seurat_clusters)]
+  )
+```
+
+### 2.6.5. Comparison of automatic and manual annotations
+
+Compare automatic and manual annotations. This can help to identify any discrepancies between the two methods, and can be used to refine the manual annotations.
+
+```{r}
+#| label: data_processing_comparison_automatic_manual_annotation
+
+FetchData(pg_data, c("seurat_clusters", "l1_annotation", "manual_cell_annotation")) |>
+  group_by(seurat_clusters, l1_annotation, manual_cell_annotation) |>
+  count() |>
+  group_by(seurat_clusters) |>
+  mutate(frac = n / sum(n)) |>
+  ggplot(aes(l1_annotation, manual_cell_annotation, fill = frac)) +
+  geom_tile() +
+  facet_wrap(~seurat_clusters, scales = "free") +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  labs(
+    title = "Comparison of automatic and manual annotations",
+    x = "Automatic annotation (L1)",
+    y = "Manual annotation",
+    fill = "Fraction of cells"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/data_processing_comparison_automatic_manual_annotation"),
+  width = 8,
+  height = 6
+)
+```
+
+### 2.6.6. Alternative: Marker gating 
+
+> **Optional path**  
+> Use this section only if you want gating-based annotation; gate coordinates and marker pairs must match **your** CLR distributions.
+
+Marker gating provides an alternative approach to cell annotation that is analogous to flow cytometry gating strategies. This method uses density scatter plots to visualize the co-expression of two markers, allowing users to identify distinct cell populations based on marker expression patterns and define gates (thresholds) to classify cells.
+
+The `DensityScatterPlot()` function creates a two-dimensional density plot showing the relationship between two markers, where each axis represents the expression level (typically CLR-normalized values) of one marker. Dense regions in the plot represent cell populations with similar marker expression profiles, while sparse regions indicate transitions between populations or rare cell types.
+
+**How to use marker gating for annotation:**
+
+1. **Select marker pairs**: Choose pairs of markers that are known to distinguish cell types of interest. For example:
+   - CD3e vs CD4: Distinguishes T cells (CD3e+) and CD4+ T cells (CD3e+ CD4+)
+   - CD3e vs CD8: Distinguishes T cells and CD8+ T cells
+   - CD19 vs CD20: Identifies B cells
+   - CD14 vs CD16: Distinguishes monocyte subsets
+
+2. **Visualize marker pairs**: Generate density scatter plots for relevant marker combinations to identify distinct cell populations and their expression boundaries.
+
+3. **Define gates**: Based on the density patterns, identify threshold values for each marker that separate different cell populations. These thresholds can be used to classify cells into categories.
+
+4. **Apply gates to clusters**: Use the identified marker expression thresholds to validate or refine cluster annotations. Clusters that don't match expected marker expression patterns may need re-examination.
+
+5. **Compare with other annotation methods**: Cross-reference gating-based annotations with automated annotation results, differential abundance analysis, and UMAP visualizations to ensure consistency.
+
+This gating approach is particularly useful for validating annotations, identifying misclassified clusters, and understanding marker expression relationships. It complements the cluster-based annotation approach by providing a marker-centric perspective on cell type identification.
+
+Below is an example of how to use the gating strategy to annotate CD4 T cell subtypes.
+
+```{r}
+#| label: data_processing_gating_strategy
+
+# Define CD4 subtypes using memory/naive markers
+# Naive CD4 T: CD45RA+ (high), CD45RO- (low), typically CCR7+ and CD62L+
+# Memory CD4 T: CD45RA- (low), CD45RO+ (high)
+# Note: Thresholds should be adjusted based on your data distribution
+cd4_subtype_markers <- c("CD45RA", "CD45RO")
+
+# subset to CD4 T cells: only these will be used for the gating strategy
+pg_data_cd4_t <- subset(pg_data, subset = l1_annotation_summary == "CD4 T")
+
+# Create density scatter plot to distinguish CD4 subtypes
+# CD45RA vs CD45RO is a classic combination for naive vs memory distinction
+# CD4 T cell subtypes: Naive (CD45RA+ CD45RO-) vs Memory (CD45RA- CD45RO+)
+DensityScatterPlot(
+  pg_data_cd4_t,
+  marker1 = "CD45RA",
+  marker2 = "CD45RO"
+) +
+  labs(
+    title = "CD4 T Cell Subtypes: Naive vs Memory",
+    subtitle = "Naive: CD45RA+ CD45RO- | Memory: CD45RA- CD45RO+"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter"),
+  width = 8,
+  height = 6
+)
+
+# Define gates for CD4 subtypes
+# Naive CD4 T cells: High CD45RA, Low CD45RO
+naive_cd4_gate <- data.frame(
+  xmin = 2.0, # CD45RA threshold (adjust based on data)
+  xmax = 6.5,
+  ymin = 0,
+  ymax = 1.5 # CD45RO threshold (adjust based on data)
+)
+# Create plot with gates
+p1 <-
+  DensityScatterPlot(
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
+    plot_gate = naive_cd4_gate
+  ) +
+  labs(
+    title = "CD4 T Cell Subtypes with Gates",
+    subtitle = "Gate 1: Naive CD4 T (CD45RA+ CD45RO-)"
+  )
+
+p1
+
+# Define gate for Memory CD4 T cells: Low CD45RA, High CD45RO
+memory_cd4_gate <- data.frame(
+  xmin = 0,
+  xmax = 2.5, # CD45RA threshold (adjust based on data)
+  ymin = 2.0, # CD45RO threshold (adjust based on data)
+  ymax = 5
+)
+
+p2 <-
+  DensityScatterPlot(
+    pg_data_cd4_t,
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
+    plot_gate = memory_cd4_gate
+  ) +
+  labs(
+    title = "CD4 T Cell Subtypes with Gates",
+    subtitle = "Gate 2: Memory CD4 T (CD45RA- CD45RO+)"
+  )
+
+p2
+
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_naive_memory_density_scatter_w_gates"),
+  width = 16,
+  height = 6,
+  plot = p1 + p2
+)
+
+# Classify CD4 cells into subtypes
+cd4_cell_data <- FetchData(pg_data_cd4_t, vars = c("CD45RA", "CD45RO", "CD4", "CD3e"))
+
+# Define subtypes based on marker expression thresholds
+# Adjust thresholds based on your data distribution
+
+cd4_subtype_classification <-
+  cd4_cell_data |>
+  mutate(
+    cd4_subtype = case_when(
+      CD45RA > naive_cd4_gate$xmin & CD45RA < naive_cd4_gate$xmax & CD45RO > naive_cd4_gate$ymin & CD45RO < naive_cd4_gate$ymax ~ "Naive CD4 T",
+      CD45RA > memory_cd4_gate$xmin & CD45RA < memory_cd4_gate$xmax & CD45RO > memory_cd4_gate$ymin & CD45RO < memory_cd4_gate$ymax ~ "Memory CD4 T",
+      TRUE ~ "CD4 T (other)"
+    )
+  )
+
+# Add subtype annotation to pg_data
+pg_data$cd4_subtype <- pg_data$l1_annotation_summary
+pg_data$cd4_subtype[rownames(cd4_subtype_classification)] <- cd4_subtype_classification$cd4_subtype
+
+# Visualize CD4 subtypes on UMAP
+DimPlot(
+  pg_data,
+  group.by = "cd4_subtype",
+  reduction = "harmony_umap"
+) +
+  theme(aspect.ratio = 1) +
+  labs(title = "CD4 T Cell Subtypes on UMAP")
+
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/gating_strategy/cd4_subtype_umap"),
+  width = 8,
+  height = 6
+)
+```
+
+### 2.6.7. Choose a cell annotation to use
+
+> **Decision checkpoint** (which labels drive §3–5)  
+> In the next chunk, set `cell_annotation` to `manual_cell_annotation` for your own labels, or keep `l1_annotation_summary` for a reproducible default. Downstream plots and statistics follow this column.
+
+After performing both automatic and manual annotation (either through cluster-based or gating-based approaches), we need to choose which annotation to use for downstream analyses.
+
+In this tutorial, we will proceed using the automatic annotation because it does not require additional user input and therefore keeps the workflow fully reproducible within the notebook. In practice, however, it is generally recommended to rely on manual annotation, as it allows for incorporation of biological knowledge and experiment context when assigning cell types. 
+
+```{r}
+#| label: annotation_choose_annotation
+
+pg_data[[]] <-
+  pg_data[[]] |>
+  mutate(
+    # To use the manual annotation instead, exchange `l1_annotation_summary` with `manual_cell_annotation` in the line below
+    cell_annotation = l1_annotation_summary
+  )
+
+
+# Save annotated Seurat object
+saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+
+
+# L1 automatic annotation - summarised by cluster
+Embeddings(pg_data, "harmony_umap") |>
+  as_tibble(rownames = "cell_id") |>
+  left_join(
+    FetchData(
+      pg_data,
+      c(
+        "sample_alias",
+        "condition",
+        "seurat_clusters",
+        "cell_annotation"
+      )
+    ) |>
+      as_tibble(rownames = "cell_id"),
+    by = "cell_id"
+  ) |>
+  ggplot(aes(harmonyumap_1, harmonyumap_2, color = cell_annotation)) +
+  geom_point(size = 0.5) +
+  geom_text(
+    data = . %>%
+      group_by(cell_annotation) %>%
+      summarise(
+        harmonyumap_1 = median(harmonyumap_1),
+        harmonyumap_2 = median(harmonyumap_2)
+      ),
+    aes(label = cell_annotation),
+    size = 3,
+    color = "black"
+  ) +
+  coord_fixed() +
+  scale_color_manual(values = cell_palette) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/final_annotation/data_processing_harmonyumap_cell_annotation"),
+  width = 6,
+  height = 4
+)
+
+
+# L1 cell type composition per sample (annotated by cell)
+FetchData(pg_data, c("sample_alias", "cell_annotation")) |>
+  group_by(sample_alias, cell_annotation) |>
+  count(name = "n_cells") |>
+  group_by(sample_alias) |>
+  mutate(prc_cells = 100 * n_cells / sum(n_cells)) |>
+  ggplot(aes(sample_alias, prc_cells, fill = cell_annotation)) +
+  geom_col(position = "fill") +
+  geom_text(aes(label = paste0(round(prc_cells, 1), "%")),
+    position = position_fill(vjust = 0.5),
+    size = 3
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = cell_palette) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
+  labs(
+    title = "Cell type composition per sample",
+    x = "Sample",
+    y = "Cell type fraction"
+  )
+export_plot(
+  filename = here::here("results/02_data_processing/annotation_plots/cell_type_composition/data_processing_cell_type_composition_per_sample"),
+  width = 12,
+  height = 8
+)
+```
+
+### 2.6.8. Marker selection per cell type
+
+> **Decision checkpoint** (which markers enter differential testing)  
+> The PLS and filter logic below defines `markers_to_test` for §3–5. Adjust `isotype_markers` if your panel differs, and review the scatter plot / heatmaps before trusting exclusions. Advanced users may also tune the `mean_isotype + … * sd_isotype` rules in the `mutate(passed_filter = …)` block.
+
+When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
+
+To identify such markers, we employ Partial Least Squares (PLS) regression, which allows us to model the relationship between isotype marker abundance and overall background signal in the dataset. The analysis is conducted separately for each cell type, allowing us to capture cell type-specific background patterns. The PLS model is fitted using isotype markers as predictors, and results in a background score describing the background level in each cell. Additionally, we obtain background loadings that indicate the contribution of each marker to the background signal. If a marker has a positive loading, it suggests that the marker is strongly associated with background signal in that cell type. For each cell type, we keep markers that either have a very high abundance (mean CLR > 10 isotype CLR std) or have medium abundance (mean CLR > 3 isotype CLR std) and a background PLS loading below 0.05. The markers that are retained in any condition will be used for downstream statistical testing.
+
+We utilize the `isotype_pls` helper function to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
+
+```{r}
+#| label: statistical_testing_marker_selection
+
+cell_annotation_column <-
+  "cell_annotation"
+isotype_markers <-
+  c("mIgG1", "mIgG2a", "mIgG2b")
+
+
+cell_data <-
+  FetchData(
+    pg_data,
+    vars = c(cell_annotation_column)
+  ) |>
+  as_tibble(rownames = "component") |>
+  group_by(cell_type = !!sym(cell_annotation_column))
+
+pls_fit_celltype <-
+  cell_data |>
+  group_split() |>
+  set_names(group_keys(cell_data)$cell_type) |>
+  lapply(function(cells) {
+    pg_data |>
+      subset(cells = cells$component) %>%
+      isotype_pls(isotype_markers,
+        model_mat = with(.[[]], model.matrix(~sample_alias)),
+        layer = "data",
+        remove_covariates = TRUE
+      )
+  })
+
+
+# Background scores
+
+bg_scores <-
+  pls_fit_celltype |>
+  lapply(function(x) enframe(x$scores, "component", "bg_score")) |>
+  bind_rows()
+
+pg_data[[]] <-
+  pg_data[[]] |>
+  as_tibble(rownames = "component") |>
+  left_join(bg_scores, by = "component") |>
+  column_to_rownames("component")
+
+
+FeaturePlot(
+  pg_data,
+  features = "bg_score"
+) +
+  scale_color_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(title = "Isotype background score")
+
+export_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_featureplot"),
+  width = 6,
+  height = 5
+)
+
+# Background loadings
+
+bg_loadings <-
+  pls_fit_celltype %>%
+  lapply(function(x) enframe(x$loadings, "marker", "bg_loading")) |>
+  bind_rows(.id = cell_annotation_column)
+
+bg_loadings |>
+  arrange(-bg_loading) |>
+  mutate(marker = factor(marker, levels = unique(marker))) |>
+  ggplot(aes(marker, !!sym(cell_annotation_column), fill = bg_loading)) +
+  geom_tile() +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "BluesCherry")) +
+  labs(
+    title = "PLS loadings for isotype markers",
+    x = "Marker",
+    fill = "PLS loading",
+    y = "Cell type"
+  )
+
+export_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_loading_heatmap"),
+  width = 15,
+  height = 6
+)
+
+
+FetchData(pg_data,
+  vars = isotype_markers,
+  layer = "data"
+) |>
+  as_tibble(rownames = "component") |>
+  left_join(bg_scores, by = c("component")) |>
+  pivot_longer(
+    cols = all_of(isotype_markers),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |>
+  ggplot(aes(abundance, bg_score)) +
+  geom_point(size = 0.1) +
+  geom_smooth(method = "lm") +
+  geom_text(
+    data = . %>%
+      group_by(marker) %>%
+      summarise(cor = cor(abundance, bg_score)),
+    aes(label = paste0("r = ", round(cor, 2))),
+    x = Inf, y = -Inf,
+    hjust = 1.1, vjust = -0.5,
+    size = 3
+  ) +
+  facet_grid(~marker, scales = "free_x") +
+  theme_bw() +
+  labs(
+    title = "Background score vs isotype marker abundance",
+    x = "Marker abundance (CLR)",
+    y = "Background score"
+  )
+
+export_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/isotype_background_score_vs_isotype_abundance"),
+  width = 12,
+  height = 5
+)
+
+isotype_levels <-
+  FetchData(pg_data, c(
+    "condition", cell_annotation_column,
+    isotype_markers
+  )) |>
+  as_tibble(rownames = "component") |>
+  mutate(max_isotype = pmax(!!!syms(isotype_markers))) |>
+  group_by(condition, !!sym(cell_annotation_column)) |>
+  summarise(
+    mean_isotype = mean(max_isotype),
+    sd_isotype = sd(max_isotype)
+  ) |>
+  ungroup()
+
+abundance_data_per_celltype <-
+  FetchData(pg_data, c(
+    "condition", cell_annotation_column,
+    rownames(pg_data)
+  )) |>
+  as_tibble(rownames = "component") |>
+  pivot_longer(
+    cols = all_of(rownames(pg_data)),
+    names_to = "marker",
+    values_to = "abundance"
+  ) |>
+  group_by(condition, !!sym(cell_annotation_column), marker) |>
+  summarise(
+    mean_abundance = mean(abundance),
+    sd_abundance = sd(abundance),
+    n_cells = n()
+  ) |>
+  ungroup() |>
+  left_join(isotype_levels,
+    by = c(
+      "condition",
+      cell_annotation_column
+    )
+  ) |>
+  left_join(bg_loadings,
+    by = c(
+      "marker",
+      cell_annotation_column
+    )
+  ) |>
+  mutate(
+    is_low = mean_abundance < mean_isotype + 3 * sd_isotype,
+    is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
+    is_noisy = bg_loading > 0.05,
+    passed_filter = case_when(
+      is_low ~ "Not passed",
+      is_high ~ "Passed",
+      is_noisy ~ "Not passed",
+      TRUE ~ "Passed"
+    )
+  )
+
+abundance_data_per_celltype |>
+  mutate(cell_annotation = !!sym(cell_annotation_column)) |>
+  ggplot(aes((mean_abundance - mean_isotype) / sd_isotype, bg_loading,
+    color = passed_filter
+  )) +
+  geom_hline(yintercept = 0) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker), size = 2) +
+  facet_grid(condition ~ cell_annotation) +
+  theme_bw() +
+  labs(
+    title = "Marker mean abundance vs PLS loading",
+    x = "Mean abundance (CLR)",
+    y = "PLS loading"
+  )
+
+export_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/marker_selection_scatterplot"),
+  width = 15,
+  height = 10
+)
+
+markers_per_cell_type <-
+  abundance_data_per_celltype |>
+  filter(passed_filter == "Passed") |>
+  select(condition, cell_type = !!sym(cell_annotation_column), marker) |>
+  distinct() |>
+  group_by(cell_type)
+
+abundance_data_per_celltype |>
+  mutate(cell_type = !!sym(cell_annotation_column)) |>
+  filter(passed_filter == "Passed") |>
+  ggplot(aes(marker, condition)) +
+  geom_tile() +
+  facet_grid(cell_type ~ .) +
+  scale_fill_gradientn(colors = PixelgenGradient(100, "Cherry")) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Selected markers per cell type",
+    x = "Marker",
+    y = "Condition"
+  )
+
+export_plot(
+  filename = here::here("results/02_data_processing/isotype_background_score/selected_markers_heatmap"),
+  width = 12,
+  height = 8
+)
+
+markers_per_cell_type |>
+  write_csv(here::here("results/02_data_processing/isotype_background_score/selected_markers.csv"))
+
+markers_to_test <-
+  markers_per_cell_type |>
+  group_split() |>
+  set_names(group_keys(markers_per_cell_type)$cell_type) |>
+  lapply(function(df) unique(df$marker))
+```

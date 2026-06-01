@@ -1,0 +1,561 @@
+﻿# 1. Quality control
+
+**Module 01 — Quality control.** Review QC metrics and set filtering thresholds. Run module `00` first in the same R session, then continue with `02_clustering_annotation.qmd`. **Decision checkpoint** callouts mark the threshold and marker-selection edits in this file.
+
+Quality control is a critical step that ensures only high-quality cells are included in downstream analyses. This section systematically evaluates multiple quality metrics at both the sample and cell level to identify and exclude low-quality cells, cell fragments, doublets, and technical artifacts. The quality metrics examined include:
+
+- **Read depth**: The total number of reads per cell, which reflects sequencing depth and overall data quality
+- **Graph connectivity**: Metrics such as average k-core and percentage of dangling nodes, which assess the quality of the protein interaction network structure
+- **Unspecific background**: The fraction of isotype control signal, which quantifies non-specific binding and background noise
+- **Tau score**: A measure of protein composition heterogeneity that helps identify cells with abnormal marker expression profiles
+
+These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, users can identify cells that should be excluded from the dataset. The actual filtering of cells based on these thresholds is performed during the Data Processing stage, allowing users to review the quality metrics and adjust thresholds as needed before applying filters.
+
+## 1.1. Read Depth
+
+First we inspect the read depth per cell. This is a measure of the total number of reads in the cell, and is a good indicator of the quality of the data. The higher the read depth, the better the data quality.
+
+```{r}
+#| label: quality_control_read_depth
+
+pg_data[[]] |>
+  ggplot(aes(
+    sample_alias,
+    reads_in_component,
+    fill = condition
+  )) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = format_thousands(after_stat(y))),
+    vjust = -1,
+    size = 3,
+    color = "black"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Reads in Component",
+  ) +
+  scale_fill_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
+
+export_plot(
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_read_depth"
+  ),
+  width = 7,
+  height = 5
+)
+```
+
+## 1.2. Connectivity
+
+Here we inspect the average k-core per cell. The k-core is a measure of the connectivity of the cell, and is another good indicator of the quality of the data. The higher the average k-core, the better the graph connectivity.
+
+```{r}
+#| label: quality_control_average_k_core
+
+# Average k-core per cell
+pg_data[[]] |>
+  ggplot(aes(
+    sample_alias,
+    average_k_core,
+    fill = condition
+  )) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(after_stat(y), 1)),
+    vjust = -1,
+    size = 3,
+    color = "black"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Average k-core",
+  ) +
+  scale_fill_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
+
+export_plot(
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_average_k_core"
+  ),
+  width = 7,
+  height = 5
+)
+```
+
+Next, we plot the percentage of dangling nodes per cell. Dangling nodes belong to subgraphs that are connnected to the rest of the graph by a single edge, and are an indicator of the graph connectivity. The lower the percentage of dangling nodes, the better the graph connectivity.
+
+```{r}
+#| label: quality_control_dangling_nodes_plots
+
+# Add percentage of dangling nodes per cell - i.e. K-core 1 fraction
+pg_data <-
+  AddMetaData(
+    pg_data,
+    FetchData(
+      pg_data,
+      c("sample_alias", "k_core_1", "n_umi")
+    ) |>
+      mutate(prc_dangling_nodes = 100 * k_core_1 / n_umi) |>
+      select(prc_dangling_nodes),
+    col.name = "prc_dangling_nodes"
+  )
+
+pg_data[[]] |>
+  ggplot(aes(
+    sample_alias,
+    prc_dangling_nodes,
+    fill = condition
+  )) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = round(after_stat(y), 1)),
+    vjust = -1,
+    size = 3,
+    color = "black"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "% Dangling nodes",
+  ) +
+  scale_fill_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
+
+export_plot(
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_dangling_nodes"
+  ),
+  width = 7,
+  height = 5
+)
+```
+
+
+
+## 1.3. Select cells for downstream analysis
+
+In the following steps, we will determine which cells to retain for downstream analysis. The objective is to remove cells that are likely to represent poor-quality data based on the following criteria:
+
+- Unusually small cells, which may indicate cell fragments
+- Unusually large cells, which may represent doublets or technical artifacts
+- Cells with high levels of nonspecific background, as evidenced by elevated isotype marker signal
+- Cells with abnormal marker expression profiles, as indicated by the tau score
+
+We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds will be excluded during the Data Processing stage.
+
+### 1.3.1. Define thresholds
+
+> **Decision checkpoint** (QC thresholds — used in §2.1 filtering)  
+> Inspect the violin and rank plots above, then set `n_umi_min_threshold`, `n_umi_max_threshold`, and `isotype_percent_threshold` in the next chunk. Re-run downstream sections after changing these.
+
+Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
+
+- **`n_umi_min_threshold`**: The minimum number of UMI counts per cell. Cells with fewer than this number of UMI counts are likely to be cell fragments.
+- **`n_umi_max_threshold`**: The maximum number of UMI counts per cell. Cells with more than this number of UMI counts are likely to be doublets or technical artifacts. By default, no filtering is done. 
+- **`isotype_percent_threshold`**: The maximum percent of UMI counts that can be attributed to isotype control antibodies. Cells with more than this percent of UMI counts attributed to isotype control antibodies are likely to have high levels of nonspecific background.
+
+```{r}
+#| label: quality_control_define_thresholds
+
+# Define threshold for minimum molecule counts per cell
+n_umi_min_threshold <- 8000
+n_umi_max_threshold <- Inf
+isotype_percent_threshold <- 0.25
+```
+
+
+```{r}
+#| label: quality_control_n_umi_plot
+
+# Plot to visualize thresholds as a violin plot
+pg_data[[]] |>
+  ggplot(aes(
+    sample_alias,
+    n_umi,
+    fill = condition
+  )) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = format_thousands(after_stat(y))),
+    vjust = -1,
+    size = 3,
+    color = "black"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Sample",
+    y = "Number of UMIs",
+  ) +
+  scale_fill_manual(values = condition_palette) +
+  scale_y_log10() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
+  geom_hline(
+    yintercept = n_umi_min_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  geom_hline(
+    yintercept = n_umi_max_threshold,
+    linetype = "dashed",
+    color = "red"
+  )
+
+export_plot(
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_n_umi"
+  ),
+  width = 7,
+  height = 5
+)
+```
+
+### 1.3.2. Cell size filtering
+
+This section generates molecule rank plots that visualize the distribution of UMI counts across cells, ranked by abundance. These plots are essential for evaluating the quality thresholds defined earlier and ensuring they appropriately capture the cell population distribution. The plots display cells ranked by their UMI count (from highest to lowest) on a log-log scale, with threshold lines overlaid to visualize how many cells would be retained or excluded based on the current threshold settings.
+
+Setting correct thresholds is crucial for downstream analysis quality. Thresholds that are too lenient may retain low-quality cells, cell fragments, or doublets that can confound biological interpretation. Conversely, thresholds that are too stringent may exclude valid cells and reduce statistical power. The annotated plots generated here provide detailed per-sample statistics showing the number of cells that fall within the acceptable range versus those that would be excluded as outliers (both low and high UMI counts). Users should carefully review these plots and adjust thresholds as needed to balance data quality with cell retention, ensuring that the thresholds appropriately reflect the characteristics of their specific dataset.
+
+```{r}
+#| label: quality_control_select_cells
+
+# Combined molecule rank plots
+MoleculeRankPlot(pg_data, group_by = "sample_alias") +
+  geom_hline(
+    yintercept = n_umi_min_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  geom_hline(
+    yintercept = n_umi_max_threshold,
+    linetype = "dashed",
+    color = "red"
+  )
+export_plot(
+  filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
+  width = 10,
+  height = 8
+)
+
+# Separate annotated molecule rank plot for each sample
+pg_data[[]] <- pg_data[[]] |>
+  group_by(sample_id) |>
+  mutate(
+    rank = rank(-n_umi, ties.method = "random")
+  ) |>
+  ungroup()
+
+umi_normal <- pg_data[[]] |>
+  mutate(
+    umi_normal = case_when(
+      n_umi > n_umi_min_threshold & n_umi < n_umi_max_threshold ~ TRUE,
+      n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
+    )
+  ) |>
+  filter(tau_type == "normal") |>
+  select(sample_id, umi_normal)
+
+umi_normal_count <- umi_normal |>
+  filter(is.logical(umi_normal)) |>
+  group_by(sample_id) |>
+  summarise(normal_count = sum(umi_normal), .groups = "drop")
+
+umi_outliers <- pg_data[[]] |>
+  select(sample_id, n_umi, tau_type) |>
+  filter(tau_type == "normal") |>
+  mutate(
+    umi_low = n_umi < n_umi_min_threshold,
+    umi_high = n_umi > n_umi_max_threshold
+  ) |>
+  group_by(sample_id) |>
+  summarise(
+    low_count = sum(umi_low),
+    high_count = sum(umi_high),
+    .groups = "drop"
+  )
+
+hline_normal <- data.frame(
+  sample_id = unique(pg_data[[]]$sample_id),
+  cutoff = n_umi_min_threshold
+)
+
+point_colors <- pg_data[[]] |>
+  rownames_to_column("component") |>
+  select(sample_id, n_umi, rank, component) |>
+  left_join(
+    umi_normal_count |> rownames_to_column("component"),
+    by = c("component", "sample_id")
+  ) |>
+  left_join(hline_normal, by = "sample_id") |>
+  mutate(
+    max_value = n_umi_max_threshold,
+    col = case_when(
+      isTRUE(umi_normal) ~ "#496389",
+      n_umi < cutoff & !isTRUE(umi_normal) ~ "#FFA292",
+      n_umi > max_value & !isTRUE(umi_normal) ~ "#FFA292",
+      TRUE ~ "#496389"
+    )
+  )
+
+pg_data[[]] |>
+  select(sample_id, rank, n_umi, tau_type) |>
+  filter(tau_type == "normal") |>
+  ggplot(aes(x = rank, y = n_umi)) +
+  geom_point(
+    data = point_colors,
+    aes(x = rank, y = n_umi),
+    color = point_colors$col,
+    size = 1,
+    alpha = 0.8
+  ) +
+  geom_hline(
+    data = hline_normal,
+    aes(yintercept = cutoff),
+    linetype = "dashed",
+    color = "red"
+  ) +
+  facet_wrap(
+    ~ factor(sample_id, levels = sort(unique(sample_id))),
+    nrow = 2
+  ) +
+  geom_text(
+    data = umi_normal_count,
+    aes(x = Inf, y = Inf, label = paste("Cells:", normal_count)),
+    hjust = 1.2,
+    vjust = 1.8,
+    size = 4,
+    color = "#496389",
+    position = position_nudge(y = 0.5)
+  ) +
+  geom_text(
+    data = umi_outliers,
+    aes(x = 10, y = Inf, label = paste("High: ", high_count)),
+    vjust = 1.8,
+    hjust = 0.8,
+    size = 4,
+    color = "#FFA292",
+    position = position_nudge(y = -0.5)
+  ) +
+  geom_text(
+    data = umi_outliers,
+    aes(x = 10, y = n_umi_min_threshold, label = paste("Low: ", low_count)),
+    size = 4,
+    vjust = 0.2,
+    hjust = 0.7,
+    color = "#FFA292",
+    position = position_nudge(y = -0.5)
+  ) +
+  geom_rug(
+    aes(x = rank),
+    linewidth = 1,
+    sides = "l",
+    alpha = 0.05
+  ) +
+  scale_x_log10() +
+  scale_y_log10() +
+  coord_equal(ratio = 1.5) +
+  theme_bw() +
+  labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
+  theme(
+    aspect.ratio = 1,
+    legend.position = "top",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.border = element_rect(
+      color = "black",
+      fill = NA,
+      linewidth = 0.5
+    )
+  )
+export_plot(
+  filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
+  width = 15,
+  height = 12
+)
+```
+
+### 1.3.3. Unspecific Background filtering
+
+In PNA experiments, isotype control antibodies are included to measure unspecific binding and serve as important quality controls for background signal. The percentage of total signal that is derived from isotype controls in each cell provides a quantitative estimate of non-specific background. Generally, cells with a high proportion of isotype signal are more likely to be dominated by artefactual binding rather than true biological signal. Therefore, by examining the fraction of isotype control antibodies per cell, we can assess the overall level of background in each sample and identify cells potentially affected by excessive non-specific binding, which may need to be excluded from downstream analysis.
+
+```{r}
+#| label: quality_control_isotype_controls
+
+pg_data[[]] |>
+  ggplot(aes(
+    sample_alias,
+    100 * isotype_fraction,
+    fill = condition
+  )) +
+  geom_violin(quantiles = 0.5, quantile.linetype = 1) +
+  stat_summary(
+    # annotate median values above points
+    fun = median,
+    geom = "text",
+    aes(label = paste(
+      round(after_stat(y), 2),
+      "%"
+    )),
+    vjust = -1,
+    size = 3,
+    color = "black"
+  ) +
+  geom_hline(
+    yintercept = isotype_percent_threshold,
+    linetype = "dashed",
+    color = "red"
+  ) +
+  scale_fill_manual(values = condition_palette) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) +
+  labs(
+    x = "Sample",
+    y = "% of isotype counts"
+  )
+
+export_plot(
+  filename = here::here(
+    "results/01_quality_control/violin_plots/quality_control_isotype_controls"
+  ),
+  width = 7,
+  height = 5
+)
+```
+
+### 1.3.4. Tau score filtering
+
+> **Review before §2.1**  
+> Outlier cells are removed in **Normalize and scale** with `subset(tau_type == "normal")`. Use the Tau plot below to confirm that rule fits your experiment; change the filtering in that chunk only if you understand the trade-offs.
+
+The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
+
+```{r}
+#| label: quality_control_tau_score
+
+TauPlot(pg_data, group_by = "sample_alias")
+
+export_plot(
+  filename = here::here(
+    "results/01_quality_control/tau_plots/quality_control_tau_score"
+  ),
+  width = 10,
+  height = 8
+)
+```
+
+## 1.4. Select markers for dimensionality reduction (optional)
+
+> **Decision checkpoint** (marker set for PCA / UMAP / clustering)  
+> Set `marker_cpm_p95_threshold`, run the chunk, then **edit the `selected_markers` vector** (or assign `selected_markers <- rownames(pg_data)` to use all markers). This list feeds §2.2 onward.
+
+This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
+
+This section demonstrates one approach using counts per million (CPM) thresholds. For each marker, the 50th percentile (median) and 95th percentile of CPM values are calculated across all cells. Markers are then selected based on whether their 95th percentile exceeds a defined threshold. This threshold should be adjusted according to the background signal levels in the dataset and the expected presence of specific markers based on the experimental design.
+
+In the example provided here, the threshold is set to 2000 CPM at the 95th percentile. This effectively means that markers are retained if they are expressed at detectable levels in cell populations comprising at least 5% of the sample. Comparing the 95th percentile to the 50th percentile (median) provides insight into the variability of marker expression across cells, helping to distinguish markers with consistent expression from those with highly variable or rare expression patterns.
+
+**Customizing the marker list:** After running the code below, the selected markers will be printed. You can freely **add** or **remove** markers from the `selected_markers` vector to tailor the list to your dataset and experimental design. Alternatively, to skip selection entirely and use all available markers, you can replace `selected_markers` with `rownames(pg_data)`. A smaller, focused marker set often leads to cleaner dimensionality reduction and clustering results.
+
+
+```{r}
+#| label: quality_control_select_markers
+
+marker_cpm_p95_threshold <- 2000
+
+count_data <-
+  LayerData(pg_data, "counts")
+cpm_data <-
+  count_data |>
+  sweep(2, colSums(count_data), "/")
+
+cpm_data <- cpm_data * 1e6
+
+cpm_quantiles <-
+  cpm_data |>
+  apply(1, function(x) quantile(x, c(0.5, 0.95))) |>
+  t() |>
+  as_tibble(rownames = "marker") |>
+  mutate(kept = `95%` > marker_cpm_p95_threshold)
+
+cpm_quantiles |>
+  ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
+  geom_point(size = 0.1) +
+  geom_text(aes(label = marker), vjust = -0.5, size = 2) +
+  scale_x_log10(expand = expansion(0.2)) +
+  scale_y_log10() +
+  theme_bw() +
+  labs(
+    title = "Marker selection based on CPM",
+    x = "50th percentile of CPM (log10 scale)",
+    y = "95th / 50th percentile of CPM (log10 scale)"
+  )
+export_plot(
+  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
+  width = 12,
+  height = 4
+)
+
+
+cpm_quantiles |>
+  arrange(`95%`) |>
+  mutate(marker = factor(marker, levels = marker)) |>
+  ggplot(aes(x = marker, y = `95%`, fill = kept)) +
+  geom_col() +
+  scale_y_log10() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 5)) +
+  labs(
+    title = "95th percentile of CPM per marker",
+    x = "Marker",
+    y = "95th percentile of CPM (log10 scale)"
+  )
+export_plot(
+  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
+  width = 12,
+  height = 4
+)
+
+selected_markers <-
+  cpm_quantiles |>
+  filter(kept) |>
+  pull(marker)
+
+# Print the selected markers so they are visible in the IDE.
+# You can manually add or remove markers from this vector below as needed.
+# To use all available markers instead, comment out the selection above and set:
+#   selected_markers <- rownames(pg_data)
+message("Selected markers for dimensionality reduction:")
+print(selected_markers)
+```

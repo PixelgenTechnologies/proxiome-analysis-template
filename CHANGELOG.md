@@ -7,14 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Modular analysis workflow: numbered notebooks in `modules/` (`00`–`05`) for interactive, stage-by-stage analysis.
+- Thin master `proxiome_analysis_template.qmd` that includes all modules for full re-render.
+
 ### Updated
 
 - The PAT now depends on `pixelatorR >= 0.17.1`.
 - The PAT now includes clear labels for decision checkpoints.
+- README: modular run order, resume instructions, and corrected section references (§1.4 for marker selection).
 
 ### Fixed
 
 - `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
+- Removed incorrect reference to non-existent `scripts/helpers.R`; helpers remain inline in module `00`.
 
 ## [0.3.2] 2026-03-27
 

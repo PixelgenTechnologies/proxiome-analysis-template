@@ -1,0 +1,279 @@
+﻿# 0. Setup
+
+**Module 00 — Project setup.** Load packages, read metadata, and create the PNA object. Run this module first, then continue with `01_quality_control.qmd` in the same R session. Look for **Decision checkpoint** callouts when editing the sample table.
+
+## 0.1. Load packages and helper functions
+
+A set of commonly used packages and helper functions are loaded here. The core packages include `tidyverse` for data manipulation and visualization, `Seurat` for single-cell analysis infrastructure, `pixelatorR` for PNA-specific analysis functions, `harmony` for batch correction and data harmonization, `ComplexHeatmap` for advanced heatmap visualizations, and `here` for robust file path management. Small helper functions used in later modules are defined in §0.3 below.
+
+```{r}
+#| label: setup_packages
+
+# Load commonly used packages
+library(tidyverse)
+library(Seurat)
+library(pixelatorR)
+library(harmony)
+library(ComplexHeatmap)
+library(ggplotify)
+library(here)
+library(Matrix)
+library(ggraph)
+
+# Check pixelatorR version
+if (packageVersion("pixelatorR") < "0.17.1") {
+  stop(
+    "Please update the pixelatorR package to version 0.17.1 or higher to run this analysis workflow."
+  )
+}
+
+# Anchor the project root directory
+here::i_am("modules/00_project_setup.qmd")
+
+# Set global options for saving plots
+options(
+  # Overwrite existing files when saving plots - set to FALSE if you want to keep old versions of the plots
+  export_plot.overwrite = TRUE
+)
+# Set global options for file formats to save plots in both PNG and PDF
+options(export_plot.file_formats = c("png", "pdf"))
+
+# Minimum p-value to use in -log10 transformations for volcano plots.
+# When p_val_adj == 0 (floating-point underflow), -log10(0) becomes Inf and
+# data-point labels are clipped. Coerce any p-value below this threshold to
+# this value before computing -log10.
+min_p_value_threshold <- 1e-300
+```
+
+## 0.2. Create the PNA object
+
+### 0.2.1. Read metadata file
+
+> **Decision checkpoint** (sample table)  
+> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the next chunks. The template reads `metadata_path` below.
+
+To handle file paths and sample-specific data, a metadata file must be provided as a CSV file. The metadata file must contain the following required columns:
+
+- **`sample_id`**: A short sample identifier (e.g., `S1`, `S2`, `S3`)
+- **`sample_alias`**: A more descriptive sample name (e.g., `S1_resting`, `S2_PHA`, `S3_IL2`)
+- **`file_path`**: The filename of the PXL file located in the `data` folder (e.g., `S1_resting.pxl`)
+- **`condition`**: The sample treatment or experimental condition (e.g., `resting`, `stimulated`, `IL2_treated`)
+
+Additional columns can be added as needed (e.g., `donor`, `time_point`, `batch`, `replicate`) and will automatically be incorporated into the PNA object as metadata columns for downstream analysis.
+
+**Example metadata file:**
+
+```csv
+sample_id,sample_alias,condition,file_path
+S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl
+S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
+```
+
+```{r}
+#| label: setup_read_metadata
+
+# Read metadata file into a dataframe.
+# Supports both comma-separated (,) and semicolon-separated (;) CSV files.
+metadata_path <- here::here("data", "metadata.csv")
+if (!file.exists(metadata_path)) {
+  stop(
+    "metadata.csv not found in the data/ folder. ",
+    "Please create the file and try again."
+  )
+}
+metadata_raw <- readLines(metadata_path, n = 1)
+metadata_sep <- if (grepl(";", metadata_raw)) ";" else ","
+metadata <- read.csv(metadata_path, sep = metadata_sep) |> as_tibble()
+
+# Check that the metadata file contains the required columns - otherwise stop the script
+if (
+  !all(
+    c("sample_id", "sample_alias", "file_path", "condition") %in%
+      colnames(metadata)
+  )
+) {
+  stop(
+    "Metadata file must contain the columns: sample_id, sample_alias, file_path and condition"
+  )
+}
+
+# Print the metadata
+print(metadata)
+```
+
+### 0.2.2. Load and merge data
+
+This step loads each PXL file specified in the metadata and merges them into a single combined PNA object. First, each PXL file is read using `ReadPNA_Seurat()`, which creates a Seurat-compatible PNA object for each sample. Proximity scores are not loaded at this stage (`load_proximity_scores = FALSE`) to reduce memory usage, as they can be computed later if needed. The individual PNA objects are then merged using Seurat's `merge()` function, which combines all samples into a single object. During merging, the `sample_id` from the metadata is automatically appended to each cell's identifier to ensure unique cell names across samples. Finally, `JoinLayers()` consolidates any split layers in the merged object, ensuring all data is accessible in a unified structure.
+
+```{r}
+#| label: setup_merge_data
+
+# Load the data from the file paths into a list of PNA objects
+pg_data <-
+  here::here("data", metadata$file_path) |>
+  lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
+
+# Merge the PNA objects, adding the sample_id to the cell names
+pg_data <-
+  merge(
+    pg_data[[1]],
+    y = pg_data[-1],
+    add.cell.ids = metadata$sample_id
+  ) |>
+  JoinLayers()
+```
+
+### 0.2.3. Add metadata
+
+This step adds sample-level metadata from the metadata file to each cell in the PNA object. The process extracts the existing cell metadata from the PNA object and converts it to a tibble format. The `sample_id` is then extracted from each cell's identifier by removing the last 18 characters. The metadata from the CSV file (excluding the `file_path` column, which is not needed in the cell metadata) is then left-joined to the cell metadata based on matching `sample_id` values. Finally, the enriched metadata is converted back to a data frame with cell identifiers as rownames and assigned back to the PNA object's metadata slot. A sanity check is performed to verify that the metadata was correctly added by displaying cross-tabulations of metadata columns.
+
+```{r}
+#| label: setup_add_metadata
+
+# Add metadata to the PNA object
+pg_data[[]] <-
+  pg_data[[]] |>
+  as_tibble(rownames = "cell_id") |>
+  mutate(sample_id = str_sub(cell_id, end = -18)) |> # Remove last 18 characters from the cell_id to get the sample_id
+  left_join(
+    metadata |>
+      select(-file_path),
+    by = "sample_id"
+  ) |> # Do not add the file path to the PNA object
+  column_to_rownames("cell_id")
+
+
+# Set the sample_id, sample_alias and condition as factors with levels defined by the metadata file
+# to ensure the correct order of the samples and conditions in the plots
+pg_data$sample_id <-
+  factor(
+    pg_data$sample_id,
+    metadata$sample_id
+  )
+pg_data$sample_alias <-
+  factor(
+    pg_data$sample_alias,
+    metadata$sample_alias
+  )
+pg_data$condition <-
+  factor(
+    pg_data$condition,
+    unique(metadata$condition)
+  )
+
+# Sanity check the metadata
+for (col in colnames(metadata |> select(-file_path))) {
+  print(col)
+  print(table(pg_data[[]]$sample_alias, pg_data[[]][, col]))
+}
+```
+
+## 0.3. Theme
+
+> **Optional — plot appearance**  
+> Adjust `cluster_palette`, `condition_palette`, `sample_palette`, or `gradient_palette` if you want different colors in exported figures. Defaults work out of the box.
+
+Here we specify the color palettes for clusters and conditions. These can be adjusted to the color combinations that you want for your project, by replacing either palette with a named vector containing color codes.  The color palettes are created using the `PixelgenAccentColors()` function from the `pixelatorR` package, which creates a set of 12 colors for each hue. The color palettes are then used to color the clusters and conditions in the plots.
+
+```{r}
+#| label: setup_theme
+
+cluster_palette <-
+  c(
+    pixelatorR::PixelgenAccentColors(
+      level = 7,
+      hue = c(
+        "blues",
+        "reds",
+        "cyans",
+        "oranges",
+        "pinks",
+        "greens",
+        "purples",
+        "yellows",
+        "greys",
+        "beiges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 9,
+      hue = c(
+        "blues",
+        "pinks",
+        "reds",
+        "yellows",
+        "greys",
+        "beiges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 5,
+      hue = c(
+        "purples",
+        "blues",
+        "cyans",
+        "greens",
+        "reds",
+        "oranges"
+      )
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 3,
+      hue = c("blues", "reds")
+    ),
+    pixelatorR::PixelgenAccentColors(
+      level = 12,
+      hue = c("blues", "reds")
+    )
+  ) |>
+  unname() |>
+  rep(10)
+
+# Create a condition palette for the conditions
+unique_conditions <- unique(metadata$condition)
+condition_palette <-
+  set_names(
+    create_discrete_palette(
+      unique_conditions
+    )[seq_along(unique_conditions)],
+    unique_conditions
+  )
+
+# Create a sample palette for the samples
+unique_samples <- unique(metadata$sample_alias)
+sample_palette <-
+  set_names(
+    create_discrete_palette(
+      unique_samples
+    )[seq_along(unique_samples)],
+    unique_samples
+  )
+
+# Use pixelatorRs palette for coloring cell types
+cell_palette <-
+  Pixelgen_cell_palette
+
+gradient_palette <-
+  c(
+    "#1F395F",
+    "#44628E",
+    "#718BB2",
+    "#A8B9D1",
+    "#DBE1EA",
+    "#F1EEE9",
+    "#F0D7E0",
+    "#E3A6B8",
+    "#CB6E8B",
+    "#A23F5E",
+    "#781534"
+  )
+
+# Helper function to format large numbers compactly (e.g., 11234 -> "11.2k")
+format_thousands <- function(x) {
+  ifelse(
+    abs(x) >= 1000,
+    paste0(round(x / 1000, 1), "k"),
+    as.character(round(x, 1))
+  )
+}
+```
