@@ -100,7 +100,7 @@ export_plot(
 )
 ```
 
-Next, we plot the percentage of dangling nodes per cell. Dangling nodes belong to subgraphs that are connnected to the rest of the graph by a single edge, and are an indicator of the graph connectivity. The lower the percentage of dangling nodes, the better the graph connectivity.
+Next, we plot the percentage of dangling nodes per cell. Dangling nodes belong to subgraphs that are connected to the rest of the graph by a single edge, and are an indicator of the graph connectivity. The lower the percentage of dangling nodes, the better the graph connectivity.
 
 ```{r}
 #| label: quality_control_dangling_nodes_plots

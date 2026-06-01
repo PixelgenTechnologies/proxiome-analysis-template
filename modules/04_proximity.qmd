@@ -423,7 +423,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   geom_node_label(aes(label = name), size = 2.5) +
   scale_edge_color_gradientn(
     colours = gradient_palette,
-    limits = c(-1, 1) * abs(max(df_net$mean_log2_ratio))
+    limits = c(-1, 1) * abs(max(df_net$mean_log2_ratio, na.rm = TRUE))
   ) +
   scale_x_continuous(expand = c(0.2, 0.2)) +
   scale_y_continuous(expand = c(0.2, 0.2)) +
@@ -490,7 +490,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   geom_node_label(aes(label = name), size = 2.5) +
   scale_edge_color_gradientn(
     colours = gradient_palette,
-    limits = c(-abs(max(df_net$mean_log2_ratio)), abs(max(df_net$mean_log2_ratio)))
+    limits = c(-abs(max(df_net$mean_log2_ratio, na.rm = TRUE)), abs(max(df_net$mean_log2_ratio, na.rm = TRUE)))
   ) +
   scale_x_continuous(expand = c(0.2, 0.2)) +
   scale_y_continuous(expand = c(0.2, 0.2)) +
