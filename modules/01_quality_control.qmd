@@ -1,4 +1,4 @@
-﻿# 1. Quality control
+# 1. Quality control
 
 **Module 01 — Quality control.** Review QC metrics and set filtering thresholds. Run module `00` first in the same R session, then continue with `02_clustering_annotation.qmd`. **Decision checkpoint** callouts mark the threshold and marker-selection edits in this file.
 
