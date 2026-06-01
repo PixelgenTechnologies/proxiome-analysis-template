@@ -1,4 +1,4 @@
-﻿# 2. Data processing
+# 2. Data processing
 
 **Module 02 — Clustering and annotation.** Normalize, cluster, and annotate cells. Run modules `00` and `01` first in the same R session. If you start a new R session, run `00` and `01` again before this module. **Decision checkpoint** callouts cover clustering parameters, manual labels, and optional CD4 gating examples below.
 
