@@ -1,4 +1,4 @@
-﻿# 5. Statistical testing
+# 5. Statistical testing
 
 **Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run modules `00`–`02` first, or use the optional resume chunk below.
 
