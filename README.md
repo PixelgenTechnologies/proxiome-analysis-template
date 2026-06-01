@@ -152,13 +152,18 @@ pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify"
 > ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
 
 <details>
-<summary><strong>Advanced: Docker or renv</strong></summary>
+<summary><strong>Advanced: Docker (pre-built environment)</strong></summary>
 
 <br>
 
-**Docker:** Pre-built images available at [quay.io/pixelgen-technologies/proxiome-analysis-template](https://quay.io/pixelgen-technologies/proxiome-analysis-template)
+If you prefer not to install R packages locally, use the pre-built Docker image. It includes R, Quarto, `pixelatorR`, and all other PAT dependencies, with the template files at `/workspace`.
 
-**renv:** Run `renv::restore()` to install exact package versions from `renv.lock`.
+```bash
+docker pull quay.io/pixelgen-technologies/proxiome-analysis-template:latest
+docker run -it --rm -v "$(pwd)/data:/workspace/data" quay.io/pixelgen-technologies/proxiome-analysis-template:latest
+```
+
+Mount your `data/` folder so your PXL files and `metadata.csv` are available inside the container. Then open RStudio locally against the mounted project, or run R interactively inside the container.
 
 </details>
 

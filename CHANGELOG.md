@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `renv` project environment (`renv.lock`, `renv/`, `.Rprofile`). Local install uses `pak::pak()`; reproducibility is provided by the Docker image.
+
 ### Added
 
 - Modular analysis workflow: numbered notebooks in `modules/` (`00`–`05`) for interactive, stage-by-stage analysis.
@@ -14,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Updated
 
+- Docker image: installs PAT dependencies via `pak::pak()` on top of `pixelatorr:0.17.1` instead of `renv::restore()`; bundles full template at `/workspace`.
+- Docker CI: builds on pull requests (verify only); pushes to Quay on `main` and version tags only.
+- README: Docker is the sole advanced install option; renv references removed.
 - The PAT now depends on `pixelatorR >= 0.17.1`.
 - The PAT now includes clear labels for decision checkpoints.
 - README: modular run order, resume instructions, and corrected section references (§1.4 for marker selection).

@@ -30,6 +30,7 @@ jobs:
         with:
           quay-username: ${{ secrets.QUAY_IO_USERNAME }}
           quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
+          push: ${{ github.event_name != 'pull_request' }}
 
       - name: Docker meta
         id: meta
@@ -44,17 +45,13 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      # Build and push base image
-      - name: Build base Docker image
+      - name: Build Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
-          target: build
           platforms: linux/amd64
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            GITHUB_PAT=${{ secrets.GITHUB_TOKEN }}
