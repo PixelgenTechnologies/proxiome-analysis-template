@@ -1026,7 +1026,8 @@ pls_fit_celltype <-
     pg_data |>
       subset(cells = cells$component) %>%
       isotype_pls(isotype_markers,
-        model_mat = with(.[[]], model.matrix(~sample_alias)),
+        model_mat = with(.[[]],
+                         model.matrix(~factor(sample_alias))),
         layer = "data",
         remove_covariates = TRUE
       )
