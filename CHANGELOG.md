@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `qc_thresholds.rds` checkpoint — QC thresholds are applied in module `01` before saving `pg_data_merged.rds`.
 - `renv` project environment (`renv.lock`, `renv/`, `.Rprofile`). Local install uses `pak::pak()`; reproducibility is provided by the Docker image.
 - Module `00_project_setup.qmd` — data loading is now the first section of module `01`.
 
@@ -17,12 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modular analysis workflow: numbered notebooks in `modules/` (`01`–`05`) for interactive, stage-by-stage analysis.
 - Thin master `proxiome_analysis_template.qmd` that includes all modules for full re-render.
 - [`modules/common_setup.R`](modules/common_setup.R): shared packages, metadata, palettes, and checkpoint helpers.
-- Checkpoint files in `results/checkpoint_data/` for all cross-module state (`pg_data_merged`, `qc_thresholds`, `selected_markers`, `annotated_seurat_object`, `markers_to_test`).
+- Checkpoint files in `results/checkpoint_data/` for all cross-module state (`pg_data_merged`, `selected_markers`, `annotated_seurat_object`, `markers_to_test`).
 
 ### Updated
 
+- Cell QC filtering moved from module `02` to module `01` (section 1.3.5); `pg_data_merged.rds` now contains filtered cells only.
 - Results subfolders renamed to match module names: `02_clustering_annotation`, `04_proximity` (replacing `02_data_processing`, `04_raw_proximity`).
-- Module `01` now loads PXL data and runs QC; modules `02`–`05` load required checkpoints automatically.
+- Module `01` now loads PXL data, runs QC, filters cells, and saves the filtered object; modules `02`–`05` load required checkpoints automatically.
 - Docker image: installs PAT dependencies via `pak::pak()` on top of `pixelatorr:0.17.1` instead of `renv::restore()`; bundles full template at `/workspace`.
 - Docker CI: builds on pull requests (verify only); pushes to Quay on `main` and version tags only.
 - README: workflow paths, checkpoint table, Docker as advanced install option.

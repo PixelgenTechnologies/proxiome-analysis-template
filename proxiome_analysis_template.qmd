@@ -42,8 +42,7 @@ This template describes a standard workflow for analyzing single cell PNA data u
 │
 └── results/
     ├── checkpoint_data/               # Saved between modules
-    │   ├── pg_data_merged.rds         # After module 01
-    │   ├── qc_thresholds.rds          # After module 01
+    │   ├── pg_data_merged.rds         # After module 01 (QC-filtered)
     │   ├── selected_markers.rds       # After module 01
     │   ├── annotated_seurat_object.rds # After module 02
     │   └── markers_to_test.rds        # After module 02

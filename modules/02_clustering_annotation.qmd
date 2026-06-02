@@ -14,18 +14,14 @@ load_pat_common()
 if (!exists("pg_data", inherits = TRUE)) {
   pg_data <- load_checkpoint("pg_data_merged.rds")
 }
-if (!exists("n_umi_min_threshold", inherits = TRUE)) {
-  thresholds <- load_checkpoint("qc_thresholds.rds")
-  n_umi_min_threshold <- thresholds$n_umi_min_threshold
-  n_umi_max_threshold <- thresholds$n_umi_max_threshold
-  isotype_percent_threshold <- thresholds$isotype_percent_threshold
-}
 if (!exists("selected_markers", inherits = TRUE)) {
   selected_markers <- load_checkpoint("selected_markers.rds")
 }
 ```
 
 ## 2.1. Normalize and scale data
+
+Cells failing QC were removed in module `01`. The checkpoint `pg_data_merged.rds` contains the filtered object only.
 
 PNA data are normalized using centered log-ratio (CLR) transformation over margin 2, which normalizes counts per cell by dividing by the geometric mean across all markers for that cell. This normalization approach effectively accounts for differences in sequencing depth between cells while preserving the relative differences in marker abundance within each cell. The CLR transformation is particularly well-suited for compositional data like PNA, where the total signal per cell can vary substantially.
 
@@ -36,14 +32,7 @@ Following normalization, the data are Z-score scaled per marker. This transforma
 
 pg_data <-
   pg_data |>
-  # Filter cells based on quality control thresholds
-  subset(tau_type == "normal") |>
-  subset(n_umi > n_umi_min_threshold &
-    n_umi < n_umi_max_threshold) |>
-  subset(isotype_fraction < isotype_percent_threshold / 100) |>
-  # Data normalization
   NormalizeData(normalization.method = "CLR", margin = 2) |>
-  # Z score scaling
   ScaleData()
 ```
 

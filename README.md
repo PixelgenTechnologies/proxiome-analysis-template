@@ -246,8 +246,7 @@ After module `02` finishes, you can open `03`, `04`, or `05` in a **new R sessio
 
 | Checkpoint file | Created by | Used by |
 |-----------------|------------|---------|
-| `pg_data_merged.rds` | module `01` | module `02` |
-| `qc_thresholds.rds` | module `01` | module `02` |
+| `pg_data_merged.rds` | module `01` (filtered cells) | module `02` |
 | `selected_markers.rds` | module `01` | module `02` |
 | `annotated_seurat_object.rds` | module `02` | modules `03`–`05` |
 | `markers_to_test.rds` | module `02` | modules `04`–`05` |
@@ -263,7 +262,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | Module | What to do |
 |--------|------------|
 | **01 — sample table** | Check `metadata.csv` paths and sample IDs match your data |
-| **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots |
+| **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.5 onward |
 | **01 — marker selection** | Review `selected_markers` after running the selection code |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
 | **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"resting"`) |
@@ -340,7 +339,7 @@ Run the Setup chunk in `modules/01_quality_control.qmd` first.
 
 Run the upstream module first to create the missing file in `results/checkpoint_data/`:
 
-- `pg_data_merged.rds`, `qc_thresholds.rds`, `selected_markers.rds` → run module `01`
+- `pg_data_merged.rds`, `selected_markers.rds` → run module `01`
 - `annotated_seurat_object.rds`, `markers_to_test.rds` → run module `02` to completion
 
 </details>
