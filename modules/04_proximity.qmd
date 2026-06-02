@@ -1,6 +1,8 @@
-# 4. Colocalization score
+# 4. Proximity
 
-**Module 04 — Proximity.** Colocalization heatmaps and network plots. Run the first chunk below to load packages and the annotated object saved by module `02`. You can open this module in a new R session without re-running modules `00`–`02`.
+**Module 04 — Proximity.** Colocalization heatmaps and network plots. Run the first chunk below after module `02` has finished. You can open this module in a new R session once checkpoints exist.
+
+Abundance plots (module `03`) show *which markers are present* in each cell type. Proximity analysis shows *which markers co-localize* on the cell's protein graph — the main PNA-specific readout.
 
 ```{r}
 #| label: module04_setup
@@ -11,15 +13,11 @@ here::i_am("modules/04_proximity.qmd")
 source(here::here("modules", "common_setup.R"))
 load_pat_common()
 
-checkpoint_path <- here::here("results", "checkpoint_data", "annotated_seurat_object.rds")
 if (!exists("pg_data", inherits = TRUE)) {
-  if (!file.exists(checkpoint_path)) {
-    stop(
-      "Annotated object not found at: ", checkpoint_path, "\n",
-      "Run module 02 (Clustering and annotation) first to create it."
-    )
-  }
-  pg_data <- readRDS(checkpoint_path)
+  pg_data <- load_checkpoint("annotated_seurat_object.rds")
+}
+if (!exists("markers_to_test", inherits = TRUE)) {
+  markers_to_test <- load_checkpoint("markers_to_test.rds")
 }
 ```
 
@@ -192,7 +190,7 @@ export_plot(
 
 ### 4.1.2. Per cluster
 
-> **Same parameters as §4.1.1**  
+> **Same parameters as the per-group heatmaps above**  
 > This chunk uses `heatmap_grouping_column`, `max_heatmap_markers`, and `markers_to_test` from earlier sections—run those chunks first or define the same variables in your session.
 
 This section generates cell type-specific colocalization heatmaps, analyzing colocalization patterns separately for each annotated cell type. For each cell type, colocalization heatmaps are created using a set of markers relevant to that specific cell type (defined in `markers_to_test`). The analysis is performed on cells belonging to each cell type separately, then heatmaps are generated for each group (defined by `heatmap_grouping_column`, default: `"condition"`) within that cell type. This enables identification of cell type-specific colocalization patterns and comparison of how these patterns vary across groups within the same cell type.
@@ -460,7 +458,7 @@ export_plot(
 ### 4.2.2. Per Cell Type
 
 > **Decision checkpoint** (network — one cell type)  
-> Set `cell_type_of_interest` and the same network parameters as in §4.2.1. Must match a value in `cell_annotation`.
+> Set `cell_type_of_interest` and the same network parameters as in the global network section above. Must match a value in `cell_annotation`.
 
 This section generates cell type-specific network visualizations, analyzing colocalization patterns within a single cell type of interest. By focusing on a specific cell type, this analysis can reveal cell type-specific colocalization signatures that may be masked in whole-dataset analyses. The network visualization helps identify which markers form strong colocalization relationships within the selected cell type and how these relationships vary across groups (defined by `network_grouping_column`, default: condition). Set `network_grouping_column` to `"sample_alias"` to facet by individual sample.
 

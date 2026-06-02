@@ -1,6 +1,6 @@
 # 5. Statistical testing
 
-**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run the first chunk below to load packages and the annotated object saved by module `02`.
+**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run the first chunk below after module `02` has finished.
 
 ```{r}
 #| label: module05_setup
@@ -11,22 +11,18 @@ here::i_am("modules/05_statistical_testing.qmd")
 source(here::here("modules", "common_setup.R"))
 load_pat_common()
 
-checkpoint_path <- here::here("results", "checkpoint_data", "annotated_seurat_object.rds")
 if (!exists("pg_data", inherits = TRUE)) {
-  if (!file.exists(checkpoint_path)) {
-    stop(
-      "Annotated object not found at: ", checkpoint_path, "\n",
-      "Run module 02 (Clustering and annotation) first to create it."
-    )
-  }
-  pg_data <- readRDS(checkpoint_path)
+  pg_data <- load_checkpoint("annotated_seurat_object.rds")
+}
+if (!exists("markers_to_test", inherits = TRUE)) {
+  markers_to_test <- load_checkpoint("markers_to_test.rds")
 }
 ```
 
 ## 5.0. Set reference sample
 
 > **Decision checkpoint** (statistical contrasts)  
-> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in §5 use this baseline.
+> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in module `05` use this baseline.
 
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state. 
 

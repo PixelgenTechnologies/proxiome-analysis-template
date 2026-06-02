@@ -1,6 +1,6 @@
-# 2. Data processing
+# 2. Clustering and annotation
 
-**Module 02 — Clustering and annotation.** Normalize, cluster, and annotate cells. Run modules `00` and `01` first in the same R session, then continue here. **Decision checkpoint** callouts cover clustering parameters, manual labels, and optional CD4 gating examples below.
+**Module 02 — Clustering and annotation.** Normalize, cluster, and annotate cells. Run module `01` first, or run the setup chunk below in a new session after module `01` checkpoints exist. **Decision checkpoint** callouts cover clustering parameters, manual labels, and optional CD4 gating examples below.
 
 ```{r}
 #| label: module02_setup
@@ -10,6 +10,19 @@ here::i_am("modules/02_clustering_annotation.qmd")
 
 source(here::here("modules", "common_setup.R"))
 load_pat_common()
+
+if (!exists("pg_data", inherits = TRUE)) {
+  pg_data <- load_checkpoint("pg_data_merged.rds")
+}
+if (!exists("n_umi_min_threshold", inherits = TRUE)) {
+  thresholds <- load_checkpoint("qc_thresholds.rds")
+  n_umi_min_threshold <- thresholds$n_umi_min_threshold
+  n_umi_max_threshold <- thresholds$n_umi_max_threshold
+  isotype_percent_threshold <- thresholds$isotype_percent_threshold
+}
+if (!exists("selected_markers", inherits = TRUE)) {
+  selected_markers <- load_checkpoint("selected_markers.rds")
+}
 ```
 
 ## 2.1. Normalize and scale data
@@ -37,7 +50,7 @@ pg_data <-
 ## 2.2. Dimensionality reduction
 
 > **Decision checkpoint** (PCA / UMAP hyperparameters)  
-> In the next chunk, adjust `npcs`, `n_neighbors`, and the `dims` passed to `RunUMAP` (and the PCA elbow plot) to match your dataset. `RunPCA(..., features = selected_markers)` uses the marker list from §1.4.
+> In the next chunk, adjust `npcs`, `n_neighbors`, and the `dims` passed to `RunUMAP` (and the PCA elbow plot) to match your dataset. `RunPCA(..., features = selected_markers)` uses the marker list from module `01`.
 
 Principal Component Analysis (PCA) is performed to extract the main axes of variation in the data. The first 10-20 principal components (PCs) are typically used for downstream analysis, though this number should be adjusted based on the specific dataset and experimental design. As a general guideline, the selected PCs should explain a substantial portion of the total variance while avoiding overfitting to noise. Principal components often capture technical effects, cell states, or experimental conditions, so the number of PCs can be adjusted according to the expected number of cell states or the complexity of the experimental design. The number of PCs is set to 20 by default, but can be adjusted as needed.
 
@@ -119,7 +132,7 @@ export_plot(
 ## 2.3. Data harmonization
 
 > **Decision checkpoint** (batch integration)  
-> If you use Harmony, set `group.by.vars` to the metadata column that defines batches (often `"sample_alias"`). If you **skip** Harmony, do not run the chunk below and replace uses of `"harmony"` / `"harmony_umap"` with `"pca"` / `"umap"` in later chunks (search the file for `harmony`).
+> If you use Harmony, set `group.by.vars` to the metadata column that defines batches (often `"sample_alias"`). If you **skip** Harmony, do not run the chunk below. In the clustering chunk below, change `reduction = "harmony"` to `reduction = "pca"` and `reduction.name = "harmony_umap"` to `"umap"`, then use `"pca"` / `"umap"` instead of `"harmony"` / `"harmony_umap"` in later plots.
 
 Data harmonization is an optional step that can be beneficial when experiments contain multiple samples with similar cell types that do not cluster together well due to technical or biological variability. The goal of data harmonization is to align similar cell types across samples so that they cluster together, facilitating the identification of shared cell types between samples even when they exhibit somewhat different protein expression profiles. This approach is particularly useful in experiments with batch effects, technical variability, or biological sources of variation such as donor differences or stimulation-induced perturbations.
 
@@ -242,7 +255,7 @@ export_plot(
 This section visualizes the distribution of markers of interest on the harmonized UMAP. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. 
 
 > **Decision checkpoint** (markers for FeaturePlots)  
-> Set `markers_of_interest` in the next chunk to the markers you want on UMAP for annotation (independent from §2.6.3 unless you choose to align them).
+> Set `markers_of_interest` in the next chunk to the markers you want on UMAP for annotation (independent from the abundance heatmap section unless you choose to align them).
 
 ```{r}
 #| label: data_processing_marker_distribution_on_umap
@@ -557,7 +570,7 @@ write_csv(diff_abundant_markers_cluster, here::here("results/02_data_processing/
 Here we visualize the abundance of **selected markers** across the harmonized UMAP and per cluster. This can help to identify which markers are characteristic of each cluster, and can guide manual annotation of cell types. Please change `markers_of_interest` according to which markers are most relevant for your dataset. 
 
 > **Decision checkpoint** (markers for abundance panels / heatmap)  
-> Edit `markers_of_interest` in the next chunk (can match §2.5 or a tighter set for heatmaps).
+> Edit `markers_of_interest` in the next chunk (can match the FeaturePlot markers above or a tighter set for heatmaps).
 
 ```{r}
 #| label: data_processing_marker_abundance_visualization
@@ -900,8 +913,8 @@ export_plot(
 
 ### 2.6.7. Choose a cell annotation to use
 
-> **Decision checkpoint** (which labels drive §3–5)  
-> In the next chunk, set `cell_annotation` to `manual_cell_annotation` for your own labels, or keep `l1_annotation_summary` for a reproducible default. Downstream plots and statistics follow this column.
+> **Decision checkpoint** (which labels drive modules `03`–`05`)  
+> **Tutorial default:** keep `cell_annotation = l1_annotation_summary` so the notebook runs on example data without extra input. **For your study:** switch to `manual_cell_annotation` after editing cluster labels above. PBMC label transfer is a starting suggestion, not ground truth.
 
 After performing both automatic and manual annotation (either through cluster-based or gating-based approaches), we need to choose which annotation to use for downstream analyses.
 
@@ -916,11 +929,6 @@ pg_data[[]] <-
     # To use the manual annotation instead, exchange `l1_annotation_summary` with `manual_cell_annotation` in the line below
     cell_annotation = l1_annotation_summary
   )
-
-
-# Save annotated Seurat object
-dir.create(here::here("results", "checkpoint_data"), recursive = TRUE, showWarnings = FALSE)
-saveRDS(pg_data, here::here("results", "checkpoint_data", "annotated_seurat_object.rds"))
 
 
 # L1 automatic annotation - summarised by cluster
@@ -996,7 +1004,7 @@ export_plot(
 ### 2.6.8. Marker selection per cell type
 
 > **Decision checkpoint** (which markers enter differential testing)  
-> The PLS and filter logic below defines `markers_to_test` for §3–5. Adjust `isotype_markers` if your panel differs, and review the scatter plot / heatmaps before trusting exclusions. Advanced users may also tune the `mean_isotype + … * sd_isotype` rules in the `mutate(passed_filter = …)` block.
+> The PLS and filter logic below defines `markers_to_test` for modules `04`–`05`. Adjust `isotype_markers` if your panel differs (defaults are mouse isotypes; use your human isotype controls for human panels). Review the scatter plot and heatmaps before trusting exclusions.
 
 When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
 
@@ -1249,4 +1257,11 @@ markers_to_test <-
   group_split() |>
   set_names(group_keys(markers_per_cell_type)$cell_type) |>
   lapply(function(df) unique(df$marker))
+```
+
+```{r}
+#| label: module02_save_checkpoints
+
+save_checkpoint("annotated_seurat_object.rds", pg_data)
+save_checkpoint("markers_to_test.rds", markers_to_test)
 ```

@@ -14,102 +14,50 @@ execute:
   message: false
 ---
 
-This template describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data setup, quality control, data processing, and statistical testing. The workflow is interactive and modular, requiring manual intervention at several key steps.
+This template describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data loading, quality control, clustering, annotation, abundance, proximity, and optional statistical testing.
 
 **Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
-**How to run interactively:** Open and run the numbered notebooks in `modules/` in order (`00` through `04`; `05` is optional). Keep the same R session so objects stay in memory between modules.
+**How to run interactively:** Open and run the numbered notebooks in `modules/` in order (`01` through `04`; `05` is optional). Start with `01_quality_control.qmd`.
 
-**How to re-render everything:** Render this file when you want a single HTML report of the full workflow at the end of a project.
+**How to re-render everything:** Render this file when you want a single HTML report of the full workflow at the end of a project (requires [Quarto](https://quarto.org/)).
 
 **Where to edit:** Steps that depend on your experiment are labeled **Decision checkpoint** in each module. Search for **Decision checkpoint** in the module you are running.
 
 ## Project Folder Structure
 
-This analysis workflow creates the following folder structure for organizing input data and output results:
-
 ```
 .
-├── data/                                    # Input data directory
-│   ├── metadata.csv                         # Sample metadata file (required)
-│   └── *.pxl                                # PNA data files (one per sample)
+├── data/
+│   ├── metadata.csv
+│   └── *.pxl
 │
-├── modules/                                 # Analysis notebooks (run 00–04 in order)
-│   ├── 00_project_setup.qmd
+├── modules/
+│   ├── common_setup.R                 # Shared setup (sourced automatically)
 │   ├── 01_quality_control.qmd
 │   ├── 02_clustering_annotation.qmd
 │   ├── 03_abundance.qmd
 │   ├── 04_proximity.qmd
-│   └── 05_statistical_testing.qmd           # Optional
+│   └── 05_statistical_testing.qmd     # Optional
 │
-└── results/                                 # Output results directory
-    ├── 01_quality_control/                   # Section 1: Quality control metrics and plots
-    │   ├── violin_plots/                     # Violin plots for QC metrics (read depth, k-core, etc.)
-    │   ├── molecule_rank_plots/              # Molecule rank plots with thresholds
-    │   ├── tau_plots/                        # Tau score plots for outlier detection
-    │   └── marker_selection_plots/           # Marker selection plots (CPM-based filtering)
-    │
-    ├── 02_data_processing/                   # Section 2: Data processing outputs
-    │   ├── dimensionality_reduction_plots/    # PCA, UMAP, and Harmony plots
-    │   ├── clustering_plots/                  # Cluster visualization plots
-    │   ├── marker_umap_plots/                 # Individual marker UMAP plots
-    │   └── annotation_plots/                  # Cell type annotation plots and tables
-    │       ├── automatic_annotation/          # Automatic annotation visualizations (L1, L2)
-    │       ├── cell_type_composition/         # Cell type composition plots per sample
-    │       ├── cluster_specific_markers/       # Cluster-specific marker analysis
-    │       │   └── data_processing_differential_abundance_markers_per_cluster.csv
-    │       └── gating_strategy/                # Marker gating strategy plots
-    │           ├── cd4_subtype_naive_memory_density_scatter
-    │           ├── cd4_subtype_naive_memory_density_scatter_w_gates
-    │           └── cd4_subtype_umap
-    │
-    ├── checkpoint_data/                       # Annotated object for modules 03–05
-    │   └── annotated_seurat_object.rds        # Saved at end of module 02
-    │
-    ├── 03_abundance/                          # Section 3: Abundance distribution analysis
-    │   └── abundance_plots/
-    │       ├── per_sample/                    # Abundance plots per sample (selected markers only)
-    │       ├── per_cell_type/                 # Abundance plots per cell type (selected markers only)
-    │       ├── per_cell_type_faceted_by_{grouping_column}/  # Faceted plots by condition (default) or sample
-    │       └── per_condition_faceted_by_celltype/ # Faceted plots by condition
-    │
-    ├── 04_raw_proximity/                      # Section 4: Colocalization score analysis
-    │   ├── raw_colocalization_heatmap_per_{grouping_column}/  # Heatmaps per condition (default) or sample
-    │   ├── raw_colocalization_heatmap_per_cell_type/   # Heatmaps per cell type
-    │   │   └── {cell_type}/                  # Subdirectories for each cell type
-    │   └── colocalization_score_network/      # Network visualizations
-    │       ├── colocalization_score_network_all_cell_types/
-    │       └── colocalization_score_network_per_cell_type/
-    │           └── {cell_type_of_interest}/
-    │
-    └── 05_statistical_testing/                # Section 5: Statistical testing results
-        ├── abundance/                         # Differential abundance analysis
-        │   ├── differential_abundance_analysis.csv
-        │   ├── differential_abundance_analysis.rds
-        │   └── differential_abundance_plots/
-        │       └── {condition}_vs_{reference}/ # Comparison-specific plots
-        │
-        ├── clustering/                        # Differential clustering analysis
-        │   ├── differential_clustering_analysis.csv
-        │   ├── differential_clustering_analysis.rds
-        │   └── differential_clustering_plots/
-        │       └── {condition}_vs_{reference}/
-        │
-        └── colocalization/                    # Differential colocalization analysis
-            ├── differential_colocalization_analysis.csv
-            ├── differential_colocalization_analysis.rds
-            └── differential_colocalization_plots/
-                └── {condition}_vs_{reference}/
-                    └── {cell_type}/          # Plots per cell type
+└── results/
+    ├── checkpoint_data/               # Saved between modules
+    │   ├── pg_data_merged.rds         # After module 01
+    │   ├── qc_thresholds.rds          # After module 01
+    │   ├── selected_markers.rds       # After module 01
+    │   ├── annotated_seurat_object.rds # After module 02
+    │   └── markers_to_test.rds        # After module 02
+    ├── 01_quality_control/
+    ├── 02_data_processing/
+    ├── 03_abundance/
+    ├── 04_raw_proximity/
+    └── 05_statistical_testing/
 ```
 
 **Note:**
 
-- The `{condition}`, `{reference}`, `{cell_type}`, and `{cell_type_of_interest}` placeholders represent dynamically created subdirectories based on your experimental conditions and cell types.
-- All plots are saved in both PDF and PNG formats for easy viewing and publication.
-- Folder numbering (01-05) corresponds to the analysis sections, ensuring consistent organization throughout the workflow.
-
-{{< include modules/00_project_setup.qmd >}}
+- All plots are saved in both PDF and PNG formats.
+- Folder numbering (01–05) corresponds to the analysis modules.
 
 {{< include modules/01_quality_control.qmd >}}
 

@@ -10,25 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `renv` project environment (`renv.lock`, `renv/`, `.Rprofile`). Local install uses `pak::pak()`; reproducibility is provided by the Docker image.
+- Module `00_project_setup.qmd` — data loading is now the first section of module `01`.
 
 ### Added
 
-- Modular analysis workflow: numbered notebooks in `modules/` (`00`–`05`) for interactive, stage-by-stage analysis.
+- Modular analysis workflow: numbered notebooks in `modules/` (`01`–`05`) for interactive, stage-by-stage analysis.
 - Thin master `proxiome_analysis_template.qmd` that includes all modules for full re-render.
+- [`modules/common_setup.R`](modules/common_setup.R): shared packages, metadata, palettes, and checkpoint helpers.
+- Checkpoint files in `results/checkpoint_data/` for all cross-module state (`pg_data_merged`, `qc_thresholds`, `selected_markers`, `annotated_seurat_object`, `markers_to_test`).
 
 ### Updated
 
+- Module `01` now loads PXL data and runs QC; modules `02`–`05` load required checkpoints automatically.
 - Docker image: installs PAT dependencies via `pak::pak()` on top of `pixelatorr:0.17.1` instead of `renv::restore()`; bundles full template at `/workspace`.
 - Docker CI: builds on pull requests (verify only); pushes to Quay on `main` and version tags only.
-- README: Docker is the sole advanced install option; renv references removed.
+- README: workflow paths, checkpoint table, Docker as advanced install option.
 - The PAT now depends on `pixelatorR >= 0.17.1`.
 - The PAT now includes clear labels for decision checkpoints.
-- README: modular run order, resume instructions, and corrected section references (§1.4 for marker selection).
 
 ### Fixed
 
 - `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
-- Removed incorrect reference to non-existent `scripts/helpers.R`; helpers remain inline in module `00`.
+- Removed incorrect reference to non-existent `scripts/helpers.R`; helpers remain inline in `common_setup.R`.
+- Cold-start for modules `03`–`05`: `cell_palette` and `markers_to_test` now available via shared setup and checkpoints.
 
 ## [0.3.2] 2026-03-27
 

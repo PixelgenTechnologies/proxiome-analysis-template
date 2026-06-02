@@ -1,3 +1,26 @@
+checkpoint_path <- function(name) {
+  here::here("results", "checkpoint_data", name)
+}
+
+save_checkpoint <- function(name, object) {
+  dir.create(here::here("results", "checkpoint_data"), recursive = TRUE, showWarnings = FALSE)
+  saveRDS(object, checkpoint_path(name))
+}
+
+load_checkpoint <- function(name, required = TRUE) {
+  path <- checkpoint_path(name)
+  if (!file.exists(path)) {
+    if (required) {
+      stop(
+        "Checkpoint not found: ", path, "\n",
+        "Run the upstream module first to create it."
+      )
+    }
+    return(NULL)
+  }
+  readRDS(path)
+}
+
 load_pat_common <- function() {
   suppressPackageStartupMessages({
     library(tidyverse)
@@ -10,21 +33,20 @@ load_pat_common <- function() {
     library(Matrix)
     library(ggraph)
   })
- 
-  # Set global options for saving plots
+
+  if (packageVersion("pixelatorR") < "0.17.1") {
+    stop(
+      "Please update the pixelatorR package to version 0.17.1 or higher to run this analysis workflow."
+    )
+  }
+
   options(
-    # Overwrite existing files when saving plots - set to FALSE if you want to keep old versions of the plots
     export_plot.overwrite = TRUE
   )
-  # Set global options for file formats to save plots in both PNG and PDF
   options(export_plot.file_formats = c("png", "pdf"))
- 
-  # Minimum p-value to use in -log10 transformations for volcano plots.
-  # When p_val_adj == 0 (floating-point underflow), -log10(0) becomes Inf and
-  # data-point labels are clipped. Coerce any p-value below this threshold to
-  # this value before computing -log10.
+
   min_p_value_threshold <<- 1e-300
- 
+
   metadata_path <- here::here("data", "metadata.csv")
   if (!file.exists(metadata_path)) {
     stop(
@@ -35,8 +57,18 @@ load_pat_common <- function() {
   metadata_raw <- readLines(metadata_path, n = 1)
   metadata_sep <- if (grepl(";", metadata_raw)) ";" else ","
   metadata <<- read.csv(metadata_path, sep = metadata_sep) |> as_tibble()
- 
-  # Theme/palettes (used across modules)
+
+  if (
+    !all(
+      c("sample_id", "sample_alias", "file_path", "condition") %in%
+        colnames(metadata)
+    )
+  ) {
+    stop(
+      "Metadata file must contain the columns: sample_id, sample_alias, file_path and condition"
+    )
+  }
+
   cluster_palette <<-
     c(
       pixelatorR::PixelgenAccentColors(
@@ -87,28 +119,38 @@ load_pat_common <- function() {
     ) |>
     unname() |>
     rep(10)
- 
-  # Create palettes based on metadata ordering
+
   unique_conditions <- unique(metadata$condition)
   condition_palette <<-
     set_names(
       create_discrete_palette(unique_conditions)[seq_along(unique_conditions)],
       unique_conditions
     )
- 
+
   unique_samples <- unique(metadata$sample_alias)
   sample_palette <<-
     set_names(
       create_discrete_palette(unique_samples)[seq_along(unique_samples)],
       unique_samples
     )
- 
+
+  cell_palette <<- Pixelgen_cell_palette
+
   gradient_palette <<-
-    colorRampPalette(
-      c("#FFFFFF", "#F1EEE9", "#F0D7E0", "#E3A6B8", "#CB6E8B", "#A23F5E", "#781534")
-    )(100)
- 
-  # Helper function to format large numbers compactly (e.g., 11234 -> "11.2k")
+    c(
+      "#1F395F",
+      "#44628E",
+      "#718BB2",
+      "#A8B9D1",
+      "#DBE1EA",
+      "#F1EEE9",
+      "#F0D7E0",
+      "#E3A6B8",
+      "#CB6E8B",
+      "#A23F5E",
+      "#781534"
+    )
+
   format_thousands <<- function(x) {
     ifelse(
       abs(x) >= 1000,
@@ -116,7 +158,6 @@ load_pat_common <- function() {
       as.character(round(x, 1))
     )
   }
- 
+
   invisible(TRUE)
 }
-
