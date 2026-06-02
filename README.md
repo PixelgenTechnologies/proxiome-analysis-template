@@ -251,7 +251,7 @@ To regenerate one HTML report of the entire workflow at the end of a project, re
 If you closed R and want to continue without re-running everything, modules `03`–`05` include an optional commented chunk at the top to load the saved object from a previous clustering run:
 
 ```r
-# pg_data <- readRDS(here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+# pg_data <- readRDS(here::here("results/checkpoint_data/annotated_seurat_object.rds"))
 ```
 
 Uncomment that line, run it, then continue with the rest of the module. For module `02`, run modules `00` and `01` again first.

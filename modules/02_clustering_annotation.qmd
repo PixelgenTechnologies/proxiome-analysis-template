@@ -4,10 +4,15 @@
 
 ```{r}
 #| label: resume_optional_clustering
-#| eval: false
 
-# Optional — only if resuming in a new session after modules 00 and 01 were run previously:
-# Run modules 00 and 01 first, then continue here. There is no saved object between QC and clustering.
+library(here)
+here::i_am("modules/02_clustering_annotation.qmd")
+
+source(here::here("modules", "common_setup.R"))
+load_pat_common()
+
+# If you are resuming in a new session, run modules 00 and 01 first.
+# There is no saved object between QC and clustering.
 ```
 
 ## 2.1. Normalize and scale data
@@ -917,7 +922,8 @@ pg_data[[]] <-
 
 
 # Save annotated Seurat object
-saveRDS(pg_data, here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+dir.create(here::here("results", "checkpoint_data"), recursive = TRUE, showWarnings = FALSE)
+saveRDS(pg_data, here::here("results", "checkpoint_data", "annotated_seurat_object.rds"))
 
 
 # L1 automatic annotation - summarised by cluster

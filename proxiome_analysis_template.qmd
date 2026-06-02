@@ -62,7 +62,10 @@ This analysis workflow creates the following folder structure for organizing inp
     │       │   ├── cd4_subtype_naive_memory_density_scatter
     │       │   ├── cd4_subtype_naive_memory_density_scatter_w_gates
     │       │   └── cd4_subtype_umap
-    │       └── annotated_seurat_object.rds    # Saved annotated Seurat object
+    │       └── annotated_seurat_object.rds    # Legacy location (see checkpoint_data below)
+    │
+    ├── checkpoint_data/                       # Stable cross-module resume data
+    │   └── annotated_seurat_object.rds        # Annotated object saved at end of module 02
     │
     ├── 03_abundance/                          # Section 3: Abundance distribution analysis
     │   └── abundance_plots/

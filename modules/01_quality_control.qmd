@@ -2,6 +2,16 @@
 
 **Module 01 — Quality control.** Review QC metrics and set filtering thresholds. Run module `00` first in the same R session, then continue with `02_clustering_annotation.qmd`. **Decision checkpoint** callouts mark the threshold and marker-selection edits in this file.
 
+```{r}
+#| label: module01_setup
+
+library(here)
+here::i_am("modules/01_quality_control.qmd")
+
+source(here::here("modules", "common_setup.R"))
+load_pat_common()
+```
+
 Quality control is a critical step that ensures only high-quality cells are included in downstream analyses. This section systematically evaluates multiple quality metrics at both the sample and cell level to identify and exclude low-quality cells, cell fragments, doublets, and technical artifacts. The quality metrics examined include:
 
 - **Read depth**: The total number of reads per cell, which reflects sequencing depth and overall data quality

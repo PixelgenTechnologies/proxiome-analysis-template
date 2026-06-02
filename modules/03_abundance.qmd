@@ -4,10 +4,23 @@
 
 ```{r}
 #| label: resume_optional_abundance
-#| eval: false
 
-# Optional — only if resuming in a new session and skipping earlier modules:
-# pg_data <- readRDS(here::here("results/02_data_processing/annotation_plots/annotated_seurat_object.rds"))
+library(here)
+here::i_am("modules/03_abundance.qmd")
+
+source(here::here("modules", "common_setup.R"))
+load_pat_common()
+
+checkpoint_path <- here::here("results", "checkpoint_data", "annotated_seurat_object.rds")
+if (!exists("pg_data", inherits = TRUE)) {
+  if (!file.exists(checkpoint_path)) {
+    stop(
+      "Annotated object not found at: ", checkpoint_path, "\n",
+      "Run module 02 (Clustering and annotation) first to create it."
+    )
+  }
+  pg_data <- readRDS(checkpoint_path)
+}
 ```
 
 > **Decision checkpoint** (abundance plots scope)  

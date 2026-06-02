@@ -9,40 +9,12 @@ A set of commonly used packages and helper functions are loaded here. The core p
 ```{r}
 #| label: setup_packages
 
-# Load commonly used packages
-library(tidyverse)
-library(Seurat)
-library(pixelatorR)
-library(harmony)
-library(ComplexHeatmap)
-library(ggplotify)
 library(here)
-library(Matrix)
-library(ggraph)
-
-# Check pixelatorR version
-if (packageVersion("pixelatorR") < "0.17.1") {
-  stop(
-    "Please update the pixelatorR package to version 0.17.1 or higher to run this analysis workflow."
-  )
-}
-
-# Anchor the project root directory
 here::i_am("modules/00_project_setup.qmd")
 
-# Set global options for saving plots
-options(
-  # Overwrite existing files when saving plots - set to FALSE if you want to keep old versions of the plots
-  export_plot.overwrite = TRUE
-)
-# Set global options for file formats to save plots in both PNG and PDF
-options(export_plot.file_formats = c("png", "pdf"))
-
-# Minimum p-value to use in -log10 transformations for volcano plots.
-# When p_val_adj == 0 (floating-point underflow), -log10(0) becomes Inf and
-# data-point labels are clipped. Coerce any p-value below this threshold to
-# this value before computing -log10.
-min_p_value_threshold <- 1e-300
+# Load packages, metadata, palettes, and small helpers shared by all modules
+source(here::here("modules", "common_setup.R"))
+load_pat_common()
 ```
 
 ## 0.2. Create the PNA object
