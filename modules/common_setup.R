@@ -1,9 +1,13 @@
+pat_results <- function(...) {
+  here::here("results", ...)
+}
+
 checkpoint_path <- function(name) {
-  here::here("results", "checkpoint_data", name)
+  pat_results("checkpoint_data", name)
 }
 
 save_checkpoint <- function(name, object) {
-  dir.create(here::here("results", "checkpoint_data"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(pat_results("checkpoint_data"), recursive = TRUE, showWarnings = FALSE)
   saveRDS(object, checkpoint_path(name))
 }
 

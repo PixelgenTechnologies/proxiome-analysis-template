@@ -158,7 +158,7 @@ for (group in unique_groups) {
 
   # Save individual plot with dimensions scaled to number of markers
   export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/{group}_raw_colocalization_heatmap")),
+    filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/{group}_raw_colocalization_heatmap")),
     plot = tmp_plot,
     width = plot_width,
     height = plot_height
@@ -181,7 +181,7 @@ combined_height <- plot_height * n_rows
 
 # Save the combined plot
 export_plot(
-  filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
+  filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
   plot = combined_plot,
   width = combined_width,
   height = combined_height
@@ -337,7 +337,7 @@ for (cell_type in cell_types) {
 
       # Save individual plot with dimensions scaled to number of markers
       export_plot(
-        filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{group}_{cell_type}_raw_colocalization_heatmap")),
+        filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{group}_{cell_type}_raw_colocalization_heatmap")),
         plot = tmp_plot,
         width = plot_width,
         height = plot_height
@@ -368,7 +368,7 @@ for (cell_type in cell_types) {
 
   # Save the combined plot
   export_plot(
-    filename = glue::glue(here::here("results/04_raw_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
+    filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
     plot = combined_plot,
     width = combined_width,
     height = combined_height
@@ -448,7 +448,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   guides(edge_width = "none")
 
 export_plot(
-  filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
+  filename = glue::glue(here::here("results/04_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
   width = 12,
   height = 8
 )
@@ -521,7 +521,7 @@ tidygraph::as_tbl_graph(df_net) %>%
   guides(edge_width = "none")
 
 export_plot(
-  filename = glue::glue(here::here("results/04_raw_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
+  filename = glue::glue(here::here("results/04_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
   width = 12,
   height = 8
 )

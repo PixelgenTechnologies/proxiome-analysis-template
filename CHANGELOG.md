@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Updated
 
+- Results subfolders renamed to match module names: `02_clustering_annotation`, `04_proximity` (replacing `02_data_processing`, `04_raw_proximity`).
 - Module `01` now loads PXL data and runs QC; modules `02`–`05` load required checkpoints automatically.
 - Docker image: installs PAT dependencies via `pak::pak()` on top of `pixelatorr:0.17.1` instead of `renv::restore()`; bundles full template at `/workspace`.
 - Docker CI: builds on pull requests (verify only); pushes to Quay on `main` and version tags only.
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
 - Removed incorrect reference to non-existent `scripts/helpers.R`; helpers remain inline in `common_setup.R`.
 - Cold-start for modules `03`–`05`: `cell_palette` and `markers_to_test` now available via shared setup and checkpoints.
+- Marker UMAP plots in module `02` now save to project-root `results/` (fixed missing `here::here()` when running the module interactively).
 
 ## [0.3.2] 2026-03-27
 

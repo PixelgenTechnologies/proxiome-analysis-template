@@ -278,9 +278,9 @@ Results are saved to `results/` in PDF and PNG formats:
 results/
 ├── checkpoint_data/          # Cross-module checkpoints (see table above)
 ├── 01_quality_control/
-├── 02_data_processing/
+├── 02_clustering_annotation/
 ├── 03_abundance/
-├── 04_raw_proximity/
+├── 04_proximity/
 └── 05_statistical_testing/
 ```
 
