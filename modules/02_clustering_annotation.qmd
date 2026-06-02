@@ -1,18 +1,15 @@
 # 2. Data processing
 
-**Module 02 — Clustering and annotation.** Normalize, cluster, and annotate cells. Run modules `00` and `01` first in the same R session. If you start a new R session, run `00` and `01` again before this module. **Decision checkpoint** callouts cover clustering parameters, manual labels, and optional CD4 gating examples below.
+**Module 02 — Clustering and annotation.** Normalize, cluster, and annotate cells. Run modules `00` and `01` first in the same R session, then continue here. **Decision checkpoint** callouts cover clustering parameters, manual labels, and optional CD4 gating examples below.
 
 ```{r}
-#| label: resume_optional_clustering
+#| label: module02_setup
 
 library(here)
 here::i_am("modules/02_clustering_annotation.qmd")
 
 source(here::here("modules", "common_setup.R"))
 load_pat_common()
-
-# If you are resuming in a new session, run modules 00 and 01 first.
-# There is no saved object between QC and clustering.
 ```
 
 ## 2.1. Normalize and scale data

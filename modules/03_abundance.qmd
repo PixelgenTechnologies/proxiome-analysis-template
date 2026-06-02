@@ -1,9 +1,9 @@
 # 3. Abundance distribution
 
-**Module 03 — Abundance.** Plot marker abundance across samples and cell types. Run modules `00`–`02` first in the same R session, or use the optional resume chunk below.
+**Module 03 — Abundance.** Plot marker abundance across samples and cell types. Run the first chunk below to load packages and the annotated object saved by module `02`. You can open this module in a new R session without re-running modules `00`–`02`.
 
 ```{r}
-#| label: resume_optional_abundance
+#| label: module03_setup
 
 library(here)
 here::i_am("modules/03_abundance.qmd")

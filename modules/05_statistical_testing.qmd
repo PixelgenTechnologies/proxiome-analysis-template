@@ -1,9 +1,9 @@
 # 5. Statistical testing
 
-**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run modules `00`–`02` first, or use the optional resume chunk below.
+**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run the first chunk below to load packages and the annotated object saved by module `02`.
 
 ```{r}
-#| label: resume_optional_stats
+#| label: module05_setup
 
 library(here)
 here::i_am("modules/05_statistical_testing.qmd")

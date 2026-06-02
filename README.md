@@ -246,15 +246,9 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 
 To regenerate one HTML report of the entire workflow at the end of a project, render `proxiome_analysis_template.qmd`. This file includes all modules in order. For day-to-day analysis, use the individual modules in `modules/` instead.
 
-### Resuming in a new session
+### Starting modules 03–05 in a new session
 
-If you closed R and want to continue without re-running everything, modules `03`–`05` include an optional commented chunk at the top to load the saved object from a previous clustering run:
-
-```r
-# pg_data <- readRDS(here::here("results/checkpoint_data/annotated_seurat_object.rds"))
-```
-
-Uncomment that line, run it, then continue with the rest of the module. For module `02`, run modules `00` and `01` again first.
+Modules `03`–`05` load packages, palettes, and the annotated object automatically when you run their first chunk. The object is saved by module `02` at `results/checkpoint_data/annotated_seurat_object.rds`. Run module `02` at least once before opening modules `03`–`05` in a new session. For module `02`, run modules `00` and `01` first.
 
 ### ⚠️ Where you need to make choices
 
@@ -278,6 +272,7 @@ Results are saved to `results/` in PDF and PNG formats:
 results/
 ├── 01_quality_control/
 ├── 02_data_processing/
+├── checkpoint_data/          # Annotated object (modules 03–05)
 ├── 03_abundance/
 ├── 04_raw_proximity/
 └── 05_statistical_testing/

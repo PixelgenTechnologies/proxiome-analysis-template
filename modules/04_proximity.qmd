@@ -1,9 +1,9 @@
 # 4. Colocalization score
 
-**Module 04 — Proximity.** Colocalization heatmaps and network plots. Run modules `00`–`02` first in the same R session, or use the optional resume chunk below.
+**Module 04 — Proximity.** Colocalization heatmaps and network plots. Run the first chunk below to load packages and the annotated object saved by module `02`. You can open this module in a new R session without re-running modules `00`–`02`.
 
 ```{r}
-#| label: resume_optional_proximity
+#| label: module04_setup
 
 library(here)
 here::i_am("modules/04_proximity.qmd")
