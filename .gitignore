@@ -4,6 +4,9 @@
 .RData
 .Ruserdata
 
+# Temporary files
+*.rmarkdown
+
 # Result files
 results/
 data/*.pxl

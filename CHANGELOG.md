@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Updated
 
 - Cell QC filtering moved from module `02` to module `01` (section 1.3.5); `pg_data_merged.rds` now contains filtered cells only.
+- Simplified `common_setup.R`: removed `load_pat_common()`, `pat_results()`, and `checkpoint_path()`; setup runs on `source()` and checkpoints use `here::here("results", "checkpoint_data", ...)` directly.
 - Results subfolders renamed to match module names: `02_clustering_annotation`, `04_proximity` (replacing `02_data_processing`, `04_raw_proximity`).
 - Module `01` now loads PXL data, runs QC, filters cells, and saves the filtered object; modules `02`–`05` load required checkpoints automatically.
 - Docker image: installs PAT dependencies via `pak::pak()` on top of `pixelatorr:0.17.1` instead of `renv::restore()`; bundles full template at `/workspace`.

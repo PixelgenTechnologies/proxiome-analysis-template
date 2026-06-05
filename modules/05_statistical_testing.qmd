@@ -9,7 +9,6 @@ library(here)
 here::i_am("modules/05_statistical_testing.qmd")
 
 source(here::here("modules", "common_setup.R"))
-load_pat_common()
 
 if (!exists("pg_data", inherits = TRUE)) {
   pg_data <- load_checkpoint("annotated_seurat_object.rds")
