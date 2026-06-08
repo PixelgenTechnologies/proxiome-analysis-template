@@ -152,13 +152,18 @@ pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify"
 > ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
 
 <details>
-<summary><strong>Advanced: Docker or renv</strong></summary>
+<summary><strong>Advanced: Docker (pre-built environment)</strong></summary>
 
 <br>
 
-**Docker:** Pre-built images available at [quay.io/pixelgen-technologies/proxiome-analysis-template](https://quay.io/pixelgen-technologies/proxiome-analysis-template)
+If you prefer not to install R packages locally, use the pre-built Docker image. It includes R, Quarto, `pixelatorR`, and all other PAT dependencies, with the template files at `/workspace`.
 
-**renv:** Run `renv::restore()` to install exact package versions from `renv.lock`.
+```bash
+docker pull quay.io/pixelgen-technologies/proxiome-analysis-template:latest
+docker run -it --rm -v "$(pwd)/data:/workspace/data" quay.io/pixelgen-technologies/proxiome-analysis-template:latest
+```
+
+Mount your `data/` folder so your PXL files and `metadata.csv` are available inside the container. Then open RStudio locally against the mounted project, or run R interactively inside the container.
 
 </details>
 
@@ -177,9 +182,16 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 ├── data/
 │   ├── metadata.csv                  ← Your sample info
 │   └── *.layout.pxl                  ← Your PXL files
+├── modules/                          ← Analysis notebooks (run in order)
+│   ├── common_setup.R                ← Shared setup (sourced automatically)
+│   ├── 01_quality_control.qmd        ← Start here (load data + QC)
+│   ├── 02_clustering_annotation.qmd
+│   ├── 03_abundance.qmd
+│   ├── 04_proximity.qmd
+│   └── 05_statistical_testing.qmd    ← Optional
 ├── results/                          ← Created automatically when running the PAT
 ├── proxiome_analysis_template.Rproj  ← Double-click to open the project in RStudio
-└── proxiome_analysis_template.qmd    ← The Proxiome Analysis Template QMD file
+└── proxiome_analysis_template.qmd  ← Full re-render of all modules (optional)
 ```
 
 ### Create metadata.csv
@@ -206,7 +218,7 @@ S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl
 S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 ```
 
-> 📝 Row order controls plot order. Both `,` and `;` separators work.
+> 📝 Row order controls plot order. Both `,` and `;` separators work. Every `file_path` must match a file in `data/`.
 
 ---
 
@@ -214,30 +226,48 @@ S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
 
 ## Run the Analysis
 
-### Understanding QMD files and code chunks
+The analysis lives in numbered notebooks under `modules/` — **Quarto documents** (QMD files) that combine text explanations with runnable R code. [PNA tutorials](https://software.pixelgen.com/pna-analysis/introduction/) provide additional background.
 
-The analysis lives in `proxiome_analysis_template.qmd` — a **Quarto document** (QMD file). Think of it as a notebook that combines text explanations with runnable R code.
+- **QMD file**: A document that mixes formatted text with executable R code. You run the code section by section.
+- **Code chunk**: A gray block containing R code. Each chunk has a green **▶ (play) button** in the top-right corner.
 
-- **QMD file**: A document that mixes formatted text (like this README) with executable code. You run the code section by section.
-- **Code chunk**: A gray block containing R code that you can run. Each chunk has a green **▶ (play) button** in the top-right corner of the chunk.
+### How to run the analysis (first time)
 
-### How to run the analysis
+1. **Open** `proxiome_analysis_template.Rproj`
+2. **Open** `modules/01_quality_control.qmd` in RStudio
+3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, and `04`
+4. **Optional:** Open `modules/05_statistical_testing.qmd` only if you need differential testing
 
-1. **Open** `proxiome_analysis_template.Rproj` (double-click the file in your downloaded folder)
-2. **Open** `proxiome_analysis_template.qmd` in RStudio (from the Files pane on the right)
-3. **Run chunks** in order by clicking the green ▶ button in the top-right corner of each code chunk (or press `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`)
+> 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
+
+### Iterate on downstream modules
+
+After module `02` finishes, you can open `03`, `04`, or `05` in a **new R session** and run the first chunk — packages, palettes, and saved data load automatically.
+
+| Checkpoint file | Created by | Used by |
+|-----------------|------------|---------|
+| `pg_data_merged.rds` | module `01` (filtered cells) | module `02` |
+| `selected_markers.rds` | module `01` | module `02` |
+| `annotated_seurat_object.rds` | module `02` | modules `03`–`05` |
+| `markers_to_test.rds` | module `02` | modules `04`–`05` |
+
+All checkpoints are saved under `results/checkpoint_data/`.
+
+### Full re-render (optional)
+
+To regenerate one HTML report of the entire workflow, install [Quarto](https://quarto.org/) and render `proxiome_analysis_template.qmd`. For day-to-day analysis, use the individual modules instead.
 
 ### ⚠️ Where you need to make choices
 
-The template requires your input at several key points. **Look for these sections and adjust the values to match your data:**
+| Module | What to do |
+|--------|------------|
+| **01 — sample table** | Check `metadata.csv` paths and sample IDs match your data |
+| **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.5 onward |
+| **01 — marker selection** | Review `selected_markers` after running the selection code |
+| **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
+| **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"resting"`) |
 
-| Section | What to do |
-|---------|------------|
-| **1.3.1 Define thresholds** | Set QC thresholds: `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold`. Review the plots and adjust these values based on your data quality. |
-| **1.5 Select markers** | After running the selection code, review `selected_markers` and add/remove markers as needed for your experiment. |
-| **2.6.4 Set manual annotation** | **Critical step!** Edit the `cluster_cell_annotation` vector to assign cell type names to each cluster number based on the marker patterns you observe. |
-
-> 💡 **Tip:** The QMD file contains comments above each section explaining what values you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
+> 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
 
 ### Output
 
@@ -245,10 +275,11 @@ Results are saved to `results/` in PDF and PNG formats:
 
 ```
 results/
+├── checkpoint_data/          # Cross-module checkpoints (see table above)
 ├── 01_quality_control/
-├── 02_data_processing/
+├── 02_clustering_annotation/
 ├── 03_abundance/
-├── 04_raw_proximity/
+├── 04_proximity/
 └── 05_statistical_testing/
 ```
 
@@ -290,7 +321,7 @@ Install compiler tools for your OS:
 <details>
 <summary><strong>"Cannot find function" error</strong></summary>
 
-Run the Setup chunk (Section 0.1) first by clicking the green ▶ button in the top-right corner of that code chunk.
+Run the Setup chunk in `modules/01_quality_control.qmd` first.
 
 </details>
 
@@ -300,6 +331,23 @@ Run the Setup chunk (Section 0.1) first by clicking the green ▶ button in the 
 1. Open the project via `proxiome_analysis_template.Rproj`
 2. Check that PXL files are in `data/`
 3. Verify filenames in `metadata.csv` match exactly
+
+</details>
+
+<details>
+<summary><strong>Checkpoint not found</strong></summary>
+
+Run the upstream module first to create the missing file in `results/checkpoint_data/`:
+
+- `pg_data_merged.rds`, `selected_markers.rds` → run module `01`
+- `annotated_seurat_object.rds`, `markers_to_test.rds` → run module `02` to completion
+
+</details>
+
+<details>
+<summary><strong>object 'pg_data' not found</strong></summary>
+
+Run module `01` from the beginning in this R session, or run the first chunk of modules `03`–`05` to load from checkpoint.
 
 </details>
 

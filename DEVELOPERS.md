@@ -7,7 +7,7 @@ This document contains instructions for developers working on the Proxiome Analy
 - [Code Style](#code-style)
 - [Linting](#linting)
 - [Styler](#styler)
-- [Managing the renv Environment](#managing-the-renv-environment)
+- [Docker Image](#docker-image)
 - [Setting Up on a Virtual Machine](#setting-up-on-a-virtual-machine)
 
 ---
@@ -42,73 +42,39 @@ To style the code, you need to install `styler`. You can then use one of the fol
 
 ```r
 # Style single file
+styler::style_file("modules/01_quality_control.qmd", transformers = pixelatorR::pixelatorR_style())
+
+# Style all module files
+for (f in list.files("modules", pattern = "\\.qmd$", full.names = TRUE)) {
+  styler::style_file(f, transformers = pixelatorR::pixelatorR_style())
+}
+
+# Style master document
 styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::pixelatorR_style())
 ```
 
 ---
 
-## Managing the renv Environment
+## Docker Image
 
-### Creating a New Environment
+The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile) on every pull request (build only) and pushed to Quay on merges to `main` and version tags.
 
-To create a new `renv` environment from scratch:
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.17.1` (includes `pixelatorR`)
 
-```r
-renv::init(bare = TRUE)
+**Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 
-# Record repos to use:
-options(repos = c(
-  duckdb = "https://duckdb.r-universe.dev",
-  CRAN = "https://cloud.r-project.org"
-))
+**Bundled at `/workspace`:** master QMD, modules, example `metadata.csv`, and project file.
+
+### Build locally
+
+```bash
+docker build -t proxiome-analysis-template .
 ```
 
-### Installing Dependencies
+### CI workflow
 
-```r
-# Install BiocManager to enable installation of Bioconductor packages
-install.packages("BiocManager")
-
-# Add Bioconductor repos
-options(repos = BiocManager::repositories())
-
-# Install yaml to enable parsing of dependencies
-install.packages("yaml")
-
-# Install duckdb
-renv::install("duckdb")
-
-# Locate dependencies
-deps <- unique(renv::dependencies()$Package)
-gh_deps <- c(pixelatorR = "PixelgenTechnologies/pixelatorR")
-
-deps <- setdiff(deps, names(gh_deps))
-
-# Add missing dependencies
-deps <- c(deps, "RcppML", "pls")
-
-# Install dependencies
-renv::install(deps)
-renv::install(gh_deps)
-```
-
-### Creating a Snapshot
-
-After installing or updating packages, create a snapshot to update `renv.lock`:
-
-```r
-renv::settings$snapshot.type("all")
-
-renv::snapshot()
-```
-
-### Restoring an Environment
-
-To restore an existing `renv` environment from `renv.lock`:
-
-```r  
-renv::restore()
-```
+- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed.
+- **`main` / version tags / releases:** image is built and pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`.
 
 ---
 
@@ -122,8 +88,15 @@ Run this in the terminal:
 sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
 ```
 
-### Restore the renv Environment
+### Install R Packages
 
-```r  
-renv::restore()
+Use the same `pak::pak()` commands documented in the README.
+
+```r
+install.packages("pak")
+pak::pak(c(
+  "tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls",
+  "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap",
+  "PixelgenTechnologies/pixelatorR"
+))
 ```

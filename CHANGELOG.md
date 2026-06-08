@@ -5,16 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] 2026-06-02
+
+### Removed
+
+- `qc_thresholds.rds` checkpoint — QC thresholds are applied in module `01` before saving `pg_data_merged.rds`.
+- `renv` project environment (`renv.lock`, `renv/`, `.Rprofile`). Local install uses `pak::pak()`; reproducibility is provided by the Docker image.
+- Module `00_project_setup.qmd` — data loading is now the first section of module `01`.
+
+### Added
+
+- Modular analysis workflow: numbered notebooks in `modules/` (`01`–`05`) for interactive, stage-by-stage analysis.
+- Thin master `proxiome_analysis_template.qmd` that includes all modules for full re-render.
+- [`modules/common_setup.R`](modules/common_setup.R): shared packages, metadata, palettes, and checkpoint helpers.
+- Checkpoint files in `results/checkpoint_data/` for all cross-module state (`pg_data_merged`, `selected_markers`, `annotated_seurat_object`, `markers_to_test`).
 
 ### Updated
 
+- Cell QC filtering moved from module `02` to module `01` (section 1.3.5); `pg_data_merged.rds` now contains filtered cells only.
+- Simplified `common_setup.R`: removed `load_pat_common()`, `pat_results()`, and `checkpoint_path()`; setup runs on `source()` and checkpoints use `here::here("results", "checkpoint_data", ...)` directly.
+- Results subfolders renamed to match module names: `02_clustering_annotation`, `04_proximity` (replacing `02_data_processing`, `04_raw_proximity`).
+- Module `01` now loads PXL data, runs QC, filters cells, and saves the filtered object; modules `02`–`05` load required checkpoints automatically.
+- Docker image: installs PAT dependencies via `pak::pak()` on top of `pixelatorr:0.17.1` instead of `renv::restore()`; bundles full template at `/workspace`.
+- Docker CI: builds on pull requests (verify only); pushes to Quay on `main` and version tags only.
+- README: workflow paths, checkpoint table, Docker as advanced install option.
 - The PAT now depends on `pixelatorR >= 0.17.1`.
 - The PAT now includes clear labels for decision checkpoints.
 
 ### Fixed
 
 - `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
+- Removed incorrect reference to non-existent `scripts/helpers.R`; helpers remain inline in `common_setup.R`.
+- Cold-start for modules `03`–`05`: `cell_palette` and `markers_to_test` now available via shared setup and checkpoints.
+- Marker UMAP plots in module `02` now save to project-root `results/` (fixed missing `here::here()` when running the module interactively).
 
 ## [0.3.2] 2026-03-27
 
