@@ -188,7 +188,8 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   ├── 02_clustering_annotation.qmd
 │   ├── 03_abundance.qmd
 │   ├── 04_proximity.qmd
-│   └── 05_statistical_testing.qmd    ← Optional
+│   ├── 05_statistical_testing.qmd    ← Optional
+│   └── 06_cell_visualization.qmd     ← Optional
 ├── results/                          ← Created automatically when running the PAT
 ├── proxiome_analysis_template.Rproj  ← Double-click to open the project in RStudio
 └── proxiome_analysis_template.qmd  ← Full re-render of all modules (optional)
@@ -236,19 +237,19 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 1. **Open** `proxiome_analysis_template.Rproj`
 2. **Open** `modules/01_quality_control.qmd` in RStudio
 3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, and `04`
-4. **Optional:** Open `modules/05_statistical_testing.qmd` only if you need differential testing
+4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, and `modules/06_cell_visualization.qmd` for single-cell graph plots
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
 ### Iterate on downstream modules
 
-After module `02` finishes, you can open `03`, `04`, or `05` in a **new R session** and run the first chunk — packages, palettes, and saved data load automatically.
+After module `02` finishes, you can open `03`, `04`, `05`, or `06` in a **new R session** and run the first chunk — packages, palettes, and saved data load automatically.
 
 | Checkpoint file | Created by | Used by |
 |-----------------|------------|---------|
 | `pg_data_merged.rds` | module `01` (filtered cells) | module `02` |
 | `selected_markers.rds` | module `01` | module `02` |
-| `annotated_seurat_object.rds` | module `02` | modules `03`–`05` |
+| `annotated_seurat_object.rds` | module `02` | modules `03`–`06` |
 | `markers_to_test.rds` | module `02` | modules `04`–`05` |
 
 All checkpoints are saved under `results/checkpoint_data/`.
@@ -266,6 +267,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — marker selection** | Review `selected_markers` after running the selection code |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
 | **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"resting"`) |
+| **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
 > 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
 
@@ -280,7 +282,8 @@ results/
 ├── 02_clustering_annotation/
 ├── 03_abundance/
 ├── 04_proximity/
-└── 05_statistical_testing/
+├── 05_statistical_testing/
+└── 06_cell_visualization/
 ```
 
 ---
