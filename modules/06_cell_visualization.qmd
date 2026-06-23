@@ -62,7 +62,6 @@ the 2D grid and `cpmds` for the interactive 3D view.
 
 pg_data <- LoadCellGraphs(pg_data, cells = cells_of_interest,
                           add_layouts = TRUE, verbose = FALSE)
-pg_data <- ComputeLayout(pg_data, layout_method = "wpmds")  # for the 2D grid
 pg_data <- ComputeLayout(pg_data, layout_method = "cpmds")  # for the 3D view
 ```
 
