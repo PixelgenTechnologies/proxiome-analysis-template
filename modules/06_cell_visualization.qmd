@@ -77,7 +77,7 @@ p_2d <- Plot2DGraphM(
   pg_data,
   cells         = cells_of_interest,
   markers       = markers_to_viz,
-  layout_method = "wpmds_3d"
+  layout_method = "cpmds_3d"
 )
 p_2d
 
