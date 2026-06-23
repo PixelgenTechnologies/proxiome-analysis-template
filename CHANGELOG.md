@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Module `06_cell_visualization.qmd` (optional): single-cell graph visualization for one cell type and a set of markers, using pixelatorR's `Plot2DGraphM` (2D marker × cell grid, `wpmds` layout) and `Plot3DGraph` (interactive 3D, `cpmds` layout). Example uses CD8 T cells with the CD82/CD81 colocalization pair.
+- Module `06_cell_visualization.qmd` (optional): single-cell graph visualization for one cell type and a set of markers, using pixelatorR's `Plot2DGraphM` (2D marker × cell grid) and `Plot3DGraph` (interactive 3D). Example uses CD8 T cells with the CD82/CD81 colocalization pair.
 
 ## [0.4.0] 2026-06-02
 
