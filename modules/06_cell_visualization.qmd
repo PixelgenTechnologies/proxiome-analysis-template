@@ -2,8 +2,8 @@
 
 **Module 06 — Cell visualization.** 2D and 3D single-cell graph plots using
 pixelatorR's `Plot2DGraphM` and `Plot3DGraph`. This shows *where* proteins sit on a
-single cell's surface graph — clustering, polarization and colocalization patterns
-that population-level scores (module `04`) summarise but don't show directly. Run
+single cell's surface graph (clustering, polarization and colocalization patterns
+that population-level scores in module `04` summarise but don't show directly). Run
 after module `02`. See the [cell visualization tutorial](https://software.pixelgen.com/pna-analysis/R/tutorials/cell_visualization/)
 for more detail.
 
@@ -22,8 +22,8 @@ if (!exists("pg_data", inherits = TRUE)) {
 
 ## 6.1. Parameters
 
-> **Decision checkpoint** — set the cell type and markers to plot. The example uses
-> CD8 T cells and the CD82/CD81 pair, which colocalize on the cell surface.
+> **Decision checkpoint** (set the cell type and markers to plot). 
+> The example uses CD8 T cells and the CD82/CD81 pair, which colocalize on the cell surface.
 
 ```{r}
 #| label: cell_viz_parameters
@@ -103,5 +103,33 @@ Plot3DGraph(
   cell_id       = cells_of_interest[1],
   marker        = markers_to_viz[1],
   layout_method = "cpmds_3d"
+)
+```
+
+## 6.6. Render a 3D graph as a rotating .gif
+
+`render_rotating_layout` exports the 3D layout as an animated GIF, with nodes
+coloured by a marker's abundance. Useful for sharing a cell in slides or reports.
+
+```{r}
+#| label: cell_viz_3d_gif
+
+cg <- CellGraphs(pg_data)[[cells_of_interest[1]]]
+
+plot_data <-
+  cg@layout$cpmds_3d %>%
+  mutate(node_val = cg@counts[, markers_to_viz[1]])
+
+render_rotating_layout(
+  plot_data,
+  file = here::here("results/06_cell_visualization",
+                    paste0(cell_type_of_interest, "_3d_rotation.gif")),
+  colors           = c("gray90", "orangered"),
+  pt_size          = 0.5,
+  frames           = 20,
+  max_degree       = 20,
+  boomerang        = TRUE,
+  use_illumination = TRUE,
+  show_first_frame = FALSE
 )
 ```
