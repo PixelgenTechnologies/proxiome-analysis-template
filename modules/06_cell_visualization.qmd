@@ -1,0 +1,135 @@
+# 6. Cell visualization
+
+**Module 06 — Cell visualization.** 2D and 3D single-cell graph plots using
+pixelatorR's `Plot2DGraphM` and `Plot3DGraph`. This shows *where* proteins sit on a
+single cell's surface graph (clustering, polarization and colocalization patterns
+that population-level scores in module `04` summarise but don't show directly). Run
+after module `02`. See the [cell visualization tutorial](https://software.pixelgen.com/pna-analysis/R/tutorials/cell_visualization/)
+for more detail.
+
+```{r}
+#| label: module06_setup
+
+library(here)
+here::i_am("modules/06_cell_visualization.qmd")
+
+source(here::here("modules", "common_setup.R"))
+
+if (!exists("pg_data", inherits = TRUE)) {
+  pg_data <- load_checkpoint("annotated_seurat_object.rds")
+}
+```
+
+## 6.1. Parameters
+
+> **Decision checkpoint** (set the cell type and markers to plot). 
+> The example uses CD8 T cells and the CD82/CD81 pair, which colocalize on the cell surface.
+
+```{r}
+#| label: cell_viz_parameters
+
+cell_type_of_interest <- "CD8 T"            # one value from `cell_annotation`
+markers_to_viz        <- c("CD82", "CD81")  # markers to render on the graph
+n_cells               <- 4                   # cells to show in the 2D grid
+```
+
+## 6.2. Select cells
+
+How you pick cells depends on what you want to show — the shape of typical cells, a
+polarized marker, a colocalization pattern, or a cell–cell conjugate. Below we just
+take a few cells of one type; change the selection to suit your question.
+
+```{r}
+#| label: cell_viz_select_cells
+
+cells_of_interest <-
+  WhichCells(pg_data, expression = cell_annotation == cell_type_of_interest) |>
+  head(n_cells)
+
+if (length(cells_of_interest) == 0) {
+  stop("No cells found for '", cell_type_of_interest,
+       "'. Check the values in `cell_annotation`.")
+}
+```
+
+## 6.3. Load graphs and compute layouts
+
+The 2D and 3D plots use different layout methods, so we compute both: `wpmds` for
+the 2D grid and `cpmds` for the interactive 3D view.
+
+```{r}
+#| label: cell_viz_layout
+
+pg_data <- LoadCellGraphs(pg_data, cells = cells_of_interest,
+                          add_layouts = TRUE, verbose = FALSE)
+pg_data <- ComputeLayout(pg_data, layout_method = "cpmds")  # for the 3D view
+```
+
+## 6.4. 2D graph (markers × cells)
+
+`Plot2DGraphM` draws one row per marker and one column per cell, coloured by marker
+abundance. Colocalizing markers light up the same regions across cells.
+
+```{r}
+#| label: cell_viz_2d
+
+p_2d <- Plot2DGraphM(
+  pg_data,
+  cells         = cells_of_interest,
+  markers       = markers_to_viz,
+  layout_method = "cpmds_3d"
+)
+p_2d
+
+export_plot(
+  filename = here::here("results/06_cell_visualization",
+                        paste0(cell_type_of_interest, "_2d_graph")),
+  plot     = p_2d,
+  width    = length(cells_of_interest) * 3 + 1,
+  height   = length(markers_to_viz) * 3 + 0.5
+)
+```
+
+## 6.5. Interactive 3D graph (one cell)
+
+`Plot3DGraph` renders an interactive 3D view of one cell for one marker. Change
+`cell_id` and `marker` to explore others.
+
+```{r}
+#| label: cell_viz_3d
+
+Plot3DGraph(
+  pg_data,
+  cell_id       = cells_of_interest[1],
+  marker        = markers_to_viz[1],
+  layout_method = "cpmds_3d"
+)
+```
+
+## 6.6. Render a 3D graph as a rotating .gif
+
+`render_rotating_layout` exports the 3D layout as an animated GIF, with nodes
+coloured by a marker's abundance. Useful for sharing a cell in slides or reports.
+
+```{r}
+#| label: cell_viz_3d_gif
+
+cg <- CellGraphs(pg_data)[[cells_of_interest[1]]]
+
+plot_data <-
+  cg@layout$cpmds_3d %>%
+  mutate(node_val = cg@counts[, markers_to_viz[1]])
+
+render_rotating_layout(
+  plot_data,
+  file = here::here("results/06_cell_visualization",
+                    paste0(cell_type_of_interest, "_3d_rotation.gif")),
+  colors           = c("gray90", "orangered"),
+  pt_size          = 0.5,
+  frames           = 20,
+  max_degree       = 20,
+  boomerang        = TRUE,
+  use_illumination = TRUE,
+  show_first_frame = FALSE
+)
+```

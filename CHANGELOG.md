@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] 2026-06-24
+
+### Added
+
+- Module `06_cell_visualization.qmd` (optional): single-cell graph visualization for one cell type and a set of markers, using pixelatorR's `Plot2DGraphM` (2D marker × cell grid) and `Plot3DGraph` (interactive 3D). Example uses CD8 T cells with the CD82/CD81 colocalization pair. Requires `pixelatorR > 0.18.2` (adds `cpmds_3d` support to `Plot2DGraphM`); on `pixelatorR ≤ 0.18.2`, set the 2D plot's `layout_method` to a supported value instead (`wpmds_3d`, `pmds_3d`, `wpmds`, or `pmds`).
+
 ## [0.4.0] 2026-06-02
 
 ### Removed
