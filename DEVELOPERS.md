@@ -64,14 +64,14 @@ Workflow: [`.github/workflows/render-example.yaml`](.github/workflows/render-exa
 **What it does:**
 
 1. Frees disk on the GitHub-hosted runner.
-2. Downloads the public 1k PBMC `.layout.pxl` files via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.yaml`](.github/smoke-test/dataset.yaml) (no Actions cache; re-downloads each run).
+2. Downloads the public 1k PBMC `.layout.pxl` files via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv) (no Actions cache; re-downloads each run).
 3. Pulls `quay.io/pixelgen-technologies/proxiome-analysis-template:latest`.
 4. Runs `quarto render proxiome_analysis_template.qmd`.
 5. Uploads `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact; on a published Release, also attaches it as a Release asset.
 
-**Dataset config:** Keep [`dataset.yaml`](.github/smoke-test/dataset.yaml) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
+**Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 
-1. Update each file’s `url`, `path`, and `md5` in `dataset.yaml` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
+1. Update each file’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
 2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
 3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
 

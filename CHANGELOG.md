@@ -10,12 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - GitHub Actions workflow [`render-example`](.github/workflows/render-example.yaml): downloads the public 1k PBMC dataset, renders the full PAT to HTML via the Quay Docker image (smoke test), and uploads the HTML package as an Actions artifact (and Release asset on publish).
-- [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) helper to fetch and MD5-verify files listed in `dataset.yaml`.
+- [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) helper to fetch and MD5-verify files listed in `dataset.tsv`.
 
 ### Changed
 
 - Example `data/metadata.csv` now matches the public [1k Human PBMCs](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/) dataset (2 samples: `resting` / `PHA`).
-- Added [`.github/smoke-test/dataset.yaml`](.github/smoke-test/dataset.yaml) with download URLs and MD5 checksums for that public dataset.
+- Added [`.github/smoke-test/dataset.tsv`](.github/smoke-test/dataset.tsv) with download URLs and MD5 checksums for that public dataset.
 - Quarto HTML output uses the `cosmo` theme with a left TOC and code-copy buttons for a more tutorial-like look.
 - Docker base image bumped to `pixelatorr:0.18.2`.
 
