@@ -1,0 +1,92 @@
+name: Publish PAT zip
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-pat-zip:
+    name: Build slim PAT zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${VERSION}" ]]; then
+              VERSION="dev"
+            fi
+          fi
+          # Normalize: ensure leading v for folder/asset names
+          if [[ "${VERSION}" != v* && "${VERSION}" != "dev" ]]; then
+            VERSION="v${VERSION}"
+          fi
+          FOLDER="proxiome-analysis-template-${VERSION}"
+          ASSET="${FOLDER}.zip"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "folder=${FOLDER}" >> "${GITHUB_OUTPUT}"
+          echo "asset=${ASSET}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved version=${VERSION}, asset=${ASSET}"
+
+      - name: Stage slim PAT files
+        run: |
+          FOLDER="${{ steps.version.outputs.folder }}"
+          mkdir -p "${FOLDER}/data" "${FOLDER}/modules"
+          cp proxiome_analysis_template.qmd "${FOLDER}/"
+          cp proxiome_analysis_template.Rproj "${FOLDER}/"
+          cp README.md LICENSE.md "${FOLDER}/"
+          cp -r modules/. "${FOLDER}/modules/"
+          # Blank template metadata (header only) for naive users
+          printf 'sample_id,sample_alias,condition,file_path\n' > "${FOLDER}/data/metadata.csv"
+          # Sanity: no CI/dev-only paths
+          if [[ -e "${FOLDER}/.github" || -e "${FOLDER}/Dockerfile" ]]; then
+            echo "Unexpected files included in slim zip staging" >&2
+            exit 1
+          fi
+          echo "Staged contents:"
+          find "${FOLDER}" -type f | sort
+
+      - name: Create zip archive
+        run: |
+          FOLDER="${{ steps.version.outputs.folder }}"
+          ASSET="${{ steps.version.outputs.asset }}"
+          zip -r "${ASSET}" "${FOLDER}"
+          ls -lh "${ASSET}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.folder }}
+          path: ${{ steps.version.outputs.asset }}
+          if-no-files-found: error
+
+      - name: Upload zip to GitHub Release
+        if: github.event_name == 'release' || (github.event_name == 'push' && github.ref_type == 'tag')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.version }}
+          ASSET: ${{ steps.version.outputs.asset }}
+        run: |
+          # Prefer the release created for this tag; create a draft-less release if missing
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release create "${TAG}" --title "${TAG}" --generate-notes
+          fi
+          gh release upload "${TAG}" "${ASSET}" --clobber

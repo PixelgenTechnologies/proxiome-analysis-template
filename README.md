@@ -38,13 +38,16 @@ Choose the method that works best for you:
 
 ### Download ZIP *(Recommended)*
 
-The simplest way to get started - no GitHub account or special tools needed.
+The simplest way to get started - no GitHub account or special tools needed. Each [GitHub Release](https://github.com/PixelgenTechnologies/proxiome-analysis-template/releases) includes a slim zip with only the files needed to run the analysis.
 
-1. Click the green **Code** button above → **Download ZIP**
-2. Extract to a folder (e.g., `Documents/my-analysis`)
-3. Continue to [First-Time R Setup](#first-time-r-setup)
+1. Open the [latest Release](https://github.com/PixelgenTechnologies/proxiome-analysis-template/releases/latest)
+2. Under **Assets**, download `proxiome-analysis-template-vX.Y.Z.zip`
+3. Extract the zip - you should get a folder named `proxiome-analysis-template-vX.Y.Z/`
+4. Continue to [First-Time R Setup](#first-time-r-setup)
 
 > 💡 **Tip:** Always open your project by double-clicking `proxiome_analysis_template.Rproj` (found directly inside the extracted folder) - this sets up file paths automatically.
+
+> 📝 The release zip includes a blank `data/metadata.csv` (header row only). Fill it in when you [prepare your data](#prepare-your-data). 
 
 <br>
 
@@ -211,12 +214,12 @@ The `metadata.csv` file describes **your** samples and links them to the corresp
 
 **Example file:**
 
-You can use the placeholder `data/metadata.csv` as a template. Just replace the example rows with your own sample information and filenames:
+The release zip ships `data/metadata.csv` with only the header row. Add one row per sample:
 
 ```csv
 sample_id,sample_alias,condition,file_path
-S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl
-S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl
+S1,S1_resting,resting,Sample1.layout.pxl
+S2,S2_PHA,PHA,Sample2.layout.pxl
 ```
 
 > 📝 Row order controls plot order. Both `,` and `;` separators work. Every `file_path` must match a file in `data/`.
