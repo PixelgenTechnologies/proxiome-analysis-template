@@ -7,6 +7,7 @@ This document contains instructions for developers working on the Proxiome Analy
 - [Code Style](#code-style)
 - [Linting](#linting)
 - [Styler](#styler)
+- [Smoke-test / example HTML render](#smoke-test--example-html-render)
 - [Docker Image](#docker-image)
 - [Setting Up on a Virtual Machine](#setting-up-on-a-virtual-machine)
 
@@ -57,25 +58,31 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ## Smoke-test / example HTML render
 
-Workflow: [`.github/workflows/render-example.yaml`](.github/workflows/render-example.yaml)
+The HTML smoke test is part of the **Build** workflow ([`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml)): after the image for the current commit is built, CI downloads the public dataset and runs `quarto render` in that image.
 
-**Triggers:** `workflow_dispatch` and `release.published` (independent of the slim-zip workflow).
+**When it runs**
 
-**What it does:**
+- **Published Release** — always (HTML zip attached to the Release)
+- **workflow_dispatch** — when “run smoke test” is enabled (default on)
+- **Not** on ordinary `main` pushes or pull requests (too expensive: ~8.6 GB download + long render)
 
-1. Frees disk on the GitHub-hosted runner.
-2. Downloads the public 1k PBMC `.layout.pxl` files via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv) (no Actions cache; re-downloads each run).
-3. Pulls `quay.io/pixelgen-technologies/proxiome-analysis-template:latest`.
-4. Runs `quarto render proxiome_analysis_template.qmd`.
-5. Uploads `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact; on a published Release, also attaches it as a Release asset.
+**Sequence**
+
+1. Build the Docker image for this commit (`load` into the runner when smoking).
+2. Push tags to Quay when appropriate (after load, if both smoke and push are needed).
+3. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
+4. `docker run` → `quarto render proxiome_analysis_template.qmd`.
+5. Upload `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact (and Release asset on publish).
 
 **Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 
-1. Update each file’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
+1. Update each row’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
 2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
 3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
 
-**Runner notes:** Standard `ubuntu-latest` only guarantees ~14 GB free disk and limited RAM. This job downloads ~8.6 GB of PXLs plus a Docker image; if it fails on disk or OOM, switch `runs-on` to a larger GitHub-hosted runner available to the org.
+**Runner notes:** Standard `ubuntu-latest` only guarantees ~14 GB free disk and limited RAM. If the smoke test fails on disk or OOM, switch `runs-on` to a larger GitHub-hosted runner available to the org.
+
+**How to run manually:** Actions → **Build** → Run workflow → leave “run smoke test” checked → choose your branch.
 
 ## Docker Image
 
@@ -95,8 +102,9 @@ docker build -t proxiome-analysis-template .
 
 ### CI workflow
 
-- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed.
-- **`main` / version tags / releases:** image is built and pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`.
+- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
+- **`main` / version tags:** image is built and pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`; smoke test is skipped (use Release or workflow_dispatch to smoke-test).
+- **Release / workflow_dispatch (smoke on):** image is built for the commit, used for the HTML smoke test, then pushed to Quay when not a PR.
 
 ---
 
