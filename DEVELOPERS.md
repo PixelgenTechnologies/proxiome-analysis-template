@@ -7,8 +7,7 @@ This document contains instructions for developers working on the Proxiome Analy
 - [Code Style](#code-style)
 - [Linting](#linting)
 - [Styler](#styler)
-- [Smoke-test / example HTML render](#smoke-test--example-html-render)
-- [Docker Image](#docker-image)
+- [Docker image and CI](#docker-image-and-ci)
 - [Setting Up on a Virtual Machine](#setting-up-on-a-virtual-machine)
 
 ---
@@ -56,9 +55,39 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ---
 
-## Smoke-test / example HTML render
+## Docker image and CI
 
-The HTML smoke test is part of the **Build** workflow ([`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml)): after the image for the current commit is built, CI downloads the public dataset and runs `quarto render` in that image.
+The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml). On a published Release (or a manual workflow run with smoke test enabled), the same job also renders the full Quarto HTML using the image built for that commit.
+
+### Docker image
+
+The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
+
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.2`
+
+**Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
+
+**Bundled at `/workspace`:** master QMD, modules, example `metadata.csv`, and project file.
+
+Build locally:
+
+```bash
+docker build -t proxiome-analysis-template .
+```
+
+On merges to `main` and version tags, the image is pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`.
+
+### CI workflow
+
+- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
+- **`main` / version tags:** image is built and pushed to Quay; smoke test is skipped (use a Release or workflow_dispatch to smoke-test).
+- **Release / workflow_dispatch (smoke on):** image is built for the commit, used for the HTML smoke test, then pushed to Quay when not a PR.
+
+To smoke-test a branch without publishing: Actions → **Build** → Run workflow → leave “run smoke test” checked → choose the branch.
+
+### HTML smoke test
+
+When the smoke test runs, CI downloads the public 1k PBMC dataset and runs `quarto render proxiome_analysis_template.qmd` in the image from the same build.
 
 **When it runs**
 
@@ -66,13 +95,11 @@ The HTML smoke test is part of the **Build** workflow ([`build-docker-image.yaml
 - **workflow_dispatch** — when “run smoke test” is enabled (default on)
 - **Not** on ordinary `main` pushes or pull requests (too expensive: ~8.6 GB download + long render)
 
-**Sequence**
+**What it does**
 
-1. Build the Docker image for this commit (`load` into the runner when smoking).
-2. Push tags to Quay when appropriate (after load, if both smoke and push are needed).
-3. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
-4. `docker run` → `quarto render proxiome_analysis_template.qmd`.
-5. Upload `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact (and Release asset on publish).
+1. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
+2. Render the master QMD in the built image.
+3. Upload `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact (and Release asset on publish).
 
 **Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 
@@ -81,30 +108,6 @@ The HTML smoke test is part of the **Build** workflow ([`build-docker-image.yaml
 3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
 
 **Runner notes:** Standard `ubuntu-latest` only guarantees ~14 GB free disk and limited RAM. If the smoke test fails on disk or OOM, switch `runs-on` to a larger GitHub-hosted runner available to the org.
-
-**How to run manually:** Actions → **Build** → Run workflow → leave “run smoke test” checked → choose your branch.
-
-## Docker Image
-
-The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile) on every pull request (build only) and pushed to Quay on merges to `main` and version tags.
-
-**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.2`
-
-**Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
-
-**Bundled at `/workspace`:** master QMD, modules, example `metadata.csv`, and project file.
-
-### Build locally
-
-```bash
-docker build -t proxiome-analysis-template .
-```
-
-### CI workflow
-
-- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
-- **`main` / version tags:** image is built and pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`; smoke test is skipped (use Release or workflow_dispatch to smoke-test).
-- **Release / workflow_dispatch (smoke on):** image is built for the commit, used for the HTML smoke test, then pushed to Quay when not a PR.
 
 ---
 
