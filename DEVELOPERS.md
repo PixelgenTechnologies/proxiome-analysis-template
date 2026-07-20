@@ -55,21 +55,33 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ---
 
-## Smoke-test dataset
+## Smoke-test / example HTML render
 
-The HTML smoke-test workflow downloads the public 1k Human PBMCs PXL files using [`.github/smoke-test/dataset.yaml`](.github/smoke-test/dataset.yaml). Keep that file and [`data/metadata.csv`](data/metadata.csv) in sync.
+Workflow: [`.github/workflows/render-example.yaml`](.github/workflows/render-example.yaml)
 
-When the public dataset is republished:
+**Triggers:** `workflow_dispatch` and `release.published` (independent of the slim-zip workflow).
+
+**What it does:**
+
+1. Frees disk on the GitHub-hosted runner.
+2. Downloads the public 1k PBMC `.layout.pxl` files via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.yaml`](.github/smoke-test/dataset.yaml) (no Actions cache; re-downloads each run).
+3. Pulls `quay.io/pixelgen-technologies/proxiome-analysis-template:latest`.
+4. Runs `quarto render proxiome_analysis_template.qmd`.
+5. Uploads `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact; on a published Release, also attaches it as a Release asset.
+
+**Dataset config:** Keep [`dataset.yaml`](.github/smoke-test/dataset.yaml) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 
 1. Update each file’s `url`, `path`, and `md5` in `dataset.yaml` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
 2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
 3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
 
+**Runner notes:** Standard `ubuntu-latest` only guarantees ~14 GB free disk and limited RAM. This job downloads ~8.6 GB of PXLs plus a Docker image; if it fails on disk or OOM, switch `runs-on` to a larger GitHub-hosted runner available to the org.
+
 ## Docker Image
 
 The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile) on every pull request (build only) and pushed to Quay on merges to `main` and version tags.
 
-**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.17.1` (includes `pixelatorR`)
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.2`
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 

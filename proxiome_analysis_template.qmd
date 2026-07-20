@@ -4,6 +4,9 @@ subtitle: "v0.5.1"
 format:
   html:
     toc: true
+    toc-location: left
+    theme: cosmo
+    code-copy: true
 date: "`r Sys.Date()`"
 editor_options:
   chunk_output_type: console

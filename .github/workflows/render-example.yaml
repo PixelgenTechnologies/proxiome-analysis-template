@@ -1,0 +1,104 @@
+name: Render example HTML
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PAT_IMAGE: quay.io/pixelgen-technologies/proxiome-analysis-template:latest
+
+jobs:
+  render-example:
+    name: Download data and render PAT
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            "$AGENT_TOOLSDIRECTORY" || true
+          sudo docker system prune -af || true
+          df -h
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${VERSION}" ]]; then
+              VERSION="dev"
+            fi
+          fi
+          if [[ "${VERSION}" != v* && "${VERSION}" != "dev" ]]; then
+            VERSION="v${VERSION}"
+          fi
+          ASSET="proxiome-analysis-template-example-${VERSION}-html.zip"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "asset=${ASSET}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved version=${VERSION}, asset=${ASSET}"
+
+      - name: Download public PXL dataset
+        run: |
+          chmod +x .github/smoke-test/download_dataset.sh
+          .github/smoke-test/download_dataset.sh
+          ls -lh data/*.layout.pxl
+          df -h
+
+      - name: Pull PAT Docker image
+        run: |
+          docker pull "${PAT_IMAGE}"
+          df -h
+
+      - name: Render Quarto HTML in Docker
+        run: |
+          # Mount the checkout (incl. downloaded PXLs) over the image /workspace.
+          docker run --rm \
+            -v "${PWD}:/workspace" \
+            -w /workspace \
+            "${PAT_IMAGE}" \
+            bash -lc '
+              set -euo pipefail
+              quarto render proxiome_analysis_template.qmd
+              test -f proxiome_analysis_template.html
+            '
+          df -h
+
+      - name: Package HTML artifact
+        run: |
+          ASSET="${{ steps.version.outputs.asset }}"
+          # Drop multi-GB inputs before zipping the report
+          rm -f data/*.layout.pxl
+          zip -r "${ASSET}" \
+            proxiome_analysis_template.html \
+            proxiome_analysis_template_files
+          ls -lh "${ASSET}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.asset }}
+          path: ${{ steps.version.outputs.asset }}
+          if-no-files-found: error
+
+      - name: Upload HTML zip to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.version }}
+          ASSET: ${{ steps.version.outputs.asset }}
+        run: |
+          gh release upload "${TAG}" "${ASSET}" --clobber
