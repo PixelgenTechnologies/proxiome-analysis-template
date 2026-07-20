@@ -1,15 +1,13 @@
 name: Publish PAT zip
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   release:
     types: [published]
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -21,14 +19,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Needed so workflow_dispatch can resolve the latest tag via git describe
+          fetch-depth: 0
 
       - name: Resolve version
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
             VERSION="${{ github.event.release.tag_name }}"
-          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${{ github.ref_name }}"
           else
             VERSION="$(git describe --tags --abbrev=0 2>/dev/null || true)"
             if [[ -z "${VERSION}" ]]; then
@@ -79,14 +78,11 @@ jobs:
           if-no-files-found: error
 
       - name: Upload zip to GitHub Release
-        if: github.event_name == 'release' || (github.event_name == 'push' && github.ref_type == 'tag')
+        if: github.event_name == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.version }}
           ASSET: ${{ steps.version.outputs.asset }}
         run: |
-          # Prefer the release created for this tag; create a draft-less release if missing
-          if ! gh release view "${TAG}" >/dev/null 2>&1; then
-            gh release create "${TAG}" --title "${TAG}" --generate-notes
-          fi
+          # Release already exists for release.published; only attach the asset
           gh release upload "${TAG}" "${ASSET}" --clobber
