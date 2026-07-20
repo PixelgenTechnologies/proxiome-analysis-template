@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Example `data/metadata.csv` now matches the public [1k Human PBMCs](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/) dataset (2 samples: `resting` / `PHA`).
+- Added [`.github/smoke-test/dataset.yaml`](.github/smoke-test/dataset.yaml) with download URLs and MD5 checksums for that public dataset (for the upcoming HTML smoke-test workflow).
+
 ## [0.5.1] 2026-07-20
 
 ### Added

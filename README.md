@@ -214,12 +214,12 @@ The `metadata.csv` file describes **your** samples and links them to the corresp
 
 **Example file:**
 
-The release zip ships `data/metadata.csv` with only the header row. Add one row per sample:
+The release zip ships `data/metadata.csv` with only the header row. Add one row per sample. In this repository, `data/metadata.csv` is filled for the public [1k Human PBMCs](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/) example (`resting` / `PHA`):
 
 ```csv
 sample_id,sample_alias,condition,file_path
-S1,S1_resting,resting,Sample1.layout.pxl
-S2,S2_PHA,PHA,Sample2.layout.pxl
+S1,S1_resting,resting,PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl
+S2,S2_PHA,PHA,PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl
 ```
 
 > 📝 Row order controls plot order. Both `,` and `;` separators work. Every `file_path` must match a file in `data/`.

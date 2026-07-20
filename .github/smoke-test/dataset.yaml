@@ -1,0 +1,20 @@
+# Public example dataset used by the PAT HTML smoke-test workflow.
+# Update this file (URLs + MD5s + paths) when Pixelgen republishes the data,
+# and keep data/metadata.csv in sync with the filenames below.
+#
+# Source page:
+#   https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/
+# Same objects are used in the R data-handling tutorial (S3 base URL).
+
+source_page: https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/
+base_url: https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v1
+
+files:
+  - url: https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v1/PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl
+    path: data/PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl
+    md5: 51dab82dc70e471b0af578dcba1bd632
+    description: Unstimulated Human PBMCs S02 PXL
+  - url: https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v1/PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl
+    path: data/PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl
+    md5: adbc4d5641597e09d0c379b7a347e36f
+    description: PHA Stimulated Human PBMCs S04 PXL

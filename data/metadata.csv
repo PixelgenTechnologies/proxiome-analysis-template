@@ -1,5 +1,3 @@
-sample_id,sample_alias,condition,file_path,donor,age
-S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl,donor1,24
-S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl,donor1,24
-S3,S3_resting,resting,PNA064_Sample_3_S3.layout.pxl,donor2,48
-S4,S4_PHA,PHA,PNA064_Sample_5_S5.layout.pxl,donor2,48
+sample_id,sample_alias,condition,file_path
+S1,S1_resting,resting,PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl
+S2,S2_PHA,PHA,PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl

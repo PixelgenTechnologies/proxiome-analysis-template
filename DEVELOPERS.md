@@ -55,6 +55,16 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ---
 
+## Smoke-test dataset
+
+The HTML smoke-test workflow downloads the public 1k Human PBMCs PXL files using [`.github/smoke-test/dataset.yaml`](.github/smoke-test/dataset.yaml). Keep that file and [`data/metadata.csv`](data/metadata.csv) in sync.
+
+When the public dataset is republished:
+
+1. Update each file’s `url`, `path`, and `md5` in `dataset.yaml` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
+2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
+3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
+
 ## Docker Image
 
 The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile) on every pull request (build only) and pushed to Quay on merges to `main` and version tags.
