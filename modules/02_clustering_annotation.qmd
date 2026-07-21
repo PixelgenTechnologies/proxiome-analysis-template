@@ -1007,15 +1007,20 @@ cell_annotation_column <-
   "cell_annotation"
 isotype_markers <-
   c("mIgG1", "mIgG2a", "mIgG2b")
-
+minimum_cell_count <- 5 # Minimum number of cells per sample to include in statistical testing
 
 cell_data <-
   FetchData(
     pg_data,
-    vars = c(cell_annotation_column)
+    vars = c(cell_annotation_column, "sample_alias")
   ) |>
   as_tibble(rownames = "component") |>
   group_by(cell_type = !!sym(cell_annotation_column))
+
+# Filter out cell types with insufficient cell counts per sample
+cell_data <-
+  cell_data %>%
+  filter(min(table(sample_alias)) >= minimum_cell_count)
 
 pls_fit_celltype <-
   cell_data |>
@@ -1025,8 +1030,10 @@ pls_fit_celltype <-
     pg_data |>
       subset(cells = cells$component) %>%
       isotype_pls(isotype_markers,
-        model_mat = with(.[[]],
-                         model.matrix(~factor(sample_alias))),
+        model_mat = with(
+          .[[]],
+          model.matrix(~ factor(sample_alias))
+        ),
         layer = "data",
         remove_covariates = TRUE
       )

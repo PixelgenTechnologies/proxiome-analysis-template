@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quarto HTML output uses the `cosmo` theme with a left TOC and code-copy buttons for a more tutorial-like look.
 - Docker base image bumped to `pixelatorr:0.18.2`.
 
+### Fixed
+
+- Bug in `statistical_testing_marker_selection` where the `isotype_pls` would throw an error if there is only a single sample containing a certain cell type.
+
 ## [0.5.1] 2026-07-20
 
 ### Added
