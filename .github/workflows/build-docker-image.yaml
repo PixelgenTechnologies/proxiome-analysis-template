@@ -2,7 +2,10 @@ name: Build
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - "main"
+      # TEMPORARY — remove before merging
+      - "smoketest"
     tags:
       - "v*.*.*"
   pull_request:
@@ -24,8 +27,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Smoke test on releases and manual runs (optional via input).
   # Skipped on ordinary main pushes/PRs to avoid multi-GB downloads on every CI run.
-  RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) }}
-  PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' }}
+  # TEMPORARY: also on push to smoketest — remove before merging.
+  RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) || (github.event_name == 'push' && github.ref_name == 'smoketest') }}
+  # TEMPORARY: do not promote publish tags from the smoketest branch (staging sha still pushes for smoke pull).
+  PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' && github.ref_name != 'smoketest' }}
   IMAGE_NAME: quay.io/pixelgen-technologies/proxiome-analysis-template
 
 jobs:
