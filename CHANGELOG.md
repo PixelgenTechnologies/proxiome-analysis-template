@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- HTML smoke test in the **Build** workflow: after building the image for the current commit, optionally downloads the public 1k PBMC dataset and renders the full PAT to HTML (on Release and `workflow_dispatch`).
-- `[.github/smoke-test/download_dataset.sh](.github/smoke-test/download_dataset.sh)` + `[dataset.tsv](.github/smoke-test/dataset.tsv)` for fetch + MD5 verify.
+- HTML smoke test in the **Build** workflow: after building the image for the current commit, optionally downloads the public 1k PBMC dataset and renders the full PAT to HTML (on Release and `workflow_dispatch`). Build, smoke test, and Quay push are separate jobs; smoke uses `ubuntu-latest-8-cores` and pulls a Quay `sha-…` staging tag (promoted after smoke passes).
+- [.github/smoke-test/download_dataset.sh](.github/smoke-test/download_dataset.sh) + [dataset.tsv](.github/smoke-test/dataset.tsv) for fetch + MD5 verify.
 
 
 

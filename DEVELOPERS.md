@@ -36,6 +36,8 @@ The configuration file `.lintr` is used to specify the rules that the linter sho
 
 ---
 
+
+
 ## Styler
 
 To style the code, you need to install `styler`. You can then use one of the following command:
@@ -55,19 +57,21 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ---
 
+
+
 ## Docker image and CI
 
-The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml). On a published Release (or a manual workflow run with smoke test enabled), the same job also renders the full Quarto HTML using the image built for that commit.
+The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in `[build-docker-image.yaml](.github/workflows/build-docker-image.yaml)` as three jobs: **build** → optional **HTML smoke test** → **push to Quay**. On a published Release (or a manual workflow run with smoke test enabled), smoke runs against a Quay `sha-…` staging tag; branch/semver tags are promoted only after smoke passes.
 
 ### Docker image
 
-The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
+The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from `[Dockerfile](Dockerfile)`.
 
 **Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.3`
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 
-**Bundled at `/workspace`:** master QMD, modules, example `metadata.csv`, and project file.
+**Bundled at** `/workspace`**:** master QMD, modules, example `metadata.csv`, and project file.
 
 Build locally:
 
@@ -79,11 +83,19 @@ On merges to `main` and version tags, the image is pushed to `quay.io/pixelgen-t
 
 ### CI workflow
 
-- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
-- **`main` / version tags:** image is built and pushed to Quay; smoke test is skipped (use a Release or workflow_dispatch to smoke-test).
-- **Release / workflow_dispatch (smoke on):** image is built for the commit, used for the HTML smoke test, then pushed to Quay when not a PR.
+Jobs in `[build-docker-image.yaml](.github/workflows/build-docker-image.yaml)`:
 
-To smoke-test a branch without publishing: Actions → **Build** → Run workflow → leave “run smoke test” checked → choose the branch.
+1. **Build Docker Image** (`ubuntu-latest`) — build the image. On ordinary `main`/tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
+2. **HTML smoke test** (`ubuntu-latest-8-cores`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render`, upload HTML zip (and attach to the GitHub Release when applicable).
+3. **Push image to Quay** (`ubuntu-latest`, smoke path only) — after a successful smoke test, promote the staging image to the publish tag list computed in the build job (passed as a multiline job output) via `docker buildx imagetools create` (registry-side retag, no image tarball).
+
+Behavior by event:
+
+- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
+- `main` **/ version tags:** image is built and pushed to Quay in the build job; smoke test is skipped (use a Release or workflow_dispatch to smoke-test).
+- **Release / workflow_dispatch (smoke on):** staging `sha-…` tag is pushed, smoke-tested, then promoted to publish tags.
+
+To smoke-test a branch: Actions → **Build** → Run workflow → leave “run smoke test” checked → choose the branch.
 
 ### HTML smoke test
 
@@ -93,25 +105,27 @@ When the smoke test runs, CI downloads the public 1k PBMC dataset and runs `quar
 
 - **Published Release** — always (HTML zip attached to the Release)
 - **workflow_dispatch** — when “run smoke test” is enabled (default on)
-- **Not** on ordinary `main` pushes or pull requests (too expensive: ~8.6 GB download + long render)
+- **Not** on ordinary `main` pushes or pull requests (too expensive: multi-GB download + long render)
 
 **What it does**
 
-1. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
+1. Download PXLs via `[.github/smoke-test/download_dataset.sh](.github/smoke-test/download_dataset.sh)` / `[dataset.tsv](.github/smoke-test/dataset.tsv)`.
 2. Render the master QMD in the built image.
 3. Upload `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact (and Release asset on publish).
 
-**Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
+**Dataset config:** Keep `[dataset.tsv](.github/smoke-test/dataset.tsv)` and `[data/metadata.csv](data/metadata.csv)` in sync. When the public dataset is republished:
 
 1. Update each row’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
 2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
 3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
 
-**Runner notes:** Standard `ubuntu-latest` only guarantees ~14 GB free disk and limited RAM. If the smoke test fails on disk or OOM, switch `runs-on` to a larger GitHub-hosted runner available to the org.
-
 ---
 
+
+
 ## Setting Up on a Virtual Machine
+
+
 
 ### Install System Dependencies
 
@@ -120,6 +134,8 @@ Run this in the terminal:
 ```bash
 sudo apt install cmake libglpk-dev libhdf5-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev
 ```
+
+
 
 ### Install R Packages
 
@@ -133,3 +149,4 @@ pak::pak(c(
   "PixelgenTechnologies/pixelatorR"
 ))
 ```
+
