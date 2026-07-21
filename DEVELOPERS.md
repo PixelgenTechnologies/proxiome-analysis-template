@@ -63,7 +63,7 @@ The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`
 
 The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
 
-**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.2`
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.3`
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 

@@ -1,4 +1,4 @@
-FROM ghcr.io/pixelgentechnologies/pixelatorr:0.18.2
+FROM ghcr.io/pixelgentechnologies/pixelatorr:0.18.3
 
 ARG QUARTO_VERSION="1.5.54"
 

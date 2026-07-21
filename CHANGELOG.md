@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Example `data/metadata.csv` now matches the public [1k Human PBMCs](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/) dataset (2 samples: `resting` / `PHA`).
 - Quarto HTML output uses the `cosmo` theme with a left TOC and code-copy buttons for a more tutorial-like look.
-- Docker base image bumped to `pixelatorr:0.18.2`.
+- Docker base image bumped to `pixelatorr:0.18.3`.
 
 ### Fixed
 
