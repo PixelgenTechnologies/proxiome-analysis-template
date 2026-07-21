@@ -66,23 +66,13 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
-          # load + push cannot both be true; when smoking, load first then push below
+          # load + push cannot both be true; when smoking, load first then push after smoke passes
           load: ${{ env.RUN_SMOKE_TEST == 'true' }}
           push: ${{ env.PUSH_TO_QUAY == 'true' && env.RUN_SMOKE_TEST != 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Push image tags to Quay
-        if: env.PUSH_TO_QUAY == 'true' && env.RUN_SMOKE_TEST == 'true'
-        run: |
-          # Image was loaded locally for the smoke test; push the same tags to Quay
-          echo "${{ steps.meta.outputs.tags }}" | while IFS= read -r tag; do
-            [[ -z "${tag}" ]] && continue
-            echo "Pushing ${tag}"
-            docker push "${tag}"
-          done
 
       - name: Free disk space for smoke test
         if: env.RUN_SMOKE_TEST == 'true'
@@ -136,6 +126,16 @@ jobs:
               test -f proxiome_analysis_template.html
             '
           df -h
+
+      - name: Push image tags to Quay
+        if: env.PUSH_TO_QUAY == 'true' && env.RUN_SMOKE_TEST == 'true'
+        run: |
+          # Only publish after the smoke render succeeds
+          echo "${{ steps.meta.outputs.tags }}" | while IFS= read -r tag; do
+            [[ -z "${tag}" ]] && continue
+            echo "Pushing ${tag}"
+            docker push "${tag}"
+          done
 
       - name: Package HTML artifact
         if: env.RUN_SMOKE_TEST == 'true'

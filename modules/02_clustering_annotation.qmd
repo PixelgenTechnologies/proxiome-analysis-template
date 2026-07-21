@@ -1017,10 +1017,14 @@ cell_data <-
   as_tibble(rownames = "component") |>
   group_by(cell_type = !!sym(cell_annotation_column))
 
-# Filter out cell types with insufficient cell counts per sample
+# Keep cell types present in ≥2 samples with enough cells per sample
+# (single-sample cell types make model.matrix(~ factor(sample_alias)) intercept-only)
 cell_data <-
   cell_data %>%
-  filter(min(table(sample_alias)) >= minimum_cell_count)
+  filter(
+    n_distinct(sample_alias) >= 2,
+    min(table(sample_alias)) >= minimum_cell_count
+  )
 
 pls_fit_celltype <-
   cell_data |>
