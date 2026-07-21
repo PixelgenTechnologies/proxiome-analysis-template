@@ -2,10 +2,7 @@ name: Build
 
 on:
   push:
-    branches:
-      - "main"
-      # TEMPORARY — remove smoketest before merging
-      - "smoketest"
+    branches: ["main"]
     tags:
       - "v*.*.*"
   pull_request:
@@ -34,10 +31,9 @@ jobs:
     timeout-minutes: 360
     env:
       # Smoke test after the image build on releases and manual runs (optional via input).
-      # TEMPORARY: also on push to smoketest — remove before merging.
       # Skipped on ordinary main pushes/PRs to avoid multi-GB downloads on every CI run.
-      RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) || (github.event_name == 'push' && github.ref_name == 'smoketest') }}
-      PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' && github.ref_name != 'smoketest' }}
+      RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) }}
+      PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

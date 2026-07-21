@@ -17,7 +17,21 @@ while IFS=$'\t' read -r url rel_path expected_md5 description || [[ -n "${url:-}
   [[ -z "${url}" || "${url}" =~ ^# ]] && continue
   [[ "${url}" == "url" ]] && continue
 
+  if [[ -z "${rel_path}" || "${rel_path}" == /* || "${rel_path}" == *..* ]]; then
+    echo "Invalid rel_path in ${DATASET_TSV}: ${rel_path}" >&2
+    exit 1
+  fi
+  if [[ "${rel_path}" != data/* ]]; then
+    echo "rel_path must be under data/: ${rel_path}" >&2
+    exit 1
+  fi
+
   expected_md5="$(printf '%s' "${expected_md5}" | tr '[:upper:]' '[:lower:]')"
+  if [[ ! "${expected_md5}" =~ ^[0-9a-f]{32}$ ]]; then
+    echo "Invalid MD5 in ${DATASET_TSV} for ${rel_path}: ${expected_md5}" >&2
+    exit 1
+  fi
+
   dest="${ROOT}/${rel_path}"
   mkdir -p "$(dirname "${dest}")"
   n_files=$((n_files + 1))
