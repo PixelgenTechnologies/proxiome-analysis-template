@@ -92,32 +92,32 @@ Jobs in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml):
 Behavior by event:
 
 - **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
-- `main` **/ version tags:** image is built and pushed to Quay in the build job; smoke test is skipped (use a Release or workflow_dispatch to smoke-test).
+- **`main` / version tags:** image is built and pushed to Quay in the build job; smoke test is skipped (use a Release or workflow_dispatch to smoke-test).
 - **Release / workflow_dispatch (smoke on):** staging `sha-…` tag is pushed, smoke-tested, then promoted to publish tags.
 
 To smoke-test a branch: Actions → **Build** → Run workflow → leave “run smoke test” checked → choose the branch.
 
 ### HTML smoke test
 
-When the smoke test runs, CI downloads the public 1k PBMC dataset and runs `quarto render proxiome_analysis_template.qmd` in the image from the same build.
+When the smoke test runs, CI downloads donors 1 and 3 from the public [16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (~7.1 GiB) and runs `quarto render proxiome_analysis_template.qmd` in the image from the same build.
 
 **When it runs**
 
 - **Published Release** — always (HTML zip attached to the Release)
 - **workflow_dispatch** — when “run smoke test” is enabled (default on)
-- **Not** on ordinary `main` pushes or pull requests (too expensive: multi-GB download + long render)
+- **Not** on ordinary `main` pushes or pull requests (too expensive: ~7.1 GiB download + long render)
 
 **What it does**
 
-1. Download PXLs via `[.github/smoke-test/download_dataset.sh](.github/smoke-test/download_dataset.sh)` / `[dataset.tsv](.github/smoke-test/dataset.tsv)`.
+1. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
 2. Render the master QMD in the built image.
 3. Upload the rendered HTML (and `_files/`) as an Actions artifact named `proxiome-analysis-template-example-vX.Y.Z-html`. On Release, also zip those files and attach `…-html.zip` to the GitHub Release (the Actions download is already a zip, so the workflow does not pre-zip the artifact).
 
-**Dataset config:** Keep `[dataset.tsv](.github/smoke-test/dataset.tsv)` and `[data/metadata.csv](data/metadata.csv)` in sync. When the public dataset is republished:
+**Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 
-1. Update each row’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/)).
+1. Update each row’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/)).
 2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
-3. Keep `condition` values as `resting` / `PHA` so module defaults (`reference_condition`, etc.) still apply.
+3. Keep `condition` values in sync with module `05` `reference_condition` (example uses `donor1` / `donor3` because both samples are resting).
 
 ---
 

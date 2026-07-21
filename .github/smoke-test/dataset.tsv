@@ -2,8 +2,8 @@
 # Update this file when Pixelgen republishes the data, and keep
 # data/metadata.csv in sync with the path column.
 #
-# Source: https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/
+# Source: https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/
 # Columns: url, path, md5, description
 url	path	md5	description
-https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v1/PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl	data/PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl	51dab82dc70e471b0af578dcba1bd632	Unstimulated Human PBMCs S02 PXL
-https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v1/PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl	data/PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl	f7988a4507e9b0dca2ed04d56a2a8149	PHA Stimulated Human PBMCs S04 PXL
+https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v2/unknown-2026-06-09_10-17-09-4d81617b/pixelator/PBMCs_resting_S01_HG2.layout.pxl	data/PBMCs_resting_S01_HG2.layout.pxl	deffa913e73f26e23562e4273a1789d4	Unstimulated Human PBMCs S01 Donor 1 PXL
+https://pixelgen-technologies-datasets.s3.eu-north-1.amazonaws.com/pna-datasets/v2/unknown-2026-06-09_10-17-09-4d81617b/pixelator/PBMCs_resting_S01_HG6.layout.pxl	data/PBMCs_resting_S01_HG6.layout.pxl	91b89162215debea1175a03a34db1451	Unstimulated Human PBMCs S01 Donor 3 PXL

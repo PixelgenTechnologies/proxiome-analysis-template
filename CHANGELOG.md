@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Example / smoke-test data switched from the 1k PBMC resting/PHA pair to donors 1 and 3 from [Resting PBMCs from 16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) (UniProt-bearing Proxiome Immuno 155 v2 panel). `condition` is `donor1` / `donor3`; module `05` `reference_condition` defaults to `"donor1"`.
+
 ## [0.5.2] 2026-07-21
 
 ### Added
