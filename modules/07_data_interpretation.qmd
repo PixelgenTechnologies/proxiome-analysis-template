@@ -35,7 +35,7 @@ daa_p_adj_threshold <- 0.05
 daa_effect_size_threshold <- 0.5 # minimum |difference|; 0 keeps all significant markers
 
 coloc_p_adj_threshold <- 0.05
-coloc_effect_size_threshold <- 0.5 # minimum |diff_median|; 0 keeps all significant pairs
+coloc_effect_size_threshold <- 0.25 # minimum |diff_median|; 0 keeps all significant pairs
 ```
 
 ## 7.1. Load module 05 results
@@ -193,8 +193,20 @@ write_csv(
 
 For each protein set (cell type × contrast × direction), UniProt IDs are tested for overrepresentation in GO Biological Process terms against the panel UniProt universe using a Fisher / hypergeometric test (`clusterProfiler::enricher`).
 
+Plots: a term overview bar chart, then a term × marker map where each point marks membership, colored by condition effect size and sized by significance.
+
 ```{r}
 #| label: module07_enrichment
+
+top_n_terms <- 10
+
+safe_plot_stem <- function(...) {
+  gsub("[^A-Za-z0-9._-]+", "_", paste(..., sep = "__"))
+}
+
+set_label <- function(group, target, source, direction) {
+  paste(group, target, source, direction, sep = " | ")
+}
 
 go_ann <-
   suppressMessages(
@@ -245,9 +257,40 @@ enrichment_results <-
   select(source, group, target, direction, enrich) |>
   unnest(enrich)
 
+write_csv(
+  enrichment_results,
+  here::here("results/07_data_interpretation/enrichment_results.csv")
+)
+
 if (nrow(enrichment_results) == 0) {
+  term_marker_hits <- tibble(
+    source = character(),
+    group = character(),
+    target = character(),
+    direction = character(),
+    ID = character(),
+    Description = character(),
+    p.adjust = double(),
+    Count = integer(),
+    uniprot_id = character(),
+    marker = character()
+  )
   message("No enriched GO BP terms found for the current protein sets.")
 } else {
+  term_marker_hits <-
+    enrichment_results |>
+    select(
+      source, group, target, direction,
+      ID, Description, p.adjust, Count, geneID
+    ) |>
+    separate_rows(geneID, sep = "/") |>
+    rename(uniprot_id = geneID) |>
+    left_join(
+      marker_uniprot_map |> distinct(uniprot_id, marker),
+      by = "uniprot_id",
+      relationship = "many-to-many"
+    )
+
   print(
     enrichment_results |>
       select(
@@ -257,7 +300,24 @@ if (nrow(enrichment_results) == 0) {
       arrange(p.adjust) |>
       head(20)
   )
+}
 
+write_csv(
+  term_marker_hits,
+  here::here("results/07_data_interpretation/term_marker_hits.csv")
+)
+```
+
+### 7.4.1. Term overview
+
+Horizontal bars of the top enriched GO BP terms per protein set (`-log10` adjusted *p*).
+
+```{r}
+#| label: module07_viz_term_overview
+
+if (nrow(enrichment_results) == 0) {
+  message("Skipping term-overview plots: no enrichment results.")
+} else {
   enrichment_plot_dir <- here::here(
     "results/07_data_interpretation/go_bp_enrichment"
   )
@@ -281,7 +341,7 @@ if (nrow(enrichment_results) == 0) {
         target == set_target,
         direction == set_direction
       ) |>
-      slice_min(order_by = p.adjust, n = 10, with_ties = FALSE)
+      slice_min(order_by = p.adjust, n = top_n_terms, with_ties = FALSE)
 
     enrichment_plot <-
       set_plot_data |>
@@ -289,32 +349,156 @@ if (nrow(enrichment_results) == 0) {
       geom_col() +
       labs(
         title = "GO Biological Process enrichment",
-        subtitle = paste(
-          set_group, set_target, set_source, set_direction,
-          sep = " | "
-        ),
+        subtitle = set_label(set_group, set_target, set_source, set_direction),
         x = expression(-log[10](adjusted ~ p)),
         y = NULL
       ) +
       theme_minimal()
 
-    plot_stem <- gsub(
-      "[^A-Za-z0-9._-]+",
-      "_",
-      paste(set_source, set_group, set_target, set_direction, sep = "__")
-    )
-
     export_plot(
       enrichment_plot,
-      filename = file.path(enrichment_plot_dir, plot_stem),
+      filename = file.path(
+        enrichment_plot_dir,
+        safe_plot_stem(set_source, set_group, set_target, set_direction)
+      ),
       width = 8,
       height = max(4, nrow(set_plot_data) * 0.35 + 1.5)
     )
   }
 }
+```
 
-write_csv(
-  enrichment_results,
-  here::here("results/07_data_interpretation/enrichment_results.csv")
-)
+### 7.4.2. Term × marker map
+
+Point map of top-term membership: a point means the marker belongs to the term; color is the condition effect size and size is `-log10(p_adj)` from module 05 (abundance `difference` for DAA sets; mean pair `diff_median` for coloc sets).
+
+```{r}
+#| label: module07_viz_term_marker
+
+if (nrow(term_marker_hits) == 0) {
+  message("Skipping term-marker maps: no term membership rows.")
+} else {
+  term_marker_plot_dir <- here::here(
+    "results/07_data_interpretation/go_bp_term_marker"
+  )
+  dir.create(term_marker_plot_dir, recursive = TRUE, showWarnings = FALSE)
+
+  enrichment_sets <-
+    enrichment_results |>
+    distinct(source, group, target, direction)
+
+  for (i in seq_len(nrow(enrichment_sets))) {
+    set_source <- enrichment_sets$source[[i]]
+    set_group <- enrichment_sets$group[[i]]
+    set_target <- enrichment_sets$target[[i]]
+    set_direction <- enrichment_sets$direction[[i]]
+
+    top_terms <-
+      enrichment_results |>
+      filter(
+        source == set_source,
+        group == set_group,
+        target == set_target,
+        direction == set_direction
+      ) |>
+      slice_min(order_by = p.adjust, n = top_n_terms, with_ties = FALSE)
+
+    set_hits <-
+      term_marker_hits |>
+      filter(
+        source == set_source,
+        group == set_group,
+        target == set_target,
+        direction == set_direction,
+        ID %in% top_terms$ID,
+        !is.na(marker)
+      ) |>
+      distinct(Description, marker)
+
+    if (nrow(set_hits) == 0) {
+      next
+    }
+
+    if (identical(set_source, "differential_abundance")) {
+      marker_effects <-
+        differential_abundance_analysis |>
+        filter(group == set_group, target == set_target) |>
+        select(marker, effect = difference, p_adj)
+      effect_legend <- "Difference"
+    } else {
+      marker_effects <-
+        differential_colocalization_analysis |>
+        filter(group == set_group, target == set_target) |>
+        select(marker_1, marker_2, diff_median, p_adj) |>
+        pivot_longer(
+          c(marker_1, marker_2),
+          names_to = NULL,
+          values_to = "marker"
+        ) |>
+        group_by(marker) |>
+        summarise(
+          effect = mean(diff_median),
+          p_adj = min(p_adj),
+          .groups = "drop"
+        )
+      effect_legend <- "Mean diff_median"
+    }
+
+    plot_data <-
+      set_hits |>
+      inner_join(marker_effects, by = "marker") |>
+      mutate(
+        neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
+        Description = factor(Description, levels = rev(top_terms$Description)),
+        marker = factor(marker, levels = sort(unique(marker)))
+      )
+
+    if (nrow(plot_data) == 0) {
+      next
+    }
+
+    effect_limit <- max(abs(plot_data$effect), na.rm = TRUE)
+    if (!is.finite(effect_limit) || effect_limit == 0) {
+      effect_limit <- 1
+    }
+
+    term_marker_plot <-
+      plot_data |>
+      ggplot(aes(
+        x = marker,
+        y = Description,
+        color = effect,
+        size = neg_log10_p_adj
+      )) +
+      geom_point() +
+      scale_color_gradientn(
+        colors = gradient_palette,
+        limits = c(-effect_limit, effect_limit)
+      ) +
+      scale_size_continuous(range = c(1.5, 6)) +
+      labs(
+        title = "GO term × marker map",
+        subtitle = set_label(set_group, set_target, set_source, set_direction),
+        x = NULL,
+        y = NULL,
+        color = effect_legend,
+        size = expression(-log[10](p[adj]))
+      ) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        panel.grid.major = element_line(color = "grey90")
+      )
+
+    export_plot(
+      term_marker_plot,
+      filename = file.path(
+        term_marker_plot_dir,
+        safe_plot_stem(set_source, set_group, set_target, set_direction)
+      ),
+      width = min(15, n_distinct(plot_data$marker) * 0.35 + 8),
+      height = max(4, n_distinct(plot_data$Description) * 0.35 + 2)
+    )
+  }
+}
 ```
