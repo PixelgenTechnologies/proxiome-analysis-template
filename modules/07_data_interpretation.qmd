@@ -1,6 +1,6 @@
 # 7. Data interpretation
 
-**Module 07 — Data interpretation (optional).** Map differential markers to UniProt IDs from the PNA assay metadata and run panel-aware term enrichment to aid biological interpretation. Skip this module if you do not need enrichment or annotation context. Run after module `05` has produced differential abundance results (and optionally colocalization results). Requires PXL / panel data that include a `uniprot_id` column in the PNA assay feature metadata (e.g. Proxiome Immuno 155 v2).
+**Module 07 — Data interpretation (optional).** Map differential markers and colocalization partners to UniProt IDs from the PNA assay metadata and run panel-aware term enrichment to aid biological interpretation. Skip this module if you do not need enrichment or annotation context. Run after module `05` has produced differential abundance and colocalization results. Requires PXL / panel data that include a `uniprot_id` column in the PNA assay feature metadata (e.g. Proxiome Immuno 155 v2).
 
 > **Note:** Overrepresentation analysis on a ~155-protein panel has very low statistical power. Treat enrichment tables as exploratory context, not definitive pathway calls.
 
@@ -20,5 +20,111 @@ dir.create(
   here::here("results", "07_data_interpretation"),
   recursive = TRUE,
   showWarnings = FALSE
+)
+```
+
+## 7.0. Set interpretation parameters
+
+> **Decision checkpoint** (significance cutoffs)  
+> Adjust `p_adj` and effect-size thresholds for markers from module `05` differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables.
+
+```{r}
+#| label: module07_parameters
+
+daa_p_adj_threshold <- 0.05
+daa_effect_size_threshold <- 0 # minimum |difference|; 0 keeps all significant markers
+
+coloc_p_adj_threshold <- 0.05
+coloc_effect_size_threshold <- 0 # minimum |diff_median|; 0 keeps all significant pairs
+
+# Used in a later chunk for term enrichment
+ontology <- "GO_BP"
+```
+
+## 7.1. Load module 05 results
+
+```{r}
+#| label: module07_load_module05_results
+
+daa_path <- here::here(
+  "results/05_statistical_testing/abundance/differential_abundance_analysis.rds"
+)
+coloc_path <- here::here(
+  "results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"
+)
+
+if (!file.exists(daa_path) || !file.exists(coloc_path)) {
+  stop(
+    "Module 05 results not found. Run statistical testing first.\n",
+    "Expected:\n  ", daa_path, "\n  ", coloc_path
+  )
+}
+
+if (!exists("differential_abundance_analysis", inherits = TRUE)) {
+  differential_abundance_analysis <- readRDS(daa_path)
+}
+if (!exists("differential_colocalization_analysis", inherits = TRUE)) {
+  differential_colocalization_analysis <- readRDS(coloc_path)
+}
+```
+
+## 7.2. Build protein sets
+
+Significant markers from differential abundance and unique markers from significant colocalization pairs are collected per cell type and contrast. These sets feed the UniProt mapping and enrichment steps below.
+
+```{r}
+#| label: module07_build_protein_sets
+
+daa_sets <-
+  differential_abundance_analysis |>
+  filter(
+    p_adj < daa_p_adj_threshold,
+    abs(difference) >= daa_effect_size_threshold
+  ) |>
+  group_by(source = "differential_abundance", group, target) |>
+  summarise(
+    markers = list(sort(unique(marker))),
+    n_markers = n_distinct(marker),
+    .groups = "drop"
+  )
+
+coloc_sets <-
+  differential_colocalization_analysis |>
+  filter(
+    p_adj < coloc_p_adj_threshold,
+    abs(diff_median) >= coloc_effect_size_threshold
+  ) |>
+  group_by(source = "differential_colocalization", group, target) |>
+  summarise(
+    markers = list(sort(unique(c(marker_1, marker_2)))),
+    .groups = "drop"
+  ) |>
+  mutate(n_markers = map_int(markers, length))
+
+protein_sets <-
+  bind_rows(daa_sets, coloc_sets) |>
+  filter(n_markers > 0)
+
+if (nrow(protein_sets) == 0) {
+  warning(
+    "No protein sets passed the current thresholds. ",
+    "Relax p_adj / effect-size cutoffs or check module 05 outputs."
+  )
+} else {
+  print(
+    protein_sets |>
+      select(source, group, target, n_markers) |>
+      arrange(source, group, target)
+  )
+}
+
+protein_sets_dir <- here::here("results/07_data_interpretation/protein_sets")
+dir.create(protein_sets_dir, recursive = TRUE, showWarnings = FALSE)
+saveRDS(protein_sets, file.path(protein_sets_dir, "protein_sets.rds"))
+write_csv(
+  protein_sets |>
+    mutate(markers = map_chr(markers, paste, collapse = ";")) |>
+    select(source, group, target, n_markers, markers),
+  file.path(protein_sets_dir, "protein_sets.csv")
 )
 ```
