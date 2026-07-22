@@ -117,14 +117,69 @@ if (nrow(protein_sets) == 0) {
       arrange(source, group, target)
   )
 }
+```
 
-protein_sets_dir <- here::here("results/07_data_interpretation/protein_sets")
-dir.create(protein_sets_dir, recursive = TRUE, showWarnings = FALSE)
-saveRDS(protein_sets, file.path(protein_sets_dir, "protein_sets.rds"))
+## 7.3. Map markers to UniProt IDs
+
+This step reads `uniprot_id` from the PNA assay feature table for every panel marker. When a marker maps to several accessions (semicolon-separated), each accession becomes its own row. The protein sets from section 7.2 are then annotated with those UniProt IDs. The set of all panel UniProt IDs is kept as `panel_uniprot_universe` for enrichment.
+
+```{r}
+#| label: module07_id_mapping
+
+pna_feature_meta <- pg_data@assays$PNA@meta.data
+if (!"uniprot_id" %in% colnames(pna_feature_meta)) {
+  stop(
+    "Column 'uniprot_id' not found in pg_data@assays$PNA@meta.data.\n",
+    "Use a PXL / panel that includes UniProt IDs (e.g. Proxiome Immuno 155 v2)."
+  )
+}
+
+marker_uniprot_map <-
+  pna_feature_meta |>
+  as_tibble(rownames = "marker") |>
+  select(marker, uniprot_id) |>
+  mutate(uniprot_id = na_if(str_trim(as.character(uniprot_id)), "")) |>
+  separate_rows(uniprot_id, sep = ";") |>
+  mutate(uniprot_id = str_trim(uniprot_id)) |>
+  filter(!is.na(uniprot_id), uniprot_id != "")
+
+panel_uniprot_universe <- sort(unique(marker_uniprot_map$uniprot_id))
+
+protein_sets <-
+  protein_sets |>
+  mutate(
+    uniprot_ids = map(
+      markers,
+      \(m) {
+        marker_uniprot_map |>
+          filter(marker %in% m) |>
+          pull(uniprot_id) |>
+          unique() |>
+          sort()
+      }
+    ),
+    n_uniprot = map_int(uniprot_ids, length)
+  )
+
+message(
+  "Mapped ", n_distinct(marker_uniprot_map$marker), " markers to ",
+  length(panel_uniprot_universe), " UniProt IDs"
+)
+if (nrow(protein_sets) > 0) {
+  print(
+    protein_sets |>
+      select(source, group, target, n_markers, n_uniprot) |>
+      arrange(source, group, target)
+  )
+}
+
 write_csv(
   protein_sets |>
-    mutate(markers = map_chr(markers, paste, collapse = ";")) |>
-    select(source, group, target, n_markers, markers),
-  file.path(protein_sets_dir, "protein_sets.csv")
+    mutate(
+      markers = map_chr(markers, paste, collapse = ";"),
+      uniprot_ids = map_chr(uniprot_ids, paste, collapse = ";")
+    ) |>
+    select(source, group, target, n_markers, n_uniprot, markers, uniprot_ids),
+  here::here("results/07_data_interpretation/protein_sets.csv")
 )
 ```
