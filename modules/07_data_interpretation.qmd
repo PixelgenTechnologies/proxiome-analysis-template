@@ -1,0 +1,24 @@
+# 7. Data interpretation
+
+**Module 07 — Data interpretation (optional).** Map differential markers to UniProt IDs from the PNA assay metadata and run panel-aware term enrichment to aid biological interpretation. Skip this module if you do not need enrichment or annotation context. Run after module `05` has produced differential abundance results (and optionally colocalization results). Requires PXL / panel data that include a `uniprot_id` column in the PNA assay feature metadata (e.g. Proxiome Immuno 155 v2).
+
+> **Note:** Overrepresentation analysis on a ~155-protein panel has very low statistical power. Treat enrichment tables as exploratory context, not definitive pathway calls.
+
+```{r}
+#| label: module07_setup
+
+library(here)
+here::i_am("modules/07_data_interpretation.qmd")
+
+source(here::here("modules", "common_setup.R"))
+
+if (!exists("pg_data", inherits = TRUE)) {
+  pg_data <- load_checkpoint("annotated_seurat_object.rds")
+}
+
+dir.create(
+  here::here("results", "07_data_interpretation"),
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+```

@@ -192,7 +192,8 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   ├── 03_abundance.qmd
 │   ├── 04_proximity.qmd
 │   ├── 05_statistical_testing.qmd    ← Optional
-│   └── 06_cell_visualization.qmd     ← Optional
+│   ├── 06_cell_visualization.qmd     ← Optional
+│   └── 07_data_interpretation.qmd    ← Optional
 ├── results/                          ← Created automatically when running the PAT
 ├── proxiome_analysis_template.Rproj  ← Double-click to open the project in RStudio
 └── proxiome_analysis_template.qmd  ← Full re-render of all modules (optional)
@@ -240,7 +241,7 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 1. **Open** `proxiome_analysis_template.Rproj`
 2. **Open** `modules/01_quality_control.qmd` in RStudio
 3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, and `04`
-4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, and `modules/06_cell_visualization.qmd` for single-cell graph plots
+4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, `modules/06_cell_visualization.qmd` for single-cell graph plots, and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after module `05`)
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
@@ -286,7 +287,8 @@ results/
 ├── 03_abundance/
 ├── 04_proximity/
 ├── 05_statistical_testing/
-└── 06_cell_visualization/
+├── 06_cell_visualization/
+└── 07_data_interpretation/
 ```
 
 ---
