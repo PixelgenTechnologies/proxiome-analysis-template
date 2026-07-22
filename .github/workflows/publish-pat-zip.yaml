@@ -47,21 +47,8 @@ jobs:
 
       - name: Stage slim PAT files
         run: |
-          FOLDER="${{ steps.version.outputs.folder }}"
-          mkdir -p "${FOLDER}/data" "${FOLDER}/modules"
-          cp proxiome_analysis_template.qmd "${FOLDER}/"
-          cp proxiome_analysis_template.Rproj "${FOLDER}/"
-          cp README.md LICENSE.md "${FOLDER}/"
-          cp -r modules/. "${FOLDER}/modules/"
-          # Blank template metadata (header only) for naive users
-          printf 'sample_id,sample_alias,condition,file_path\n' > "${FOLDER}/data/metadata.csv"
-          # Sanity: no CI/dev-only paths
-          if [[ -e "${FOLDER}/.github" || -e "${FOLDER}/Dockerfile" ]]; then
-            echo "Unexpected files included in slim zip staging" >&2
-            exit 1
-          fi
-          echo "Staged contents:"
-          find "${FOLDER}" -type f | sort
+          chmod +x .github/publish-pat-zip/stage_pat_files.sh
+          .github/publish-pat-zip/stage_pat_files.sh "${{ steps.version.outputs.version }}"
 
       - name: Create zip archive
         run: |

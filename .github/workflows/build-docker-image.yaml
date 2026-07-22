@@ -10,22 +10,42 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      run_smoke_test:
+        description: "After building the image, download public PXLs and render the full PAT HTML (smoke test)"
+        type: boolean
+        default: true
 
+# Least privilege at the root; jobs elevate only what they need.
 permissions:
-  id-token: write
-  actions: write
   contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Smoke test on releases and manual runs (optional via input).
+  # Skipped on ordinary main pushes/PRs to avoid multi-GB downloads on every CI run.
+  RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) }}
+  PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' }}
+  IMAGE_NAME: quay.io/pixelgen-technologies/proxiome-analysis-template
 
 jobs:
-  build-and-push-container:
+  build:
     name: Build Docker Image
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: write # GHA build cache (cache-to: type=gha)
+    outputs:
+      staging_image: ${{ steps.staging_ref.outputs.image }}
+      publish_tags: ${{ steps.export_tags.outputs.publish_tags }}
+      run_smoke_test: ${{ env.RUN_SMOKE_TEST }}
+      push_to_quay: ${{ env.PUSH_TO_QUAY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up build environment
         id: setup_build_env
@@ -33,28 +53,217 @@ jobs:
         with:
           quay-username: ${{ secrets.QUAY_IO_USERNAME }}
           quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
-          push: ${{ github.event_name != 'pull_request' }}
+          # Login whenever this job pushes (full tags, or smoke staging sha).
+          push: ${{ env.PUSH_TO_QUAY == 'true' || env.RUN_SMOKE_TEST == 'true' }}
 
-      - name: Docker meta
+      - name: Docker meta (publish tags)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            quay.io/pixelgen-technologies/proxiome-analysis-template
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            # Explicit release-tag value: type=semver alone is reliable for tag pushes,
+            # but release / workflow_dispatch contexts differ; pin SemVer on published releases.
+            type=semver,pattern={{version}},value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+            type=sha,prefix=sha-
+
+      - name: Docker meta (smoke staging tag)
+        id: staging
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+
+      - name: Resolve staging image ref
+        id: staging_ref
+        run: |
+          IMAGE="$(echo '${{ steps.staging.outputs.tags }}' | head -n1)"
+          if [[ -z "${IMAGE}" ]]; then
+            echo "No staging tag produced by docker/metadata-action" >&2
+            exit 1
+          fi
+          echo "image=${IMAGE}" >> "${GITHUB_OUTPUT}"
+          echo "Staging image: ${IMAGE}"
+
+      - name: Export publish tags for downstream jobs
+        id: export_tags
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          # Multiline job outputs require a heredoc delimiter (not a plain key=value).
+          {
+            echo "publish_tags<<EOF_PUBLISH_TAGS"
+            printf '%s\n' "${META_TAGS}"
+            echo "EOF_PUBLISH_TAGS"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          # Smoke path: push only the sha staging tag (smoke pulls it; promote after).
+          # Non-smoke publish: push the full tag set from meta.
+          # PRs: build only (no push).
+          push: ${{ env.PUSH_TO_QUAY == 'true' || env.RUN_SMOKE_TEST == 'true' }}
+          tags: ${{ env.RUN_SMOKE_TEST == 'true' && steps.staging.outputs.tags || steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  smoke-test:
+    name: HTML smoke test
+    needs: build
+    if: needs.build.outputs.run_smoke_test == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write # gh release upload
+      actions: write # upload-artifact
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up build environment
+        uses: ./.github/actions/setup-image-build-env
+        with:
+          quay-username: ${{ secrets.QUAY_IO_USERNAME }}
+          quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
+          push: "true"
+
+      - name: Pull staging image
+        run: |
+          IMAGE="${{ needs.build.outputs.staging_image }}"
+          echo "Pulling ${IMAGE}"
+          docker pull "${IMAGE}"
+          docker image inspect "${IMAGE}" >/dev/null
+
+      - name: Resolve smoke-test version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${VERSION}" ]]; then
+              VERSION="dev"
+            fi
+          fi
+          if [[ "${VERSION}" != v* && "${VERSION}" != "dev" ]]; then
+            VERSION="v${VERSION}"
+          fi
+          ARTIFACT_NAME="proxiome-analysis-template-example-${VERSION}-html"
+          ASSET="${ARTIFACT_NAME}.zip"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=${ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "asset=${ASSET}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved version=${VERSION}, artifact=${ARTIFACT_NAME}, release zip=${ASSET}"
+
+      - name: Download public PXL dataset
+        run: |
+          chmod +x .github/smoke-test/download_dataset.sh
+          .github/smoke-test/download_dataset.sh
+          ls -lh data/*.layout.pxl
+          df -h
+
+      - name: Render Quarto HTML with image from this build
+        run: |
+          IMAGE="${{ needs.build.outputs.staging_image }}"
+          echo "Using image from this build: ${IMAGE}"
+          docker run --rm \
+            -v "${PWD}:/workspace" \
+            -w /workspace \
+            "${IMAGE}" \
+            bash -lc '
+              set -euo pipefail
+              quarto render proxiome_analysis_template.qmd
+              test -f proxiome_analysis_template.html
+            '
+          df -h
+
+      - name: Prepare HTML outputs
+        run: |
+          rm -f data/*.layout.pxl
+          test -f proxiome_analysis_template.html
+          test -d proxiome_analysis_template_files
+
+      - name: Upload HTML smoke-test artifact
+        # Upload files directly — upload-artifact already wraps downloads in a zip,
+        # so pre-zipping here produced a zip-of-zip.
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact_name }}
+          path: |
+            proxiome_analysis_template.html
+            proxiome_analysis_template_files
+          if-no-files-found: error
+
+      - name: Package and upload HTML zip to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.version }}
+          ASSET: ${{ steps.version.outputs.asset }}
+        run: |
+          zip -r "${ASSET}" \
+            proxiome_analysis_template.html \
+            proxiome_analysis_template_files
+          ls -lh "${ASSET}"
+          gh release upload "${TAG}" "${ASSET}" --clobber
+
+  push-to-quay:
+    name: Push image to Quay
+    needs: [build, smoke-test]
+    # Promote staging → publish tags only after smoke succeeds.
+    # Non-smoke publishes happen in the build job.
+    if: |
+      always() &&
+      needs.build.outputs.push_to_quay == 'true' &&
+      needs.build.outputs.run_smoke_test == 'true' &&
+      needs.build.result == 'success' &&
+      needs.smoke-test.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up build environment
+        uses: ./.github/actions/setup-image-build-env
+        with:
+          quay-username: ${{ secrets.QUAY_IO_USERNAME }}
+          quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
+          push: "true"
+
+      - name: Promote staging image to publish tags
+        env:
+          STAGING: ${{ needs.build.outputs.staging_image }}
+          PUBLISH_TAGS: ${{ needs.build.outputs.publish_tags }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${STAGING}" ]]; then
+            echo "Missing staging image ref" >&2
+            exit 1
+          fi
+          if [[ -z "${PUBLISH_TAGS}" ]]; then
+            echo "Missing publish tag list from build job" >&2
+            exit 1
+          fi
+          # Use the tag list computed in build (same event context). Do not re-run
+          # docker/metadata-action here — release vs tag-push SemVer handling can diverge.
+          # Registry-side retag (no local image transfer). Works for single- and multi-arch manifests.
+          while IFS= read -r tag; do
+            [[ -z "${tag}" || "${tag}" == "${STAGING}" ]] && continue
+            echo "Promoting ${STAGING} -> ${tag}"
+            docker buildx imagetools create --tag "${tag}" "${STAGING}"
+          done <<< "${PUBLISH_TAGS}"

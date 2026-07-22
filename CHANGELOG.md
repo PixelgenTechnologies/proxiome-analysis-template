@@ -5,19 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] 2026-07-21
+
+### Added
+
+- HTML smoke test in the **Build** workflow: after building the image for the current commit, optionally downloads the public 1k PBMC dataset and renders the full PAT to HTML (on Release and `workflow_dispatch`). Build, smoke test, and Quay push are separate jobs; smoke pulls a Quay `sha-…` staging tag (promoted after smoke passes).
+- [.github/smoke-test/download_dataset.sh](.github/smoke-test/download_dataset.sh) + [dataset.tsv](.github/smoke-test/dataset.tsv) for fetch + MD5 verify.
+
+
+
+### Changed
+
+- Example `data/metadata.csv` now matches the public [1k Human PBMCs](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/) dataset (2 samples: `resting` / `PHA`).
+- Quarto HTML output uses the `cosmo` theme with a left TOC and code-copy buttons for a more tutorial-like look.
+- Docker base image bumped to `pixelatorr:0.18.3`.
+
+
+
+### Fixed
+
+- Bug in `statistical_testing_marker_selection` where the `isotype_pls` would throw an error if there is only a single sample containing a certain cell type.
+
+
+
 ## [0.5.1] 2026-07-20
+
+
 
 ### Added
 
 - The PAT is now automatically released as a .zip artifact on GitHub upon release for users who want to download the minimal file set to run the template.
 
+
+
 ## [0.5.0] 2026-06-24
+
+
 
 ### Added
 
 - Module `06_cell_visualization.qmd` (optional): single-cell graph visualization for one cell type and a set of markers, using pixelatorR's `Plot2DGraphM` (2D marker × cell grid) and `Plot3DGraph` (interactive 3D). Example uses CD8 T cells with the CD82/CD81 colocalization pair. Requires `pixelatorR > 0.18.2` (adds `cpmds_3d` support to `Plot2DGraphM`); on `pixelatorR ≤ 0.18.2`, set the 2D plot's `layout_method` to a supported value instead (`wpmds_3d`, `pmds_3d`, `wpmds`, or `pmds`).
 
+
+
 ## [0.4.0] 2026-06-02
+
+
 
 ### Removed
 
@@ -25,12 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `renv` project environment (`renv.lock`, `renv/`, `.Rprofile`). Local install uses `pak::pak()`; reproducibility is provided by the Docker image.
 - Module `00_project_setup.qmd` — data loading is now the first section of module `01`.
 
+
+
 ### Added
 
 - Modular analysis workflow: numbered notebooks in `modules/` (`01`–`05`) for interactive, stage-by-stage analysis.
 - Thin master `proxiome_analysis_template.qmd` that includes all modules for full re-render.
-- [`modules/common_setup.R`](modules/common_setup.R): shared packages, metadata, palettes, and checkpoint helpers.
+- `[modules/common_setup.R](modules/common_setup.R)`: shared packages, metadata, palettes, and checkpoint helpers.
 - Checkpoint files in `results/checkpoint_data/` for all cross-module state (`pg_data_merged`, `selected_markers`, `annotated_seurat_object`, `markers_to_test`).
+
+
 
 ### Updated
 
@@ -44,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The PAT now depends on `pixelatorR >= 0.17.1`.
 - The PAT now includes clear labels for decision checkpoints.
 
+
+
 ### Fixed
 
 - `isotype_pls` is now using the "data" layer to avoid issues when markers are missing from the "scale.data" layer.
@@ -51,7 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cold-start for modules `03`–`05`: `cell_palette` and `markers_to_test` now available via shared setup and checkpoints.
 - Marker UMAP plots in module `02` now save to project-root `results/` (fixed missing `here::here()` when running the module interactively).
 
+
+
 ## [0.3.2] 2026-03-27
+
+
 
 ### Added
 
@@ -71,6 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - QMD: Auto-detection of CSV separator (comma or semicolon) when reading `metadata.csv`.
 - QMD: User-friendly file-existence check for `metadata.csv` with a clear error message.
 
+
+
 ### Updated
 
 - README: Complete UX redesign for better approachability — cleaner layout, more whitespace, consolidated sections, and better visual hierarchy.
@@ -83,11 +128,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: Troubleshooting section updated to remove renv-centric advice and provide per-OS package compilation guidance.
 - README: Key checkpoints and metadata columns now displayed as clean tables.
 
+
+
 ### Fixed
 
 - Fixed a bug in `lintr` installation in CI.
 
+
+
 ## [0.3.1] 2026-03-25
+
+
 
 ### Added
 
@@ -98,16 +149,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Troubleshooting section with expandable solutions for common issues
 - Quick reference table for metadata file columns
 
-### Updated 
+
+
+### Updated
 
 - The PAT is now renderable as an .html file.
 - Clarified that `file_path` in metadata should be filename only, not full path
 - Improved folder structure documentation with clearer explanations
 
+
+
 ### Fixed
+
 - The `duckdb` installation should now work with `renv::restore()`
 
+
+
 ## [0.3.0] 2026-03-20
+
+
 
 ### Added
 
@@ -122,6 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `markers_for_abundance_plots` variable to restrict marker-wise abundance distribution plots to a user-defined subset (default: first 20 markers); users should replace this with their markers of interest.
 - Added `abundance_plots_grouping_column` variable (default: `"condition"`) to control whether per-cell-type abundance plots are faceted by condition or by sample; set to `"sample_alias"` to facet by individual sample.
 - Added `network_grouping_column` variable (default: `"condition"`) to control whether colocalization network plots (Section 4.2) are faceted by condition or by sample; set to `"sample_alias"` for per-sample faceting.
+
+
 
 ### Updated
 
@@ -144,14 +206,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Abundance distribution plots (Section 3) now only plot a user-defined subset of markers and facet "per cell type" plots by `abundance_plots_grouping_column` (default: condition) rather than always by sample.
 - Colocalization network plots (Section 4.2) now facet by `network_grouping_column` (default: condition) instead of always faceting by sample.
 
+
+
 ### Fixed
+
 - Fixed bug where `slot` was used instead of `layer`, causing an error.
 - `RcppML` and `pls` are now added as dependencies and installed when creating the `renv` environment.
 - Fixed issue in isotype fraction violin plot, where the displayed median would be rounded to zero. 
 - Typos.
 - Fixed hardcoded reference sample (`"S1_resting"`) in Section 4.1.1 reference heatmap; it now automatically uses the first group in the data.
 
+
+
 ## [0.2.1] 2026-02-26
+
+
 
 ### Updated
 
@@ -159,19 +228,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebranded from "SOP" to "Template", e.g. the main analysis `.qmd` was renamed to `proxiome_analysis_template.qmd`.
 - Updated `metadata.csv` template file.
 
+
+
 ## [0.2.0] 2026-02-25
+
+
 
 ### Updated
 
 - The SOP now uses functions from `pixelatorR` for colors and saving plots.
+
+
 
 ### Fixed
 
 - Fixed bug in DimRed marker selection that normalized counts per protein instead of per cell.
 
 
+
 ## [0.1.0] 2025-11-25
+
+
 
 ### Added
 
 - Initiated repository.
+
