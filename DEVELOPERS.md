@@ -111,7 +111,7 @@ When the smoke test runs, CI downloads the public 1k PBMC dataset and runs `quar
 
 1. Download PXLs via `[.github/smoke-test/download_dataset.sh](.github/smoke-test/download_dataset.sh)` / `[dataset.tsv](.github/smoke-test/dataset.tsv)`.
 2. Render the master QMD in the built image.
-3. Upload `proxiome-analysis-template-example-vX.Y.Z-html.zip` as an Actions artifact (and Release asset on publish).
+3. Upload the rendered HTML (and `_files/`) as an Actions artifact named `proxiome-analysis-template-example-vX.Y.Z-html`. On Release, also zip those files and attach `…-html.zip` to the GitHub Release (the Actions download is already a zip, so the workflow does not pre-zip the artifact).
 
 **Dataset config:** Keep `[dataset.tsv](.github/smoke-test/dataset.tsv)` and `[data/metadata.csv](data/metadata.csv)` in sync. When the public dataset is republished:
 
