@@ -217,8 +217,8 @@ enrich_one_set <- function(ids) {
       universe = panel_uniprot_universe,
       TERM2GENE = go_ann,
       TERM2NAME = term2name,
-      pvalueCutoff = 1,
-      qvalueCutoff = 1,
+      pvalueCutoff = 0.05,
+      qvalueCutoff = 0.2,
       minGSSize = 2,
       maxGSSize = 500
     ),
@@ -248,30 +248,54 @@ if (nrow(enrichment_results) == 0) {
       head(20)
   )
 
-  enrichment_plot <-
-    enrichment_results |>
-    group_by(source, group, target) |>
-    slice_min(order_by = p.adjust, n = 10, with_ties = FALSE) |>
-    ungroup() |>
-    mutate(set_label = paste(group, target, source, sep = " | ")) |>
-    ggplot(aes(x = -log10(p.adjust), y = reorder(Description, p.adjust))) +
-    geom_col() +
-    facet_wrap(~set_label, scales = "free_y") +
-    labs(
-      title = "GO Biological Process enrichment",
-      x = expression(-log[10](adjusted ~ p)),
-      y = NULL
-    ) +
-    theme_minimal()
-
-  export_plot(
-    enrichment_plot,
-    filename = here::here(
-      "results/07_data_interpretation/go_bp_enrichment"
-    ),
-    width = 10,
-    height = 8
+  enrichment_plot_dir <- here::here(
+    "results/07_data_interpretation/go_bp_enrichment"
   )
+  dir.create(enrichment_plot_dir, recursive = TRUE, showWarnings = FALSE)
+
+  enrichment_sets <-
+    enrichment_results |>
+    distinct(source, group, target)
+
+  for (i in seq_len(nrow(enrichment_sets))) {
+    set_source <- enrichment_sets$source[[i]]
+    set_group <- enrichment_sets$group[[i]]
+    set_target <- enrichment_sets$target[[i]]
+
+    set_plot_data <-
+      enrichment_results |>
+      filter(
+        source == set_source,
+        group == set_group,
+        target == set_target
+      ) |>
+      slice_min(order_by = p.adjust, n = 10, with_ties = FALSE)
+
+    enrichment_plot <-
+      set_plot_data |>
+      ggplot(aes(x = -log10(p.adjust), y = reorder(Description, p.adjust))) +
+      geom_col() +
+      labs(
+        title = "GO Biological Process enrichment",
+        subtitle = paste(set_group, set_target, set_source, sep = " | "),
+        x = expression(-log[10](adjusted ~ p)),
+        y = NULL
+      ) +
+      theme_minimal()
+
+    plot_stem <- gsub(
+      "[^A-Za-z0-9._-]+",
+      "_",
+      paste(set_source, set_group, set_target, sep = "__")
+    )
+
+    export_plot(
+      enrichment_plot,
+      filename = file.path(enrichment_plot_dir, plot_stem),
+      width = 8,
+      height = max(4, nrow(set_plot_data) * 0.35 + 1.5)
+    )
+  }
 }
 
 write_csv(
