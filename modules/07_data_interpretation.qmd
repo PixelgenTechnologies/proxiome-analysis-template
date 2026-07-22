@@ -32,10 +32,10 @@ dir.create(
 #| label: module07_parameters
 
 daa_p_adj_threshold <- 0.05
-daa_effect_size_threshold <- 0 # minimum |difference|; 0 keeps all significant markers
+daa_effect_size_threshold <- 0.5 # minimum |difference|; 0 keeps all significant markers
 
 coloc_p_adj_threshold <- 0.05
-coloc_effect_size_threshold <- 0 # minimum |diff_median|; 0 keeps all significant pairs
+coloc_effect_size_threshold <- 0.5 # minimum |diff_median|; 0 keeps all significant pairs
 ```
 
 ## 7.1. Load module 05 results
@@ -67,7 +67,7 @@ if (!exists("differential_colocalization_analysis", inherits = TRUE)) {
 
 ## 7.2. Build protein sets
 
-Significant markers from differential abundance and unique markers from significant colocalization pairs are collected per cell type and contrast. These sets feed the UniProt mapping and enrichment steps below.
+Significant markers from differential abundance and unique markers from significant colocalization pairs are collected per cell type, contrast, and direction of change. Positive effect sizes (`difference` / `diff_median` > 0) are labeled `up` (higher in the target condition); negative values are labeled `down`. Enrichment is run separately for each direction.
 
 ```{r}
 #| label: module07_build_protein_sets
@@ -76,9 +76,11 @@ daa_sets <-
   differential_abundance_analysis |>
   filter(
     p_adj < daa_p_adj_threshold,
-    abs(difference) >= daa_effect_size_threshold
+    abs(difference) >= daa_effect_size_threshold,
+    difference != 0
   ) |>
-  group_by(source = "differential_abundance", group, target) |>
+  mutate(direction = if_else(difference > 0, "up", "down")) |>
+  group_by(source = "differential_abundance", group, target, direction) |>
   summarise(
     markers = list(sort(unique(marker))),
     n_markers = n_distinct(marker),
@@ -89,9 +91,11 @@ coloc_sets <-
   differential_colocalization_analysis |>
   filter(
     p_adj < coloc_p_adj_threshold,
-    abs(diff_median) >= coloc_effect_size_threshold
+    abs(diff_median) >= coloc_effect_size_threshold,
+    diff_median != 0
   ) |>
-  group_by(source = "differential_colocalization", group, target) |>
+  mutate(direction = if_else(diff_median > 0, "up", "down")) |>
+  group_by(source = "differential_colocalization", group, target, direction) |>
   summarise(
     markers = list(sort(unique(c(marker_1, marker_2)))),
     .groups = "drop"
@@ -110,8 +114,8 @@ if (nrow(protein_sets) == 0) {
 } else {
   print(
     protein_sets |>
-      select(source, group, target, n_markers) |>
-      arrange(source, group, target)
+      select(source, group, target, direction, n_markers) |>
+      arrange(source, group, target, direction)
   )
 }
 ```
@@ -166,8 +170,8 @@ message(
 if (nrow(protein_sets) > 0) {
   print(
     protein_sets |>
-      select(source, group, target, n_markers, n_uniprot) |>
-      arrange(source, group, target)
+      select(source, group, target, direction, n_markers, n_uniprot) |>
+      arrange(source, group, target, direction)
   )
 }
 
@@ -177,14 +181,17 @@ write_csv(
       markers = map_chr(markers, paste, collapse = ";"),
       uniprot_ids = map_chr(uniprot_ids, paste, collapse = ";")
     ) |>
-    select(source, group, target, n_markers, n_uniprot, markers, uniprot_ids),
+    select(
+      source, group, target, direction,
+      n_markers, n_uniprot, markers, uniprot_ids
+    ),
   here::here("results/07_data_interpretation/protein_sets.csv")
 )
 ```
 
 ## 7.4. GO Biological Process enrichment
 
-For each protein set, UniProt IDs are tested for overrepresentation in GO Biological Process terms against the panel UniProt universe using a Fisher / hypergeometric test (`clusterProfiler::enricher`).
+For each protein set (cell type × contrast × direction), UniProt IDs are tested for overrepresentation in GO Biological Process terms against the panel UniProt universe using a Fisher / hypergeometric test (`clusterProfiler::enricher`).
 
 ```{r}
 #| label: module07_enrichment
@@ -235,7 +242,7 @@ enrichment_results <-
   filter(n_uniprot >= 2) |>
   mutate(enrich = map(uniprot_ids, enrich_one_set)) |>
   filter(!map_lgl(enrich, is.null)) |>
-  select(source, group, target, enrich) |>
+  select(source, group, target, direction, enrich) |>
   unnest(enrich)
 
 if (nrow(enrichment_results) == 0) {
@@ -243,7 +250,10 @@ if (nrow(enrichment_results) == 0) {
 } else {
   print(
     enrichment_results |>
-      select(source, group, target, ID, Description, Count, p.adjust) |>
+      select(
+        source, group, target, direction,
+        ID, Description, Count, p.adjust
+      ) |>
       arrange(p.adjust) |>
       head(20)
   )
@@ -255,19 +265,21 @@ if (nrow(enrichment_results) == 0) {
 
   enrichment_sets <-
     enrichment_results |>
-    distinct(source, group, target)
+    distinct(source, group, target, direction)
 
   for (i in seq_len(nrow(enrichment_sets))) {
     set_source <- enrichment_sets$source[[i]]
     set_group <- enrichment_sets$group[[i]]
     set_target <- enrichment_sets$target[[i]]
+    set_direction <- enrichment_sets$direction[[i]]
 
     set_plot_data <-
       enrichment_results |>
       filter(
         source == set_source,
         group == set_group,
-        target == set_target
+        target == set_target,
+        direction == set_direction
       ) |>
       slice_min(order_by = p.adjust, n = 10, with_ties = FALSE)
 
@@ -277,7 +289,10 @@ if (nrow(enrichment_results) == 0) {
       geom_col() +
       labs(
         title = "GO Biological Process enrichment",
-        subtitle = paste(set_group, set_target, set_source, sep = " | "),
+        subtitle = paste(
+          set_group, set_target, set_source, set_direction,
+          sep = " | "
+        ),
         x = expression(-log[10](adjusted ~ p)),
         y = NULL
       ) +
@@ -286,7 +301,7 @@ if (nrow(enrichment_results) == 0) {
     plot_stem <- gsub(
       "[^A-Za-z0-9._-]+",
       "_",
-      paste(set_source, set_group, set_target, sep = "__")
+      paste(set_source, set_group, set_target, set_direction, sep = "__")
     )
 
     export_plot(
