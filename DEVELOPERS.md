@@ -86,7 +86,7 @@ On merges to `main` and version tags, the image is pushed to `quay.io/pixelgen-t
 Jobs in `[build-docker-image.yaml](.github/workflows/build-docker-image.yaml)`:
 
 1. **Build Docker Image** (`ubuntu-latest`) — build the image. On ordinary `main`/tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
-2. **HTML smoke test** (`ubuntu-latest-8-cores`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render`, upload HTML zip (and attach to the GitHub Release when applicable).
+2. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render`, upload HTML zip (and attach to the GitHub Release when applicable).
 3. **Push image to Quay** (`ubuntu-latest`, smoke path only) — after a successful smoke test, promote the staging image to the publish tag list computed in the build job (passed as a multiline job output) via `docker buildx imagetools create` (registry-side retag, no image tarball).
 
 Behavior by event:

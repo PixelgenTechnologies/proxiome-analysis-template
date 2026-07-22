@@ -126,8 +126,7 @@ jobs:
     name: HTML smoke test
     needs: build
     if: needs.build.outputs.run_smoke_test == 'true'
-    # Larger runner for disk/RAM (multi-GB PXLs + Quarto render). Only used when smoking.
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
       contents: write # gh release upload
