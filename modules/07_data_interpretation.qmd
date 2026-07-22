@@ -277,6 +277,11 @@ if (nrow(enrichment_results) == 0) {
   )
   message("No enriched GO BP terms found for the current protein sets.")
 } else {
+  set_markers_long <-
+    protein_sets |>
+    select(source, group, target, direction, markers) |>
+    unnest_longer(markers, values_to = "marker")
+
   term_marker_hits <-
     enrichment_results |>
     select(
@@ -289,6 +294,12 @@ if (nrow(enrichment_results) == 0) {
       marker_uniprot_map |> distinct(uniprot_id, marker),
       by = "uniprot_id",
       relationship = "many-to-many"
+    ) |>
+    # Keep only markers that belonged to this directed protein set (avoids
+    # pulling opposite-direction markers via shared UniProt IDs).
+    inner_join(
+      set_markers_long,
+      by = c("source", "group", "target", "direction", "marker")
     )
 
   print(
@@ -387,6 +398,8 @@ if (nrow(term_marker_hits) == 0) {
     enrichment_results |>
     distinct(source, group, target, direction)
 
+  term_marker_plot_sets <- list()
+
   for (i in seq_len(nrow(enrichment_sets))) {
     set_source <- enrichment_sets$source[[i]]
     set_group <- enrichment_sets$group[[i]]
@@ -422,13 +435,23 @@ if (nrow(term_marker_hits) == 0) {
     if (identical(set_source, "differential_abundance")) {
       marker_effects <-
         differential_abundance_analysis |>
-        filter(group == set_group, target == set_target) |>
+        filter(
+          group == set_group,
+          target == set_target,
+          (set_direction == "up" & difference > 0) |
+            (set_direction == "down" & difference < 0)
+        ) |>
         select(marker, effect = difference, p_adj)
       effect_legend <- "Difference"
     } else {
       marker_effects <-
         differential_colocalization_analysis |>
-        filter(group == set_group, target == set_target) |>
+        filter(
+          group == set_group,
+          target == set_target,
+          (set_direction == "up" & diff_median > 0) |
+            (set_direction == "down" & diff_median < 0)
+        ) |>
         select(marker_1, marker_2, diff_median, p_adj) |>
         pivot_longer(
           c(marker_1, marker_2),
@@ -457,48 +480,87 @@ if (nrow(term_marker_hits) == 0) {
       next
     }
 
-    effect_limit <- max(abs(plot_data$effect), na.rm = TRUE)
+    term_marker_plot_sets[[length(term_marker_plot_sets) + 1]] <- list(
+      source = set_source,
+      group = set_group,
+      target = set_target,
+      direction = set_direction,
+      effect_legend = effect_legend,
+      plot_data = plot_data
+    )
+  }
+
+  if (length(term_marker_plot_sets) == 0) {
+    message("Skipping term-marker maps: no plottable membership rows.")
+  } else {
+    all_plot_data <- map_dfr(term_marker_plot_sets, "plot_data")
+
+    effect_limit <- max(abs(all_plot_data$effect), na.rm = TRUE)
     if (!is.finite(effect_limit) || effect_limit == 0) {
       effect_limit <- 1
     }
+    color_limits <- c(-effect_limit, effect_limit)
 
-    term_marker_plot <-
-      plot_data |>
-      ggplot(aes(
-        x = marker,
-        y = Description,
-        color = effect,
-        size = neg_log10_p_adj
-      )) +
-      geom_point() +
-      scale_color_gradientn(
-        colors = gradient_palette,
-        limits = c(-effect_limit, effect_limit)
-      ) +
-      scale_size_continuous(range = c(1.5, 6)) +
-      labs(
-        title = "GO term × marker map",
-        subtitle = set_label(set_group, set_target, set_source, set_direction),
-        x = NULL,
-        y = NULL,
-        color = effect_legend,
-        size = expression(-log[10](p[adj]))
-      ) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-        panel.grid.major = element_line(color = "grey90")
+    size_max <- max(all_plot_data$neg_log10_p_adj, na.rm = TRUE)
+    if (!is.finite(size_max) || size_max <= 0) {
+      size_max <- 1
+    }
+    size_limits <- c(0, size_max)
+
+    for (plot_set in term_marker_plot_sets) {
+      plot_data <- plot_set$plot_data
+
+      term_marker_plot <-
+        plot_data |>
+        ggplot(aes(
+          x = marker,
+          y = Description,
+          color = effect,
+          size = neg_log10_p_adj
+        )) +
+        geom_point() +
+        scale_color_gradientn(
+          colors = gradient_palette,
+          limits = color_limits
+        ) +
+        scale_size_continuous(
+          range = c(1.5, 6),
+          limits = size_limits
+        ) +
+        labs(
+          title = "GO term × marker map",
+          subtitle = set_label(
+            plot_set$group,
+            plot_set$target,
+            plot_set$source,
+            plot_set$direction
+          ),
+          x = NULL,
+          y = NULL,
+          color = plot_set$effect_legend,
+          size = expression(-log[10](p[adj]))
+        ) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+          panel.grid.major = element_line(color = "grey90")
+        )
+
+      export_plot(
+        term_marker_plot,
+        filename = file.path(
+          term_marker_plot_dir,
+          safe_plot_stem(
+            plot_set$source,
+            plot_set$group,
+            plot_set$target,
+            plot_set$direction
+          )
+        ),
+        width = min(15, n_distinct(plot_data$marker) * 0.35 + 8),
+        height = max(4, n_distinct(plot_data$Description) * 0.35 + 2)
       )
-
-    export_plot(
-      term_marker_plot,
-      filename = file.path(
-        term_marker_plot_dir,
-        safe_plot_stem(set_source, set_group, set_target, set_direction)
-      ),
-      width = min(15, n_distinct(plot_data$marker) * 0.35 + 8),
-      height = max(4, n_distinct(plot_data$Description) * 0.35 + 2)
-    )
+    }
   }
 }
 ```
