@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Optional module `07_data_interpretation.qmd` (scaffold): registered in the master QMD for upcoming enrichment / interpretation work after module `05`.
+- Module 07 GO Biological Process enrichment via `clusterProfiler::enricher` (panel UniProt universe); Docker/README deps include `clusterProfiler`, `org.Hs.eg.db`, and `AnnotationDbi`.
 
 ### Changed
 

@@ -18,7 +18,8 @@ RUN mkdir -p /workspace/data
 # pixelatorR is pre-installed in the base image; install remaining PAT dependencies.
 RUN R -e "pak::pak(c( \
   'tidyverse', 'Seurat', 'here', 'Matrix', 'ggraph', 'pls', \
-  'ggplotify', 'harmony', 'ggbeeswarm', 'RcppML', 'ComplexHeatmap' \
+  'ggplotify', 'harmony', 'ggbeeswarm', 'RcppML', 'ComplexHeatmap', \
+  'clusterProfiler', 'org.Hs.eg.db', 'AnnotationDbi' \
 ))"
 
 COPY proxiome_analysis_template.qmd /workspace/proxiome_analysis_template.qmd

@@ -148,7 +148,7 @@ Open the R project file in RStudio by double-clicking `proxiome_analysis_templat
 install.packages("pak")
 
 # Install packages
-pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "PixelgenTechnologies/pixelatorR"))
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR"))
 
 ```
 

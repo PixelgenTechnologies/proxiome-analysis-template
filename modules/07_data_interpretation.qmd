@@ -36,9 +36,6 @@ daa_effect_size_threshold <- 0 # minimum |difference|; 0 keeps all significant m
 
 coloc_p_adj_threshold <- 0.05
 coloc_effect_size_threshold <- 0 # minimum |diff_median|; 0 keeps all significant pairs
-
-# Used in a later chunk for term enrichment
-ontology <- "GO_BP"
 ```
 
 ## 7.1. Load module 05 results
@@ -138,6 +135,7 @@ marker_uniprot_map <-
   pna_feature_meta |>
   as_tibble(rownames = "marker") |>
   select(marker, uniprot_id) |>
+  mutate(marker = rownames(pg_data)[as.numeric(marker)]) |>
   mutate(uniprot_id = na_if(str_trim(as.character(uniprot_id)), "")) |>
   separate_rows(uniprot_id, sep = ";") |>
   mutate(uniprot_id = str_trim(uniprot_id)) |>
@@ -181,5 +179,103 @@ write_csv(
     ) |>
     select(source, group, target, n_markers, n_uniprot, markers, uniprot_ids),
   here::here("results/07_data_interpretation/protein_sets.csv")
+)
+```
+
+## 7.4. GO Biological Process enrichment
+
+For each protein set, UniProt IDs are tested for overrepresentation in GO Biological Process terms against the panel UniProt universe using a Fisher / hypergeometric test (`clusterProfiler::enricher`).
+
+```{r}
+#| label: module07_enrichment
+
+go_ann <-
+  suppressMessages(
+    AnnotationDbi::select(
+      org.Hs.eg.db::org.Hs.eg.db,
+      keys = panel_uniprot_universe,
+      columns = c("GO", "ONTOLOGY"),
+      keytype = "UNIPROT"
+    )
+  ) |>
+  as_tibble() |>
+  filter(ONTOLOGY == "BP", !is.na(GO)) |>
+  distinct(term = GO, gene = UNIPROT)
+
+term2name <-
+  clusterProfiler::go2term(unique(go_ann$term)) |>
+  as_tibble() |>
+  rename(term = go_id, name = Term)
+
+enrich_one_set <- function(ids) {
+  if (length(ids) < 2) {
+    return(NULL)
+  }
+  res <- tryCatch(
+    clusterProfiler::enricher(
+      gene = ids,
+      universe = panel_uniprot_universe,
+      TERM2GENE = go_ann,
+      TERM2NAME = term2name,
+      pvalueCutoff = 1,
+      qvalueCutoff = 1,
+      minGSSize = 2,
+      maxGSSize = 500
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(res) || nrow(res) == 0) {
+    return(NULL)
+  }
+  as_tibble(as.data.frame(res))
+}
+
+enrichment_results <-
+  protein_sets |>
+  filter(n_uniprot >= 2) |>
+  mutate(enrich = map(uniprot_ids, enrich_one_set)) |>
+  filter(!map_lgl(enrich, is.null)) |>
+  select(source, group, target, enrich) |>
+  unnest(enrich)
+
+if (nrow(enrichment_results) == 0) {
+  message("No enriched GO BP terms found for the current protein sets.")
+} else {
+  print(
+    enrichment_results |>
+      select(source, group, target, ID, Description, Count, p.adjust) |>
+      arrange(p.adjust) |>
+      head(20)
+  )
+
+  enrichment_plot <-
+    enrichment_results |>
+    group_by(source, group, target) |>
+    slice_min(order_by = p.adjust, n = 10, with_ties = FALSE) |>
+    ungroup() |>
+    mutate(set_label = paste(group, target, source, sep = " | ")) |>
+    ggplot(aes(x = -log10(p.adjust), y = reorder(Description, p.adjust))) +
+    geom_col() +
+    facet_wrap(~set_label, scales = "free_y") +
+    labs(
+      title = "GO Biological Process enrichment",
+      x = expression(-log[10](adjusted ~ p)),
+      y = NULL
+    ) +
+    theme_minimal()
+
+  export_plot(
+    enrichment_plot,
+    filename = here::here(
+      "results/07_data_interpretation/go_bp_enrichment"
+    ),
+    width = 10,
+    height = 8
+  )
+}
+
+write_csv(
+  enrichment_results,
+  here::here("results/07_data_interpretation/enrichment_results.csv")
 )
 ```
