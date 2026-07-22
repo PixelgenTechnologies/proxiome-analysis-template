@@ -23,6 +23,7 @@ FOLDER="proxiome-analysis-template-${VERSION}"
 STAGING="${ROOT}/${FOLDER}"
 
 cd "${ROOT}"
+rm -rf "${STAGING}"
 mkdir -p "${STAGING}/data" "${STAGING}/modules"
 cp proxiome_analysis_template.qmd "${STAGING}/"
 cp proxiome_analysis_template.Rproj "${STAGING}/"

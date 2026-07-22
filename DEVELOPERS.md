@@ -61,17 +61,17 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ## Docker image and CI
 
-The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in `[build-docker-image.yaml](.github/workflows/build-docker-image.yaml)` as three jobs: **build** → optional **HTML smoke test** → **push to Quay**. On a published Release (or a manual workflow run with smoke test enabled), smoke runs against a Quay `sha-…` staging tag; branch/semver tags are promoted only after smoke passes.
+The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml) as three jobs: **build** → optional **HTML smoke test** → **push to Quay**. On a published Release (or a manual workflow run with smoke test enabled), smoke runs against a Quay `sha-…` staging tag; branch/semver tags are promoted only after smoke passes.
 
 ### Docker image
 
-The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from `[Dockerfile](Dockerfile)`.
+The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
 
 **Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.3`
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 
-**Bundled at** `/workspace`**:** master QMD, modules, example `metadata.csv`, and project file.
+**Bundled at `/workspace`:** master QMD, modules, example `metadata.csv`, and project file.
 
 Build locally:
 
@@ -83,7 +83,7 @@ On merges to `main` and version tags, the image is pushed to `quay.io/pixelgen-t
 
 ### CI workflow
 
-Jobs in `[build-docker-image.yaml](.github/workflows/build-docker-image.yaml)`:
+Jobs in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml):
 
 1. **Build Docker Image** (`ubuntu-latest`) — build the image. On ordinary `main`/tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
 2. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render`, upload HTML zip (and attach to the GitHub Release when applicable).

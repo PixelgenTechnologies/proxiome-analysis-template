@@ -1026,6 +1026,14 @@ cell_data <-
     min(table(sample_alias)) >= minimum_cell_count
   )
 
+if (nrow(cell_data) == 0) {
+  stop(
+    "No cell types remain for isotype background scoring after filtering ",
+    "(need >=2 samples with at least ", minimum_cell_count, " cells each). ",
+    "Lower minimum_cell_count or check cell_annotation / sample composition."
+  )
+}
+
 pls_fit_celltype <-
   cell_data |>
   group_split() |>
