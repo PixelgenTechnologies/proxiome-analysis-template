@@ -138,10 +138,10 @@ if (!"uniprot_id" %in% colnames(pna_feature_meta)) {
 # Use the panel 'marker' column (meta rownames are not reliable on PNAAssay5).
 # Seurat stores feature names with '-' instead of '_'.
 marker_uniprot_map <-
-  pna_feature_meta %>% 
-  as_tibble(rownames = "marker") %>% 
+  pna_feature_meta %>%
+  as_tibble(rownames = "marker") %>%
   select(marker, uniprot_id) |>
-  separate_rows(uniprot_id, sep = ";") 
+  separate_rows(uniprot_id, sep = ";")
 
 panel_uniprot_universe <- sort(unique(marker_uniprot_map$uniprot_id))
 
