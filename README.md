@@ -148,7 +148,7 @@ Open the R project file in RStudio by double-clicking `proxiome_analysis_templat
 install.packages("pak")
 
 # Install packages
-pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "PixelgenTechnologies/pixelatorR"))
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR"))
 
 ```
 
@@ -192,7 +192,8 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   ├── 03_abundance.qmd
 │   ├── 04_proximity.qmd
 │   ├── 05_statistical_testing.qmd    ← Optional
-│   └── 06_cell_visualization.qmd     ← Optional
+│   ├── 06_cell_visualization.qmd     ← Optional
+│   └── 07_data_interpretation.qmd    ← Optional
 ├── results/                          ← Created automatically when running the PAT
 ├── proxiome_analysis_template.Rproj  ← Double-click to open the project in RStudio
 └── proxiome_analysis_template.qmd  ← Full re-render of all modules (optional)
@@ -205,8 +206,8 @@ The `metadata.csv` file describes **your** samples and links them to the corresp
 | Column | Required | Description | Example |
 |--------|:--------:|-------------|---------|
 | `sample_id` | ✓ | Unique identifier | `S1` |
-| `sample_alias` | ✓ | Descriptive name | `S1_resting` |
-| `condition` | ✓ | Experimental group | `resting` |
+| `sample_alias` | ✓ | Descriptive name | `S1_donor1` |
+| `condition` | ✓ | Experimental group | `donor1` |
 | `file_path` | ✓ | PXL filename (not full path) | `Sample1.layout.pxl` |
 | *other* | | Any extra columns (`donor`, `batch`, etc.) | - |
 
@@ -214,12 +215,12 @@ The `metadata.csv` file describes **your** samples and links them to the corresp
 
 **Example file:**
 
-The release zip ships `data/metadata.csv` with only the header row. Add one row per sample. In this repository, `data/metadata.csv` is filled for the public [1k Human PBMCs](https://software.pixelgen.com/datasets/1k-human-pbmcs-v1.0-proxiome-immuno-155/) example (`resting` / `PHA`):
+The release zip ships `data/metadata.csv` with only the header row. Add one row per sample. In this repository, `data/metadata.csv` is filled for donors 1 and 3 from the public [Resting PBMCs from 16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (both samples are resting; `condition` is set to donor identity so module `05` can contrast them):
 
 ```csv
-sample_id,sample_alias,condition,file_path
-S1,S1_resting,resting,PNA062_unstim_PBMCs_1000cells_S02_S2.layout.pxl
-S2,S2_PHA,PHA,PNA062_PHA_PBMCs_1000cells_S04_S4.layout.pxl
+sample_id,sample_alias,condition,file_path,donor,age,sex
+S1,S1_donor1,donor1,PBMCs_resting_S01_HG2.layout.pxl,donor1,58,Female
+S2,S2_donor3,donor3,PBMCs_resting_S01_HG6.layout.pxl,donor3,21,Female
 ```
 
 > 📝 Row order controls plot order. Both `,` and `;` separators work. Every `file_path` must match a file in `data/`.
@@ -240,7 +241,7 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 1. **Open** `proxiome_analysis_template.Rproj`
 2. **Open** `modules/01_quality_control.qmd` in RStudio
 3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, and `04`
-4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, and `modules/06_cell_visualization.qmd` for single-cell graph plots
+4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, `modules/06_cell_visualization.qmd` for single-cell graph plots, and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after module `05`)
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
@@ -269,7 +270,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.5 onward |
 | **01 — marker selection** | Review `selected_markers` after running the selection code |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
-| **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"resting"`) |
+| **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"donor1"`) |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
 > 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
@@ -286,7 +287,8 @@ results/
 ├── 03_abundance/
 ├── 04_proximity/
 ├── 05_statistical_testing/
-└── 06_cell_visualization/
+├── 06_cell_visualization/
+└── 07_data_interpretation/
 ```
 
 ---

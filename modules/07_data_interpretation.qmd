@@ -1,0 +1,564 @@
+# 7. Data interpretation
+
+**Module 07 — Data interpretation (optional).** Map differential markers and colocalization partners to UniProt IDs from the PNA assay metadata and run panel-aware term enrichment to aid biological interpretation. Skip this module if you do not need enrichment or annotation context. Run after module `05` has produced differential abundance and colocalization results. Requires PXL / panel data that include a `uniprot_id` column in the PNA assay feature metadata (e.g. Proxiome Immuno 155 v2).
+
+> **Note:** Overrepresentation analysis on a ~155-protein panel has very low statistical power. Treat enrichment tables as exploratory context, not definitive pathway calls.
+
+```{r}
+#| label: module07_setup
+
+library(here)
+here::i_am("modules/07_data_interpretation.qmd")
+
+source(here::here("modules", "common_setup.R"))
+
+if (!exists("pg_data", inherits = TRUE)) {
+  pg_data <- load_checkpoint("annotated_seurat_object.rds")
+}
+
+dir.create(
+  here::here("results", "07_data_interpretation"),
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+```
+
+## 7.0. Set interpretation parameters
+
+> **Decision checkpoint** (significance cutoffs)  
+> Adjust `p_adj` and effect-size thresholds for markers from module `05` differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables.
+
+```{r}
+#| label: module07_parameters
+
+daa_p_adj_threshold <- 0.05
+daa_effect_size_threshold <- 0.5 # minimum |difference|; 0 keeps all significant markers
+
+coloc_p_adj_threshold <- 0.05
+coloc_effect_size_threshold <- 0.25 # minimum |diff_median|; 0 keeps all significant pairs
+```
+
+## 7.1. Load module 05 results
+
+```{r}
+#| label: module07_load_module05_results
+
+daa_path <- here::here(
+  "results/05_statistical_testing/abundance/differential_abundance_analysis.rds"
+)
+coloc_path <- here::here(
+  "results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"
+)
+
+if (!file.exists(daa_path) || !file.exists(coloc_path)) {
+  stop(
+    "Module 05 results not found. Run statistical testing first.\n",
+    "Expected:\n  ", daa_path, "\n  ", coloc_path
+  )
+}
+
+if (!exists("differential_abundance_analysis", inherits = TRUE)) {
+  differential_abundance_analysis <- readRDS(daa_path)
+}
+if (!exists("differential_colocalization_analysis", inherits = TRUE)) {
+  differential_colocalization_analysis <- readRDS(coloc_path)
+}
+```
+
+## 7.2. Build protein sets
+
+Significant markers from differential abundance and unique markers from significant colocalization pairs are collected per cell type, contrast, and direction of change. Positive effect sizes (`difference` / `diff_median` > 0) are labeled `up` (higher in the target condition); negative values are labeled `down`. Enrichment is run separately for each direction.
+
+```{r}
+#| label: module07_build_protein_sets
+
+daa_sets <-
+  differential_abundance_analysis |>
+  filter(
+    p_adj < daa_p_adj_threshold,
+    abs(difference) >= daa_effect_size_threshold,
+    difference != 0
+  ) |>
+  mutate(direction = if_else(difference > 0, "up", "down")) |>
+  group_by(source = "differential_abundance", group, target, direction) |>
+  summarise(
+    markers = list(sort(unique(marker))),
+    n_markers = n_distinct(marker),
+    .groups = "drop"
+  )
+
+coloc_sets <-
+  differential_colocalization_analysis |>
+  filter(
+    p_adj < coloc_p_adj_threshold,
+    abs(diff_median) >= coloc_effect_size_threshold,
+    diff_median != 0
+  ) |>
+  mutate(direction = if_else(diff_median > 0, "up", "down")) |>
+  group_by(source = "differential_colocalization", group, target, direction) |>
+  summarise(
+    markers = list(sort(unique(c(marker_1, marker_2)))),
+    .groups = "drop"
+  ) |>
+  mutate(n_markers = map_int(markers, length))
+
+protein_sets <-
+  bind_rows(daa_sets, coloc_sets) |>
+  filter(n_markers > 0)
+
+if (nrow(protein_sets) == 0) {
+  warning(
+    "No protein sets passed the current thresholds. ",
+    "Relax p_adj / effect-size cutoffs or check module 05 outputs."
+  )
+} else {
+  print(
+    protein_sets |>
+      select(source, group, target, direction, n_markers) |>
+      arrange(source, group, target, direction)
+  )
+}
+```
+
+## 7.3. Map markers to UniProt IDs
+
+This step reads `uniprot_id` from the PNA assay feature metadata for every panel marker. When a marker maps to several accessions (semicolon-separated), each accession becomes its own row. The protein sets from section 7.2 are then annotated with those UniProt IDs. The set of all panel UniProt IDs is kept as `panel_uniprot_universe` for enrichment.
+
+```{r}
+#| label: module07_id_mapping
+
+pna_feature_meta <- pg_data[["PNA"]][[]]
+if (!"uniprot_id" %in% colnames(pna_feature_meta)) {
+  stop(
+    "Column 'uniprot_id' not found in PNA assay feature metadata.\n",
+    "Use a PXL / panel that includes UniProt IDs (e.g. Proxiome Immuno 155 v2)."
+  )
+}
+
+# Use the panel 'marker' column (meta rownames are not reliable on PNAAssay5).
+# Seurat stores feature names with '-' instead of '_'.
+marker_uniprot_map <-
+  pna_feature_meta %>%
+  as_tibble(rownames = "marker") %>%
+  select(marker, uniprot_id) |>
+  separate_rows(uniprot_id, sep = ";")
+
+panel_uniprot_universe <- sort(unique(marker_uniprot_map$uniprot_id))
+
+protein_sets <-
+  protein_sets |>
+  mutate(
+    uniprot_ids = map(
+      markers,
+      \(m) {
+        marker_uniprot_map |>
+          filter(marker %in% m) |>
+          pull(uniprot_id) |>
+          unique() |>
+          sort()
+      }
+    ),
+    n_uniprot = map_int(uniprot_ids, length)
+  )
+
+message(
+  "Mapped ", n_distinct(marker_uniprot_map$marker), " markers to ",
+  length(panel_uniprot_universe), " UniProt IDs"
+)
+if (nrow(protein_sets) > 0) {
+  print(
+    protein_sets |>
+      select(source, group, target, direction, n_markers, n_uniprot) |>
+      arrange(source, group, target, direction)
+  )
+}
+
+write_csv(
+  protein_sets |>
+    mutate(
+      markers = map_chr(markers, paste, collapse = ";"),
+      uniprot_ids = map_chr(uniprot_ids, paste, collapse = ";")
+    ) |>
+    select(
+      source, group, target, direction,
+      n_markers, n_uniprot, markers, uniprot_ids
+    ),
+  here::here("results/07_data_interpretation/protein_sets.csv")
+)
+```
+
+## 7.4. GO Biological Process enrichment
+
+For each protein set (cell type × contrast × direction), UniProt IDs are tested for overrepresentation in GO Biological Process terms against the panel UniProt universe using a Fisher / hypergeometric test (`clusterProfiler::enricher`).
+
+Plots: a term overview bar chart, then a term × marker map where each point marks membership, colored by condition effect size and sized by significance.
+
+```{r}
+#| label: module07_enrichment
+
+top_n_terms <- 10
+
+safe_plot_stem <- function(...) {
+  gsub("[^A-Za-z0-9._-]+", "_", paste(..., sep = "__"))
+}
+
+set_label <- function(group, target, source, direction) {
+  paste(group, target, source, direction, sep = " | ")
+}
+
+go_ann <-
+  suppressMessages(
+    AnnotationDbi::select(
+      org.Hs.eg.db::org.Hs.eg.db,
+      keys = panel_uniprot_universe,
+      columns = c("GO", "ONTOLOGY"),
+      keytype = "UNIPROT"
+    )
+  ) |>
+  as_tibble() |>
+  filter(ONTOLOGY == "BP", !is.na(GO)) |>
+  distinct(term = GO, gene = UNIPROT)
+
+term2name <-
+  clusterProfiler::go2term(unique(go_ann$term)) |>
+  as_tibble() |>
+  rename(term = go_id, name = Term)
+
+enrich_one_set <- function(ids) {
+  if (length(ids) < 2) {
+    return(NULL)
+  }
+  res <- tryCatch(
+    clusterProfiler::enricher(
+      gene = ids,
+      universe = panel_uniprot_universe,
+      TERM2GENE = go_ann,
+      TERM2NAME = term2name,
+      pvalueCutoff = 0.05,
+      qvalueCutoff = 0.2,
+      minGSSize = 2,
+      maxGSSize = 500
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(res) || nrow(res) == 0) {
+    return(NULL)
+  }
+  as_tibble(as.data.frame(res))
+}
+
+enrichment_results <-
+  protein_sets |>
+  filter(n_uniprot >= 2) |>
+  mutate(enrich = map(uniprot_ids, enrich_one_set)) |>
+  filter(!map_lgl(enrich, is.null)) |>
+  select(source, group, target, direction, enrich) |>
+  unnest(enrich)
+
+write_csv(
+  enrichment_results,
+  here::here("results/07_data_interpretation/enrichment_results.csv")
+)
+
+if (nrow(enrichment_results) == 0) {
+  term_marker_hits <- tibble(
+    source = character(),
+    group = character(),
+    target = character(),
+    direction = character(),
+    ID = character(),
+    Description = character(),
+    p.adjust = double(),
+    Count = integer(),
+    uniprot_id = character(),
+    marker = character()
+  )
+  message("No enriched GO BP terms found for the current protein sets.")
+} else {
+  set_markers_long <-
+    protein_sets |>
+    select(source, group, target, direction, markers) |>
+    unnest_longer(markers, values_to = "marker")
+
+  term_marker_hits <-
+    enrichment_results |>
+    select(
+      source, group, target, direction,
+      ID, Description, p.adjust, Count, geneID
+    ) |>
+    separate_rows(geneID, sep = "/") |>
+    rename(uniprot_id = geneID) |>
+    left_join(
+      marker_uniprot_map |> distinct(uniprot_id, marker),
+      by = "uniprot_id",
+      relationship = "many-to-many"
+    ) |>
+    # Keep only markers that belonged to this directed protein set (avoids
+    # pulling opposite-direction markers via shared UniProt IDs).
+    inner_join(
+      set_markers_long,
+      by = c("source", "group", "target", "direction", "marker")
+    )
+
+  print(
+    enrichment_results |>
+      select(
+        source, group, target, direction,
+        ID, Description, Count, p.adjust
+      ) |>
+      arrange(p.adjust) |>
+      head(20)
+  )
+}
+
+write_csv(
+  term_marker_hits,
+  here::here("results/07_data_interpretation/term_marker_hits.csv")
+)
+```
+
+### 7.4.1. Term overview
+
+Horizontal bars of the top enriched GO BP terms per protein set (`-log10` adjusted *p*).
+
+```{r}
+#| label: module07_viz_term_overview
+
+if (nrow(enrichment_results) == 0) {
+  message("Skipping term-overview plots: no enrichment results.")
+} else {
+  enrichment_plot_dir <- here::here(
+    "results/07_data_interpretation/go_bp_enrichment"
+  )
+  dir.create(enrichment_plot_dir, recursive = TRUE, showWarnings = FALSE)
+
+  enrichment_sets <-
+    enrichment_results |>
+    distinct(source, group, target, direction)
+
+  for (i in seq_len(nrow(enrichment_sets))) {
+    set_source <- enrichment_sets$source[[i]]
+    set_group <- enrichment_sets$group[[i]]
+    set_target <- enrichment_sets$target[[i]]
+    set_direction <- enrichment_sets$direction[[i]]
+
+    set_plot_data <-
+      enrichment_results |>
+      filter(
+        source == set_source,
+        group == set_group,
+        target == set_target,
+        direction == set_direction
+      ) |>
+      slice_min(order_by = p.adjust, n = top_n_terms, with_ties = FALSE)
+
+    enrichment_plot <-
+      set_plot_data |>
+      ggplot(aes(x = -log10(p.adjust), y = reorder(Description, p.adjust))) +
+      geom_col() +
+      labs(
+        title = "GO Biological Process enrichment",
+        subtitle = set_label(set_group, set_target, set_source, set_direction),
+        x = expression(-log[10](adjusted ~ p)),
+        y = NULL
+      ) +
+      theme_minimal()
+
+    export_plot(
+      enrichment_plot,
+      filename = file.path(
+        enrichment_plot_dir,
+        safe_plot_stem(set_source, set_group, set_target, set_direction)
+      ),
+      width = 8,
+      height = max(4, nrow(set_plot_data) * 0.35 + 1.5)
+    )
+  }
+}
+```
+
+### 7.4.2. Term × marker map
+
+Point map of top-term membership: a point means the marker belongs to the term; color is the condition effect size and size is `-log10(p_adj)` from module 05 (abundance `difference` for DAA sets; mean pair `diff_median` for coloc sets).
+
+```{r}
+#| label: module07_viz_term_marker
+
+if (nrow(term_marker_hits) == 0) {
+  message("Skipping term-marker maps: no term membership rows.")
+} else {
+  term_marker_plot_dir <- here::here(
+    "results/07_data_interpretation/go_bp_term_marker"
+  )
+  dir.create(term_marker_plot_dir, recursive = TRUE, showWarnings = FALSE)
+
+  enrichment_sets <-
+    enrichment_results |>
+    distinct(source, group, target, direction)
+
+  term_marker_plot_sets <- list()
+
+  for (i in seq_len(nrow(enrichment_sets))) {
+    set_source <- enrichment_sets$source[[i]]
+    set_group <- enrichment_sets$group[[i]]
+    set_target <- enrichment_sets$target[[i]]
+    set_direction <- enrichment_sets$direction[[i]]
+
+    top_terms <-
+      enrichment_results |>
+      filter(
+        source == set_source,
+        group == set_group,
+        target == set_target,
+        direction == set_direction
+      ) |>
+      slice_min(order_by = p.adjust, n = top_n_terms, with_ties = FALSE)
+
+    set_hits <-
+      term_marker_hits |>
+      filter(
+        source == set_source,
+        group == set_group,
+        target == set_target,
+        direction == set_direction,
+        ID %in% top_terms$ID,
+        !is.na(marker)
+      ) |>
+      distinct(Description, marker)
+
+    if (nrow(set_hits) == 0) {
+      next
+    }
+
+    if (identical(set_source, "differential_abundance")) {
+      marker_effects <-
+        differential_abundance_analysis |>
+        filter(
+          group == set_group,
+          target == set_target,
+          (set_direction == "up" & difference > 0) |
+            (set_direction == "down" & difference < 0)
+        ) |>
+        select(marker, effect = difference, p_adj)
+      effect_legend <- "Difference"
+    } else {
+      marker_effects <-
+        differential_colocalization_analysis |>
+        filter(
+          group == set_group,
+          target == set_target,
+          (set_direction == "up" & diff_median > 0) |
+            (set_direction == "down" & diff_median < 0)
+        ) |>
+        select(marker_1, marker_2, diff_median, p_adj) |>
+        pivot_longer(
+          c(marker_1, marker_2),
+          names_to = NULL,
+          values_to = "marker"
+        ) |>
+        group_by(marker) |>
+        summarise(
+          effect = mean(diff_median),
+          p_adj = min(p_adj),
+          .groups = "drop"
+        )
+      effect_legend <- "Mean diff_median"
+    }
+
+    plot_data <-
+      set_hits |>
+      inner_join(marker_effects, by = "marker") |>
+      mutate(
+        neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
+        Description = factor(Description, levels = rev(top_terms$Description)),
+        marker = factor(marker, levels = sort(unique(marker)))
+      )
+
+    if (nrow(plot_data) == 0) {
+      next
+    }
+
+    term_marker_plot_sets[[length(term_marker_plot_sets) + 1]] <- list(
+      source = set_source,
+      group = set_group,
+      target = set_target,
+      direction = set_direction,
+      effect_legend = effect_legend,
+      plot_data = plot_data
+    )
+  }
+
+  if (length(term_marker_plot_sets) == 0) {
+    message("Skipping term-marker maps: no plottable membership rows.")
+  } else {
+    all_plot_data <- map_dfr(term_marker_plot_sets, "plot_data")
+
+    effect_limit <- max(abs(all_plot_data$effect), na.rm = TRUE)
+    if (!is.finite(effect_limit) || effect_limit == 0) {
+      effect_limit <- 1
+    }
+    color_limits <- c(-effect_limit, effect_limit)
+
+    size_max <- max(all_plot_data$neg_log10_p_adj, na.rm = TRUE)
+    if (!is.finite(size_max) || size_max <= 0) {
+      size_max <- 1
+    }
+    size_limits <- c(0, size_max)
+
+    for (plot_set in term_marker_plot_sets) {
+      plot_data <- plot_set$plot_data
+
+      term_marker_plot <-
+        plot_data |>
+        ggplot(aes(
+          x = marker,
+          y = Description,
+          color = effect,
+          size = neg_log10_p_adj
+        )) +
+        geom_point() +
+        scale_color_gradientn(
+          colors = gradient_palette,
+          limits = color_limits
+        ) +
+        scale_size_continuous(
+          range = c(1.5, 6),
+          limits = size_limits
+        ) +
+        labs(
+          title = "GO term × marker map",
+          subtitle = set_label(
+            plot_set$group,
+            plot_set$target,
+            plot_set$source,
+            plot_set$direction
+          ),
+          x = NULL,
+          y = NULL,
+          color = plot_set$effect_legend,
+          size = expression(-log[10](p[adj]))
+        ) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+          panel.grid.major = element_line(color = "grey90")
+        )
+
+      export_plot(
+        term_marker_plot,
+        filename = file.path(
+          term_marker_plot_dir,
+          safe_plot_stem(
+            plot_set$source,
+            plot_set$group,
+            plot_set$target,
+            plot_set$direction
+          )
+        ),
+        width = min(15, n_distinct(plot_data$marker) * 0.35 + 8),
+        height = max(4, n_distinct(plot_data$Description) * 0.35 + 2)
+      )
+    }
+  }
+}
+```

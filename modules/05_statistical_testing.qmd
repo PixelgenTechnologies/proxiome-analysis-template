@@ -28,7 +28,7 @@ By default, in this analysis we compare all conditions to a reference condition,
 ```{r}
 #| label: statistical_testing_set_reference
 
-reference_condition <- "resting"
+reference_condition <- "donor1"
 
 if (!reference_condition %in% metadata$condition) stop("The reference condition is not present in the sample metadata")
 ```
