@@ -695,9 +695,9 @@ for (target_condition in target_conditions) {
         marker_2 %in% plot_markers
       )
 
-    # Skip if no data for this combination
-    if (nrow(plot_data) == 0) {
-      warning(paste("No data found for target condition:", target_condition, "and cell type:", cell_type))
+    # Skip if insufficient data for this combination
+    if (nrow(plot_data) < 2) {
+      warning(paste("Insufficient data for plotting (", nrow(plot_data), "rows) for target condition:", target_condition, "and cell type:", cell_type))
       next
     }
 
