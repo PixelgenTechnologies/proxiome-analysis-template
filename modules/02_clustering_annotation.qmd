@@ -200,7 +200,7 @@ The resolution parameter is a critical hyperparameter that controls the granular
 pg_data <-
   pg_data |>
   FindNeighbors(reduction = "harmony", dims = 1:10) |>
-  FindClusters(random.seed = 1, resolution = 0.5)
+  FindClusters(random.seed = analysis_seed, resolution = 0.5)
 
 cell_metadata <-
   FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
