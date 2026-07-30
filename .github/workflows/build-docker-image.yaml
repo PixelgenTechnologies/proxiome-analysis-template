@@ -160,12 +160,8 @@ jobs:
           if [[ "${VERSION}" != v* && "${VERSION}" != "dev" ]]; then
             VERSION="v${VERSION}"
           fi
-          ARTIFACT_NAME="proxiome-analysis-template-example-${VERSION}-html"
-          ASSET="${ARTIFACT_NAME}.zip"
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=${ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "asset=${ASSET}" >> "${GITHUB_OUTPUT}"
-          echo "Resolved version=${VERSION}, artifact=${ARTIFACT_NAME}, release zip=${ASSET}"
+          echo "Resolved version=${VERSION}"
 
       - name: Download public PXL dataset
         run: |
@@ -184,7 +180,7 @@ jobs:
             "${IMAGE}" \
             bash -lc '
               set -euo pipefail
-              quarto render proxiome_analysis_template.qmd
+              quarto render proxiome_analysis_template.qmd --embed-resources
               test -f proxiome_analysis_template.html
             '
           df -h
@@ -192,32 +188,24 @@ jobs:
       - name: Prepare HTML outputs
         run: |
           rm -f data/*.layout.pxl
-          test -f proxiome_analysis_template.html
-          test -d proxiome_analysis_template_files
+          mv proxiome_analysis_template.html proxiome-analysis-template-example.html
+          test -f proxiome-analysis-template-example.html
 
       - name: Upload HTML smoke-test artifact
-        # Upload files directly — upload-artifact already wraps downloads in a zip,
-        # so pre-zipping here produced a zip-of-zip.
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.version.outputs.artifact_name }}
-          path: |
-            proxiome_analysis_template.html
-            proxiome_analysis_template_files
+          name: proxiome-analysis-template-example
+          path: proxiome-analysis-template-example.html
           if-no-files-found: error
 
-      - name: Package and upload HTML zip to GitHub Release
+      - name: Upload HTML to GitHub Release
         if: github.event_name == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.version }}
-          ASSET: ${{ steps.version.outputs.asset }}
         run: |
-          zip -r "${ASSET}" \
-            proxiome_analysis_template.html \
-            proxiome_analysis_template_files
-          ls -lh "${ASSET}"
-          gh release upload "${TAG}" "${ASSET}" --clobber
+          ls -lh proxiome-analysis-template-example.html
+          gh release upload "${TAG}" "proxiome-analysis-template-example.html" --clobber
 
   push-to-quay:
     name: Push image to Quay

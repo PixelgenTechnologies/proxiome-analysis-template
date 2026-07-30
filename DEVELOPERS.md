@@ -86,7 +86,7 @@ On merges to `main` and version tags, the image is pushed to `quay.io/pixelgen-t
 Jobs in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml):
 
 1. **Build Docker Image** (`ubuntu-latest`) — build the image. On ordinary `main`/tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
-2. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render`, upload HTML zip (and attach to the GitHub Release when applicable).
+2. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render --embed-resources`, upload the self-contained HTML (and attach to the GitHub Release when applicable).
 3. **Push image to Quay** (`ubuntu-latest`, smoke path only) — after a successful smoke test, promote the staging image to the publish tag list computed in the build job (passed as a multiline job output) via `docker buildx imagetools create` (registry-side retag, no image tarball).
 
 Behavior by event:
@@ -99,19 +99,19 @@ To smoke-test a branch: Actions → **Build** → Run workflow → leave “run 
 
 ### HTML smoke test
 
-When the smoke test runs, CI downloads donors 1 and 3 from the public [16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (~7.1 GiB) and runs `quarto render proxiome_analysis_template.qmd` in the image from the same build.
+When the smoke test runs, CI downloads donors 1 and 3 from the public [16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (~7.1 GiB) and runs `quarto render proxiome_analysis_template.qmd --embed-resources` in the image from the same build (single self-contained HTML file).
 
 **When it runs**
 
-- **Published Release** — always (HTML zip attached to the Release)
+- **Published Release** — always (self-contained HTML attached to the Release)
 - **workflow_dispatch** — when “run smoke test” is enabled (default on)
 - **Not** on ordinary `main` pushes or pull requests (too expensive: ~7.1 GiB download + long render)
 
 **What it does**
 
 1. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
-2. Render the master QMD in the built image.
-3. Upload the rendered HTML (and `_files/`) as an Actions artifact named `proxiome-analysis-template-example-vX.Y.Z-html`. On Release, also zip those files and attach `…-html.zip` to the GitHub Release (the Actions download is already a zip, so the workflow does not pre-zip the artifact).
+2. Render the master QMD in the built image with `--embed-resources`.
+3. Upload the self-contained HTML as an Actions artifact named `proxiome-analysis-template-example`. On Release, attach `proxiome-analysis-template-example.html` to the GitHub Release (stable filename for `releases/latest/download/...`).
 
 **Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 

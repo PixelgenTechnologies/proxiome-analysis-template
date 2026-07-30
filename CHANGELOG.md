@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Example / smoke-test data switched from the 1k PBMC resting/PHA pair to donors 1 and 3 from [Resting PBMCs from 16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) (UniProt-bearing Proxiome Immuno 155 v2 panel). `condition` is `donor1` / `donor3`; module `05` `reference_condition` defaults to `"donor1"`.
+- HTML smoke-test release asset is now a self-contained `proxiome-analysis-template-example.html` (no zip, no version in the filename) for a stable `releases/latest/download/...` URL.
 
 ## [0.5.2] 2026-07-21
 
