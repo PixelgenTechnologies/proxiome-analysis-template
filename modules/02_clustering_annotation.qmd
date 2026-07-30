@@ -142,7 +142,8 @@ pg_data <-
     reduction = "harmony",
     dims = 1:20,
     reduction.name = "harmony_umap",
-    n.neighbors = n_neighbors
+    n.neighbors = n_neighbors,
+    seed.use = analysis_seed
   )
 
 cell_metadata <-
