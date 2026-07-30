@@ -39,6 +39,14 @@ if (packageVersion("pixelatorR") < "0.18.3") {
   )
 }
 
+# Global seed for reproducibility. common_setup.R is sourced at the top of every
+# module, so setting the seed here makes stochastic steps (UMAP, clustering, PLS,
+# etc.) reproducible across runs. 42 matches Seurat's default seed.use. The
+# stochastic Seurat calls in module 02 also pass analysis_seed explicitly
+# (seed.use / random.seed).
+analysis_seed <- 42
+set.seed(analysis_seed)
+
 options(
   export_plot.overwrite = TRUE
 )
