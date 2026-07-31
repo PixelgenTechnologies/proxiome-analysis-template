@@ -1,6 +1,6 @@
 ---
 title: "Proxiome Analysis Template"
-subtitle: "v0.6.1"
+subtitle: "v0.6.2"
 format:
   html:
     toc: true
@@ -78,3 +78,10 @@ This template describes a standard workflow for analyzing single cell PNA data u
 {{< include modules/06_cell_visualization.qmd >}}
 
 {{< include modules/07_data_interpretation.qmd >}}
+
+## Session Info
+
+```{r}
+#| label: session-info
+sessionInfo()
+```

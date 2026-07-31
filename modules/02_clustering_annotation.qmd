@@ -53,8 +53,8 @@ npcs <- 20
 n_neighbors <- 30
 pg_data <-
   pg_data |>
-  RunPCA(npcs = npcs, features = selected_markers) |>
-  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors)
+  RunPCA(npcs = npcs, features = selected_markers, seed.use = analysis_seed) |>
+  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors, seed.use = analysis_seed)
 
 pca_red <-
   Reductions(pg_data, "pca")
@@ -142,7 +142,8 @@ pg_data <-
     reduction = "harmony",
     dims = 1:20,
     reduction.name = "harmony_umap",
-    n.neighbors = n_neighbors
+    n.neighbors = n_neighbors,
+    seed.use = analysis_seed
   )
 
 cell_metadata <-
@@ -199,7 +200,7 @@ The resolution parameter is a critical hyperparameter that controls the granular
 pg_data <-
   pg_data |>
   FindNeighbors(reduction = "harmony", dims = 1:10) |>
-  FindClusters(random.seed = 1, resolution = 0.5)
+  FindClusters(random.seed = analysis_seed, resolution = 0.5)
 
 cell_metadata <-
   FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
