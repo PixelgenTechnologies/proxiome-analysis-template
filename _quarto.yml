@@ -1,6 +1,0 @@
-project:
-  type: default
-
-execute:
-  seed: 42
-  echo: true
