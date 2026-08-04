@@ -122,7 +122,7 @@ if (nrow(protein_sets) == 0) {
 
 ## 7.3. Map markers to UniProt IDs
 
-This step reads `uniprot_id` from the PNA assay feature metadata for every panel marker. When a marker maps to several accessions (semicolon-separated), each accession becomes its own row. The protein sets from section 7.2 are then annotated with those UniProt IDs. The set of all panel UniProt IDs is kept as `panel_uniprot_universe` for enrichment.
+This step reads `uniprot_id` from the PNA assay feature metadata for every panel marker. When a marker maps to several accessions (semicolon-separated), only the first (primary) accession is kept so ORA uses only one UniProt ID per marker. The protein sets from section 7.2 are then annotated with those UniProt IDs. The set of all panel UniProt IDs is kept as `panel_uniprot_universe` for enrichment.
 
 ```{r}
 #| label: module07_id_mapping
@@ -137,11 +137,13 @@ if (!"uniprot_id" %in% colnames(pna_feature_meta)) {
 
 # Use the panel 'marker' column (meta rownames are not reliable on PNAAssay5).
 # Seurat stores feature names with '-' instead of '_'.
+# Primary UniProt only (first accession) so enrichment does not double-count
+# multi-ID markers (e.g. HLA-ABC, CD8).
 marker_uniprot_map <-
   pna_feature_meta %>%
   as_tibble(rownames = "marker") %>%
   select(marker, uniprot_id) |>
-  separate_rows(uniprot_id, sep = ";")
+  mutate(uniprot_id = sub(";.*$", "", uniprot_id))
 
 panel_uniprot_universe <- sort(unique(marker_uniprot_map$uniprot_id))
 
