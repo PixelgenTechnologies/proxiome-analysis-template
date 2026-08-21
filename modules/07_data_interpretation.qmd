@@ -25,11 +25,18 @@ dir.create(
 
 ## 7.0. Set interpretation parameters
 
-> **Decision checkpoint** (significance cutoffs)  
-> Adjust `p_adj` and effect-size thresholds for markers from module `05` differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables.
+> **Decision checkpoint** (module 05 inputs and significance cutoffs)  
+> Set `stats_method` to `"cell_level"` (default; Wilcoxon) or `"pseudobulk"` (limma) to choose which module `05` results feed enrichment.  
+> Adjust `p_adj` and effect-size thresholds for differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables. Limma effect sizes are often smaller than cell-level Wilcoxon differences — consider relaxing thresholds when using `"pseudobulk"`.
 
 ```{r}
 #| label: module07_parameters
+
+# Which module 05 outputs to use: "cell_level" (Wilcoxon) or "pseudobulk" (limma)
+stats_method <- "cell_level"
+if (!stats_method %in% c("cell_level", "pseudobulk")) {
+  stop('stats_method must be "cell_level" or "pseudobulk"')
+}
 
 daa_p_adj_threshold <- 0.05
 daa_effect_size_threshold <- 0.5 # minimum |difference|; 0 keeps all significant markers
@@ -44,18 +51,30 @@ coloc_effect_size_threshold <- 0.25 # minimum |diff_median|; 0 keeps all signifi
 #| label: module07_load_module05_results
 
 daa_path <- here::here(
-  "results/05_statistical_testing/abundance/differential_abundance_analysis.rds"
+  "results/05_statistical_testing/abundance",
+  stats_method,
+  "differential_abundance_analysis.rds"
 )
 coloc_path <- here::here(
-  "results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"
+  "results/05_statistical_testing/colocalization",
+  stats_method,
+  "differential_colocalization_analysis.rds"
 )
 
 if (!file.exists(daa_path) || !file.exists(coloc_path)) {
   stop(
-    "Module 05 results not found. Run statistical testing first.\n",
-    "Expected:\n  ", daa_path, "\n  ", coloc_path
+    "Module 05 results not found for stats_method = \"", stats_method, "\". ",
+    "Run statistical testing first",
+    if (identical(stats_method, "pseudobulk")) {
+      " with run_pseudobulk <- TRUE"
+    } else {
+      ""
+    },
+    ".\nExpected:\n  ", daa_path, "\n  ", coloc_path
   )
 }
+
+message("Loading module 05 results from ", stats_method, "/")
 
 if (!exists("differential_abundance_analysis", inherits = TRUE)) {
   differential_abundance_analysis <- readRDS(daa_path)

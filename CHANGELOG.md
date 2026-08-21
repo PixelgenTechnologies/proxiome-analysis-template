@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Custom data locations: set `data_dir` at the top of `modules/common_setup.R` when `metadata.csv` and PXL files are not in the project `data/` folder. The `file_path` column in `metadata.csv` accepts a filename in `data_dir`, a relative path, or an absolute path.
+- Optional limma pseudobulk path in module `05` (setup in §5.4; tests in §§5.5–5.7): sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization when `run_pseudobulk <- TRUE` (≥2 `sample_alias` per `condition`). Each modality now has parallel `cell_level/` (Wilcoxon) and `pseudobulk/` (limma) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency added: `limma`.
 
 ### Removed
 
