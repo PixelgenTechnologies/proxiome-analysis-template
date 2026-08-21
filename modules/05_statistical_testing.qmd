@@ -663,6 +663,8 @@ if ("target" %in% colnames(differential_colocalization_analysis)) {
 unique_cell_types <- unique(differential_colocalization_analysis$group)
 unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
 
+show_only_sign <- TRUE # Show only significant results (p_adj < 0.001)
+
 # Loop through each target condition and cell type combination
 for (target_condition in target_conditions) {
   # Create directory name based on target and reference
@@ -680,26 +682,43 @@ for (target_condition in target_conditions) {
       differential_colocalization_analysis %>%
       filter(group == cell_type & target == target_condition)
 
-    plot_markers <-
-      plot_data %>%
-      filter(p_adj < 0.001) %>%
-      select(marker_1, marker_2) %>%
-      deframe() %>%
-      unique() %>%
-      head(14)
-
     plot_data <-
       plot_data %>%
-      filter(
-        marker_1 %in% plot_markers,
-        marker_2 %in% plot_markers
-      )
+      filter(p_adj < 0.001) %>%
+      arrange(desc(abs(diff_median)))
+
+    if (!show_only_sign) {
+      plot_markers <-
+        plot_data %>%
+        select(marker_1, marker_2) %>%
+        unlist() %>%
+        unique() %>%
+        head(20)
+
+      plot_data <-
+        plot_data %>%
+        filter(
+          marker_1 %in% plot_markers,
+          marker_2 %in% plot_markers
+        )
+    } else {
+      plot_data <-
+        plot_data %>%
+        head(500)
+    }
 
     # Skip if insufficient data for this combination
     if (nrow(plot_data) < 2) {
       warning(paste("Insufficient data for plotting (", nrow(plot_data), "rows) for target condition:", target_condition, "and cell type:", cell_type))
       next
     }
+
+    n_plot_markers <-
+      plot_data %>%
+      select(marker_1, marker_2) %>%
+      unlist() %>%
+      unique() %>%
+      length()
 
     # Create the colocalization heatmap plot
     # Add title indicating the target and cell type
@@ -727,8 +746,8 @@ for (target_condition in target_conditions) {
     export_plot(
       filename = file.path(cell_type_dir, "colocalization_heatmap"),
       plot = colocalization_heatmap,
-      width = max(c(4, length(plot_markers) * 0.15 + 1.5)),
-      height = max(c(4, length(plot_markers) * 0.15 + 3))
+      width = max(c(4, n_plot_markers * 0.15 + 1.5)),
+      height = max(c(4, n_plot_markers * 0.15 + 3))
     )
   }
 }
