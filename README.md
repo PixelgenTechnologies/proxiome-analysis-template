@@ -148,7 +148,7 @@ Open the R project file in RStudio by double-clicking `proxiome_analysis_templat
 install.packages("pak")
 
 # Install packages
-pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR"))
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "limma", "PixelgenTechnologies/pixelatorR"))
 
 ```
 
@@ -244,6 +244,8 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, `modules/06_cell_visualization.qmd` for single-cell graph plots, and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after module `05`)
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
+
+Module `05` defaults to cell-level Wilcoxon tests. For replicate-aware testing, set `run_pseudobulk <- TRUE` in §5.0 to also run limma on sample-level aggregates (mean CLR / mean `log2_ratio`). That path needs **≥2 `sample_alias` values per `condition`**. Each modality writes parallel folders: `cell_level/` (Wilcoxon) and `pseudobulk/` (limma), each with csv/rds at the folder root and plots per contrast / cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment.
 
 ### Iterate on downstream modules
 

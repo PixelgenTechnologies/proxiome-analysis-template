@@ -146,6 +146,7 @@ install.packages("pak")
 pak::pak(c(
   "tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls",
   "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap",
+  "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "limma",
   "PixelgenTechnologies/pixelatorR"
 ))
 ```

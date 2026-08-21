@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unpublished
+
+### Added
+
+- Optional limma pseudobulk path in module `05` (setup in §5.4; tests in §§5.5–5.7): sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization when `run_pseudobulk <- TRUE` (≥2 `sample_alias` per `condition`). Each modality now has parallel `cell_level/` (Wilcoxon) and `pseudobulk/` (limma) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency: `limma`.
+
+### Changed
+
+- Pseudobulk clustering and colocalization now share one sample-level proximity table (`FilterProximityScores` + `SummarizeProximityScores`). Colocalization tests off-diagonal pairs only (`marker_1 != marker_2`).
+
 ## [0.6.2] 2026-07-31
 
 ### Added
