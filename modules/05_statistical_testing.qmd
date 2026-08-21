@@ -663,7 +663,7 @@ if ("target" %in% colnames(differential_colocalization_analysis)) {
 unique_cell_types <- unique(differential_colocalization_analysis$group)
 unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
 
-show_only_sign <- TRUE  # Show only significant results (p_adj < 0.001)
+show_only_sign <- TRUE # Show only significant results (p_adj < 0.001)
 
 # Loop through each target condition and cell type combination
 for (target_condition in target_conditions) {
@@ -681,14 +681,13 @@ for (target_condition in target_conditions) {
     plot_data <-
       differential_colocalization_analysis %>%
       filter(group == cell_type & target == target_condition)
-    
-    plot_data <- 
+
+    plot_data <-
       plot_data %>%
-      filter(p_adj < 0.001) %>% 
-      arrange(desc(abs(diff_median))) 
-    
+      filter(p_adj < 0.001) %>%
+      arrange(desc(abs(diff_median)))
+
     if (!show_only_sign) {
-      
       plot_markers <-
         plot_data %>%
         select(marker_1, marker_2) %>%
@@ -703,7 +702,7 @@ for (target_condition in target_conditions) {
           marker_2 %in% plot_markers
         )
     } else {
-      plot_data <- 
+      plot_data <-
         plot_data %>%
         head(500)
     }
