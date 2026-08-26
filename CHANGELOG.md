@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Optional limma pseudobulk path in module `05` (setup in §5.4; tests in §§5.5–5.7): sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization when `run_pseudobulk <- TRUE` (≥2 `sample_alias` per `condition`). Each modality now has parallel `cell_level/` (Wilcoxon) and `pseudobulk/` (limma) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency: `limma`.
+- Optional **pseudobulk smoke** on the Build workflow (`workflow_dispatch` input `run_pseudobulk_smoke`, default off): after HTML smoke, [`.github/smoke-test/smoke_pseudobulk.R`](.github/smoke-test/smoke_pseudobulk.R) builds technical replicates from the annotated checkpoint and re-renders module `05` with `PAT_SMOKE_PSEUDOBULK=1`. Release / default smoke unchanged.
 
 ### Changed
 
