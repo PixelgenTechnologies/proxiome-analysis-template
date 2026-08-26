@@ -937,8 +937,10 @@ pseudobulk_limma_fit <- function(
       )
     }
 
+    # Drop the intercept from ~ covariates: condition already uses ~ 0 +
+    # condition, so keeping (Intercept) would make the design rank-deficient.
     covar_formula <- as.formula(paste0("~ ", paste(covariate_cols, collapse = " + ")))
-    covar_design <- model.matrix(covar_formula, data = sample_info)
+    covar_design <- model.matrix(covar_formula, data = sample_info)[, -1, drop = FALSE]
     design <- cbind(condition_design, covar_design)
   }
 
@@ -947,9 +949,11 @@ pseudobulk_limma_fit <- function(
     return(tibble())
   }
   contrast_strings <- paste0(targets, "-", reference_condition)
+  # Levels must match lmFit's design (conditions + covariates). Contrasts
+  # only involve condition columns; covariate coefficients stay at 0.
   contrast_matrix <- limma::makeContrasts(
     contrasts = contrast_strings,
-    levels = condition_design
+    levels = design
   )
   fit <- limma::lmFit(expr_mat, design)
   fit2 <- limma::eBayes(limma::contrasts.fit(fit, contrast_matrix))
