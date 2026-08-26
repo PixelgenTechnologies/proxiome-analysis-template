@@ -35,7 +35,13 @@ reference_condition <- "donor1"
 
 # Optional sample-level limma path (sections 5.5–5.7). Requires ≥2 samples
 # (sample_alias) per condition. Default FALSE so the bundled example still renders.
+# CI pseudobulk smoke sets PAT_SMOKE_PSEUDOBULK=1 after technical-split checkpoints
+# (see .github/smoke-test/smoke_pseudobulk.R); that also skips cell-level Wilcoxon.
 run_pseudobulk <- FALSE
+if (identical(Sys.getenv("PAT_SMOKE_PSEUDOBULK"), "1")) {
+  run_pseudobulk <- TRUE
+  message("PAT_SMOKE_PSEUDOBULK=1: enabling limma pseudobulk; skipping cell-level Wilcoxon")
+}
 
 # Minimum cells per sample × cell type before including that pseudobulk observation
 pseudobulk_min_cells <- 5L
@@ -61,6 +67,7 @@ Results are organized by cell type and include both the raw statistical outputs 
 
 ```{r}
 #| label: statistical_testing_differential_abundance_analysis
+#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
 
 differential_abundance_analysis <-
   names(markers_to_test) |>
@@ -103,6 +110,7 @@ Here we create two types of summarizing plots for the differential abundance ana
 
 ```{r}
 #| label: statistical_testing_differential_abundance_plots
+#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
 
 # Determine the effect size column name
 effect_size_col <- "difference"
@@ -330,6 +338,7 @@ The analysis is performed separately for each cell type, comparing clustering pa
 
 ```{r}
 #| label: statistical_testing_differential_proximity
+#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
 
 differential_clustering_analysis <-
   names(markers_to_test) |>
@@ -386,6 +395,7 @@ Here we create two types of summarizing plots for the differential clustering an
 
 ```{r}
 #| label: statistical_testing_differential_clustering_plots
+#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
 
 # Determine the effect size column name
 effect_size_col <- "diff_median"
@@ -611,7 +621,7 @@ Differential colocalization analysis identifies markers that exhibit statistical
 
 ```{r}
 #| label: statistical_testing_differential_colocalization
-
+#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
 
 differential_colocalization_analysis <-
   names(markers_to_test) |>
@@ -664,6 +674,7 @@ Here we create summarizing plots for the differential colocalization analysis re
 
 ```{r}
 #| label: statistical_testing_differential_colocalization_plot
+#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
 
 # Determine target conditions - check if dataframe has target/contrast columns
 if ("target" %in% colnames(differential_colocalization_analysis)) {
