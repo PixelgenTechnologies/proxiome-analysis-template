@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Standardised analysis modules on the native R pipe `|>` (PNA-2362). Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
+- Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
 
 ## [0.6.3] 2026-08-20
 
