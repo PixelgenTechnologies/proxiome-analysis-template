@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Standardised analysis modules on the native R pipe `|>` (PNA-2362). Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
+
 ## [0.6.3] 2026-08-20
 
 ### Fixed
