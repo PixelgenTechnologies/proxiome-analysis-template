@@ -176,7 +176,7 @@ Mount your `data/` folder so your PXL files and `metadata.csv` are available ins
 
 ## Prepare Your Data
 
-When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below.
+When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below. If your files live somewhere else, keep `metadata.csv` in `data/` and put a full path in each `file_path` cell, or point `data_dir` in `modules/common_setup.R` (or the `PAT_DATA_DIR` environment variable) at that folder.
 
 ### Project structure
 
@@ -208,7 +208,7 @@ The `metadata.csv` file describes **your** samples and links them to the corresp
 | `sample_id` | ✓ | Unique identifier | `S1` |
 | `sample_alias` | ✓ | Descriptive name | `S1_donor1` |
 | `condition` | ✓ | Experimental group | `donor1` |
-| `file_path` | ✓ | PXL filename (not full path) | `Sample1.layout.pxl` |
+| `file_path` | ✓ | PXL filename in `data/` (or `data_dir`), or a full/relative path | `Sample1.layout.pxl` |
 | *other* | | Any extra columns (`donor`, `batch`, etc.) | - |
 
 > 💡 Extra columns are available as variables in the template for grouping or covariates.
@@ -223,7 +223,14 @@ S1,S1_donor1,donor1,PBMCs_resting_S01_HG2.layout.pxl,donor1,58,Female
 S2,S2_donor3,donor3,PBMCs_resting_S01_HG6.layout.pxl,donor3,21,Female
 ```
 
-> 📝 Row order controls plot order. Both `,` and `;` separators work. Every `file_path` must match a file in `data/`.
+> 📝 Row order controls plot order. Both `,` and `;` separators work. Every `file_path` must resolve to an existing `.pxl` file: a filename in `data/` (or `data_dir`), a path relative to the project, or an absolute path.
+
+### Custom data location
+
+By default the template reads `metadata.csv` and filename-only `file_path` values from `data/`. To use files elsewhere:
+
+1. **Full paths in `metadata.csv`** — keep `metadata.csv` in `data/` and set `file_path` to an absolute path (or a path relative to the project), for example `/mnt/shared/PBMCs_resting_S01_HG2.layout.pxl`.
+2. **Shared data folder** — in `modules/common_setup.R`, set `data_dir` to that folder (it must contain `metadata.csv`). Filenames in `file_path` are then resolved there. You can also set the `PAT_DATA_DIR` environment variable, which overrides `data_dir`.
 
 ---
 
@@ -266,7 +273,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 
 | Module | What to do |
 |--------|------------|
-| **01 — sample table** | Check `metadata.csv` paths and sample IDs match your data |
+| **01 — sample table** | Check `metadata.csv` paths and sample IDs match your data; set `data_dir` if files are not in `data/` |
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.5 onward |
 | **01 — marker selection** | Review `selected_markers` after running the selection code |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
@@ -337,8 +344,8 @@ Run the Setup chunk in `modules/01_quality_control.qmd` first.
 <summary><strong>File not found</strong></summary>
 
 1. Open the project via `proxiome_analysis_template.Rproj`
-2. Check that PXL files are in `data/`
-3. Verify filenames in `metadata.csv` match exactly
+2. Check that PXL files are in `data/` (or the folder in `data_dir` / `PAT_DATA_DIR`)
+3. Verify `file_path` values in `metadata.csv` match those files (filename, relative path, or full path)
 
 </details>
 

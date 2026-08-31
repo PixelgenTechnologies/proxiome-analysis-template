@@ -1,3 +1,48 @@
+is_absolute_path <- function(path) {
+  return(grepl("^(?:[A-Za-z]:[\\\\/]|\\\\\\\\|/)", path))
+}
+
+#' Resolve a data file from a filename, relative path, or absolute path.
+#'
+#' Filenames are looked up in `data_dir`. Absolute paths (and `~` paths) are
+#' used as given. Relative paths that already exist from the working directory
+#' are accepted so `data/file.pxl`-style values still work.
+#'
+#' @param file_path Character path from metadata or configuration.
+#' @param data_dir Directory used when `file_path` is a filename or relative path.
+#' @return Normalized absolute path to an existing file.
+#' @noRd
+resolve_data_file <- function(file_path, data_dir) {
+  file_path <- path.expand(trimws(as.character(file_path)))
+  if (!nzchar(file_path)) {
+    stop("A data file path was empty. Check metadata.csv and data_dir.")
+  }
+
+  candidates <- if (is_absolute_path(file_path)) {
+    file_path
+  } else {
+    unique(c(
+      file.path(data_dir, file_path),
+      file_path,
+      if (requireNamespace("here", quietly = TRUE)) {
+        here::here(file_path)
+      }
+    ))
+  }
+
+  found <- candidates[file.exists(candidates)]
+  if (length(found) == 0L) {
+    stop(
+      "Could not find file: ", file_path, "\n",
+      "Looked in:\n",
+      paste0("  - ", candidates, collapse = "\n"),
+      "\nSet `data_dir` in modules/common_setup.R or use a full path in metadata.csv."
+    )
+  }
+
+  return(normalizePath(found[[1L]], winslash = "/", mustWork = TRUE))
+}
+
 save_checkpoint <- function(name, object) {
   dir.create(
     here::here("results", "checkpoint_data"),
@@ -54,13 +99,27 @@ options(export_plot.file_formats = c("png", "pdf"))
 
 min_p_value_threshold <- 1e-300
 
-metadata_path <- here::here("data", "metadata.csv")
-if (!file.exists(metadata_path)) {
-  stop(
-    "metadata.csv not found in the data/ folder. ",
-    "Please create the file and try again."
-  )
+# Default location for metadata.csv and PXL files (filenames in metadata).
+# Override here, or set the PAT_DATA_DIR environment variable.
+# Examples:
+#   data_dir <- here::here("data")
+#   data_dir <- "/mnt/shared/pxl_files"
+#   data_dir <- here::here("..", "experiment_data")
+data_dir <- here::here("data")
+if (nzchar(Sys.getenv("PAT_DATA_DIR"))) {
+  data_dir <- path.expand(Sys.getenv("PAT_DATA_DIR"))
 }
+
+metadata_path <- tryCatch(
+  resolve_data_file("metadata.csv", data_dir),
+  error = function(e) {
+    stop(
+      "metadata.csv not found in ", data_dir, ".\n",
+      "Place metadata.csv there, set `data_dir` in modules/common_setup.R, ",
+      "or set the PAT_DATA_DIR environment variable."
+    )
+  }
+)
 metadata_raw <- readLines(metadata_path, n = 1)
 metadata_sep <- if (grepl(";", metadata_raw)) ";" else ","
 metadata <- read.csv(metadata_path, sep = metadata_sep) |> as_tibble()
