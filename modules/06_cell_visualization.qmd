@@ -117,7 +117,7 @@ coloured by a marker's abundance. Useful for sharing a cell in slides or reports
 cg <- CellGraphs(pg_data)[[cells_of_interest[1]]]
 
 plot_data <-
-  cg@layout$cpmds_3d %>%
+  cg@layout$cpmds_3d |>
   mutate(node_val = cg@counts[, markers_to_viz[1]])
 
 render_rotating_layout(

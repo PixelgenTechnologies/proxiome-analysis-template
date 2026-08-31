@@ -16,23 +16,22 @@ This document contains instructions for developers working on the Proxiome Analy
 
 This project uses `lintr` for linting and `styler` for code formatting. The configuration is compatible with `pixelatorR` style conventions.
 
+Use the native R pipe `|>` (not magrittr `%>%`). Rewrite magrittr placeholders (`.`) and anonymous functions (`. %>%`) so they work with `|>`. ggplot2 layer `data` that previously used `. %>%` should use a formula on the plot data, for example `data = ~ .x |> group_by(...) |> summarise(...)`. The `pipe_consistency_linter` in `.lintr` enforces this.
+
 ---
 
 ## Linting
 
-To run the linter, you need to install `lintr`. Then you can use one of the the following commands:
+To run the linter, you need to install `lintr`. Then you can use the same commands as CI (`.github/workflows/lint.yaml`):
 
 ```r
-# Lint entire package
-lintr::lint_package()
-
-# Lint single file
-lintr::lint("path/to/file.R")
+lintr::lint("proxiome_analysis_template.qmd")
+lintr::lint_dir("modules")
 ```
 
-Alternatively, you can run the linter from RStudio through Addins -> Lint current file or Addins -> Lint current package.
+Alternatively, you can run the linter from RStudio through Addins -> Lint current file.
 
-The configuration file `.lintr` is used to specify the rules that the linter should follow. For compatibility with styler, some linting rules have been disabled.
+The configuration file `.lintr` is used to specify the rules that the linter should follow. For compatibility with styler, some linting rules have been disabled. `pipe_consistency_linter(pipe = "|>")` requires the native pipe throughout the analysis modules.
 
 ---
 
