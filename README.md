@@ -230,7 +230,7 @@ S2,S2_donor3,donor3,PBMCs_resting_S01_HG6.layout.pxl,donor3,21,Female
 By default the template reads `metadata.csv` and filename-only `file_path` values from `data/`. To use files elsewhere:
 
 1. **Full paths in `metadata.csv`** — keep `metadata.csv` in `data/` and set `file_path` to an absolute path (or a path relative to the project), for example `/mnt/shared/PBMCs_resting_S01_HG2.layout.pxl`.
-2. **Shared data folder** — move `metadata.csv` into that folder and set `data_dir` at the top of `modules/common_setup.R` to it. Filenames in `file_path` are then resolved there.
+2. **Custom data folder** — move `metadata.csv` into that folder and set `data_dir` at the top of `modules/common_setup.R` to it. Filenames in `file_path` are then resolved there.
 
 ---
 
