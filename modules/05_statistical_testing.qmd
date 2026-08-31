@@ -679,31 +679,31 @@ for (target_condition in target_conditions) {
     # Filter data for this target and cell type
     # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
     plot_data <-
-      differential_colocalization_analysis %>%
+      differential_colocalization_analysis |>
       filter(group == cell_type & target == target_condition)
 
     plot_data <-
-      plot_data %>%
-      filter(p_adj < 0.001) %>%
+      plot_data |>
+      filter(p_adj < 0.001) |>
       arrange(desc(abs(diff_median)))
 
     if (!show_only_sign) {
       plot_markers <-
-        plot_data %>%
-        select(marker_1, marker_2) %>%
-        unlist() %>%
-        unique() %>%
+        plot_data |>
+        select(marker_1, marker_2) |>
+        unlist() |>
+        unique() |>
         head(20)
 
       plot_data <-
-        plot_data %>%
+        plot_data |>
         filter(
           marker_1 %in% plot_markers,
           marker_2 %in% plot_markers
         )
     } else {
       plot_data <-
-        plot_data %>%
+        plot_data |>
         head(500)
     }
 
@@ -714,10 +714,10 @@ for (target_condition in target_conditions) {
     }
 
     n_plot_markers <-
-      plot_data %>%
-      select(marker_1, marker_2) %>%
-      unlist() %>%
-      unique() %>%
+      plot_data |>
+      select(marker_1, marker_2) |>
+      unlist() |>
+      unique() |>
       length()
 
     # Create the colocalization heatmap plot
