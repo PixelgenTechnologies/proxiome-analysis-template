@@ -2,7 +2,7 @@
 
 **Module 01 — Load data and quality control.** Start here. This module loads your PXL files, runs quality control, filters cells, and selects markers for clustering. Continue with `02_clustering_annotation.qmd` when finished. Look for **Decision checkpoint** callouts when editing values.
 
-> **What PNA data are.** The input is a `.pxl` file from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline. Each cell is represented as a proximity network graph of antibody-bound DNA molecules, and is loaded into a `Seurat` object where markers take the place of genes. Abundance per cell is the number of unique molecules per marker (`n_umi` for the cell total, `reads_in_component` for the sequencing depth behind it). Because the graph is measured directly, quality control also uses graph-topology metrics — `average_k_core` and the fraction of dangling nodes — alongside `isotype_fraction`, which estimates non-specific antibody binding from isotype controls. Counts are compositional, so module `02` normalizes them with a centered log-ratio (CLR) transform per cell rather than by log-transforming library-size-scaled counts. Marker colocalization within each cell's graph (module `04`) is measurable only because the graph is retained.
+> **PNA data:** The input is a `.pxl` file from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline. Each cell is represented as a proximity network graph of antibody-bound DNA molecules, and is loaded into a `Seurat` object. The cell size is often expressed as the number of unique molecules per marker (`n_umi` for the total detected proteins, `reads_in_component` for the sequencing depth behind it). Because the graph is measured directly, quality control also uses graph-topology metrics; `average_k_core` and the fraction of dangling nodes, alongside `isotype_fraction`, which estimates non-specific antibody binding from isotype controls. In module `02` protein counts are normalized with a centered log-ratio (CLR) transform per cell. In module `04` we perform spatial analysis using proximity scores to measure colocalization and clustering of markers.
 
 ```{r}
 #| label: module01_setup
@@ -16,7 +16,7 @@ source(here::here("modules", "common_setup.R"))
 ## 1.0. Load data
 
 > **Decision checkpoint** (sample table)  
-> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the chunks below. Every `file_path` must match a `.pxl` file in `data/`.
+> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the chunks below. Each `file_path` can be a filename in `data/` or a full/relative path to a `.pxl` file. To keep `metadata.csv` and filename-only PXLs in another folder, set `data_dir` at the top of `modules/common_setup.R`.
 
 Each row in `metadata.csv` links one sample to one PXL file. Required columns: `sample_id`, `sample_alias`, `condition`, `file_path`.
 
@@ -32,7 +32,8 @@ This step loads each PXL file and merges them into one combined PNA object. Prox
 #| label: load_data_merge
 
 pg_data <-
-  here::here("data", metadata$file_path) |>
+  metadata$file_path |>
+  map_chr(resolve_data_file, data_dir = data_dir) |>
   lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 pg_data <-
