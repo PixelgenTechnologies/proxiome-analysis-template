@@ -1,3 +1,20 @@
+# User settings (edit these for your project)
+#
+# Default location for metadata.csv and PXL files (filenames in metadata).
+# Override this if your files live elsewhere. Examples:
+#   data_dir <- here::here("data")
+#   data_dir <- "/mnt/shared/pxl_files"
+#   data_dir <- here::here("..", "experiment_data")
+data_dir <- here::here("data")
+
+# Global seed for reproducibility. common_setup.R is sourced at the top of every
+# module, so setting the seed here makes stochastic steps (UMAP, clustering, PLS,
+# etc.) reproducible across runs. 42 matches Seurat's default seed.use. The
+# stochastic Seurat calls in module 02 also pass analysis_seed explicitly
+# (seed.use / random.seed).
+analysis_seed <- 42
+set.seed(analysis_seed)
+
 is_absolute_path <- function(path) {
   return(
     startsWith(path, "/") ||
@@ -46,7 +63,7 @@ resolve_data_file <- function(file_path, data_dir) {
       "Could not find file: ", file_path, "\n",
       "Looked in:\n",
       paste0("  - ", candidates, collapse = "\n"),
-      "\nSet `data_dir` in modules/common_setup.R or use a full path in metadata.csv."
+      "\nSet `data_dir` at the top of modules/common_setup.R or use a full path in metadata.csv."
     )
   }
 
@@ -94,14 +111,6 @@ if (packageVersion("pixelatorR") < "0.18.3") {
   )
 }
 
-# Global seed for reproducibility. common_setup.R is sourced at the top of every
-# module, so setting the seed here makes stochastic steps (UMAP, clustering, PLS,
-# etc.) reproducible across runs. 42 matches Seurat's default seed.use. The
-# stochastic Seurat calls in module 02 also pass analysis_seed explicitly
-# (seed.use / random.seed).
-analysis_seed <- 42
-set.seed(analysis_seed)
-
 options(
   export_plot.overwrite = TRUE
 )
@@ -109,19 +118,12 @@ options(export_plot.file_formats = c("png", "pdf"))
 
 min_p_value_threshold <- 1e-300
 
-# Default location for metadata.csv and PXL files (filenames in metadata).
-# Override this if your files live elsewhere. Examples:
-#   data_dir <- here::here("data")
-#   data_dir <- "/mnt/shared/pxl_files"
-#   data_dir <- here::here("..", "experiment_data")
-data_dir <- here::here("data")
-
 metadata_path <- tryCatch(
   resolve_data_file("metadata.csv", data_dir),
   error = function(e) {
     stop(
       "metadata.csv not found in ", data_dir, ".\n",
-      "Place metadata.csv there, or set `data_dir` in modules/common_setup.R."
+      "Place metadata.csv there, or set `data_dir` at the top of modules/common_setup.R."
     )
   }
 )
