@@ -31,7 +31,7 @@ This template describes a standard workflow for analyzing single cell PNA data u
 
 ```
 .
-├── data/
+├── data/                              # Default input location (override with data_dir)
 │   ├── metadata.csv
 │   └── *.pxl
 │

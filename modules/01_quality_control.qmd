@@ -16,7 +16,7 @@ source(here::here("modules", "common_setup.R"))
 ## 1.0. Load data
 
 > **Decision checkpoint** (sample table)  
-> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the chunks below. Every `file_path` must match a `.pxl` file in `data/`.
+> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the chunks below. Each `file_path` can be a filename in `data/` or a full/relative path to a `.pxl` file. To keep `metadata.csv` and filename-only PXLs in another folder, set `data_dir` at the top of `modules/common_setup.R`.
 
 Each row in `metadata.csv` links one sample to one PXL file. Required columns: `sample_id`, `sample_alias`, `condition`, `file_path`.
 
@@ -32,7 +32,8 @@ This step loads each PXL file and merges them into one combined PNA object. Prox
 #| label: load_data_merge
 
 pg_data <-
-  here::here("data", metadata$file_path) |>
+  metadata$file_path |>
+  map_chr(resolve_data_file, data_dir = data_dir) |>
   lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
 
 pg_data <-
