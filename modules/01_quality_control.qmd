@@ -16,7 +16,7 @@ source(here::here("modules", "common_setup.R"))
 ## 1.0. Load data
 
 > **Decision checkpoint** (sample table)  
-> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the chunks below. Each `file_path` can be a filename in `data/` or a full/relative path to a `.pxl` file. To use another folder for `metadata.csv` and filenames, set `data_dir` in `modules/common_setup.R` (or the `PAT_DATA_DIR` environment variable).
+> Edit `data/metadata.csv` (paths, `condition` levels, row order for plot order) before running the chunks below. Each `file_path` can be a filename in `data/` or a full/relative path to a `.pxl` file. To keep `metadata.csv` and filename-only PXLs in another folder, set `data_dir` in `modules/common_setup.R`.
 
 Each row in `metadata.csv` links one sample to one PXL file. Required columns: `sample_id`, `sample_alias`, `condition`, `file_path`.
 

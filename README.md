@@ -176,7 +176,7 @@ Mount your `data/` folder so your PXL files and `metadata.csv` are available ins
 
 ## Prepare Your Data
 
-When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below. If your files live somewhere else, keep `metadata.csv` in `data/` and put a full path in each `file_path` cell, or point `data_dir` in `modules/common_setup.R` (or the `PAT_DATA_DIR` environment variable) at that folder.
+When you have everything installed, add your `.pxl` data files and a `metadata.csv` to the `data/` folder as shown below. If the PXL files live elsewhere, either keep `metadata.csv` in `data/` and put a full (or project-relative) path in each `file_path` cell, or move `metadata.csv` with the PXL files and set `data_dir` in `modules/common_setup.R` to that folder.
 
 ### Project structure
 
@@ -230,7 +230,7 @@ S2,S2_donor3,donor3,PBMCs_resting_S01_HG6.layout.pxl,donor3,21,Female
 By default the template reads `metadata.csv` and filename-only `file_path` values from `data/`. To use files elsewhere:
 
 1. **Full paths in `metadata.csv`** — keep `metadata.csv` in `data/` and set `file_path` to an absolute path (or a path relative to the project), for example `/mnt/shared/PBMCs_resting_S01_HG2.layout.pxl`.
-2. **Shared data folder** — in `modules/common_setup.R`, set `data_dir` to that folder (it must contain `metadata.csv`). Filenames in `file_path` are then resolved there. You can also set the `PAT_DATA_DIR` environment variable, which overrides `data_dir`.
+2. **Shared data folder** — move `metadata.csv` into that folder and set `data_dir` in `modules/common_setup.R` to it. Filenames in `file_path` are then resolved there.
 
 ---
 
@@ -344,7 +344,7 @@ Run the Setup chunk in `modules/01_quality_control.qmd` first.
 <summary><strong>File not found</strong></summary>
 
 1. Open the project via `proxiome_analysis_template.Rproj`
-2. Check that PXL files are in `data/` (or the folder in `data_dir` / `PAT_DATA_DIR`)
+2. Check that PXL files are in `data/` (or the folder set as `data_dir`)
 3. Verify `file_path` values in `metadata.csv` match those files (filename, relative path, or full path)
 
 </details>

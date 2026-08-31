@@ -13,10 +13,16 @@ is_absolute_path <- function(path) {
 #' @return Normalized absolute path to an existing file.
 #' @noRd
 resolve_data_file <- function(file_path, data_dir) {
-  file_path <- path.expand(trimws(as.character(file_path)))
-  if (!nzchar(file_path)) {
-    stop("A data file path was empty. Check metadata.csv and data_dir.")
+  if (
+    length(file_path) != 1L ||
+      is.na(file_path) ||
+      !nzchar(trimws(as.character(file_path)))
+  ) {
+    stop(
+      "A data file path was missing or empty. Check metadata.csv and data_dir."
+    )
   }
+  file_path <- path.expand(trimws(as.character(file_path)))
 
   candidates <- if (is_absolute_path(file_path)) {
     file_path
@@ -100,23 +106,18 @@ options(export_plot.file_formats = c("png", "pdf"))
 min_p_value_threshold <- 1e-300
 
 # Default location for metadata.csv and PXL files (filenames in metadata).
-# Override here, or set the PAT_DATA_DIR environment variable.
-# Examples:
+# Override this if your files live elsewhere. Examples:
 #   data_dir <- here::here("data")
 #   data_dir <- "/mnt/shared/pxl_files"
 #   data_dir <- here::here("..", "experiment_data")
 data_dir <- here::here("data")
-if (nzchar(Sys.getenv("PAT_DATA_DIR"))) {
-  data_dir <- path.expand(Sys.getenv("PAT_DATA_DIR"))
-}
 
 metadata_path <- tryCatch(
   resolve_data_file("metadata.csv", data_dir),
   error = function(e) {
     stop(
       "metadata.csv not found in ", data_dir, ".\n",
-      "Place metadata.csv there, set `data_dir` in modules/common_setup.R, ",
-      "or set the PAT_DATA_DIR environment variable."
+      "Place metadata.csv there, or set `data_dir` in modules/common_setup.R."
     )
   }
 )
