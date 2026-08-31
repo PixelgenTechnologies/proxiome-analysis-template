@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Tau-based cell filtering. Module `01` no longer subsets cells with `tau_type == "normal"`. The Tau plot remains as a QC visualization.
+- Tau from module `01`: cells are not filtered by `tau_type`, `TauPlot` is not generated, and Tau is no longer described in the QC text.
 
 ### Changed
 

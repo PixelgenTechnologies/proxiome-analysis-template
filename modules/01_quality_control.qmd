@@ -2,7 +2,7 @@
 
 **Module 01 — Load data and quality control.** Start here. This module loads your PXL files, runs quality control, filters cells, and selects markers for clustering. Continue with `02_clustering_annotation.qmd` when finished. Look for **Decision checkpoint** callouts when editing values.
 
-> **If you know scRNA-seq:** PNA uses the same Seurat-style workflow, but the input is a `.pxl` file (pipeline output) instead of a count matrix. Key differences: **molecule counts** (`n_umi`, `reads_in_component`) replace gene UMIs; **k-core** and **dangling nodes** measure protein graph connectivity; **isotype fraction** is like mitochondrial percentage; **tau score** flags abnormal compositional profiles; **CLR normalization** replaces log-normalization; **proximity/colocalization** (module `04`) is the main PNA-specific readout with no direct scRNA analog.
+> **If you know scRNA-seq:** PNA uses the same Seurat-style workflow, but the input is a `.pxl` file (pipeline output) instead of a count matrix. Key differences: **molecule counts** (`n_umi`, `reads_in_component`) replace gene UMIs; **k-core** and **dangling nodes** measure protein graph connectivity; **isotype fraction** is like mitochondrial percentage; **CLR normalization** replaces log-normalization; **proximity/colocalization** (module `04`) is the main PNA-specific readout with no direct scRNA analog.
 
 ```{r}
 #| label: module01_setup
@@ -75,9 +75,8 @@ Quality control is a critical step that ensures only high-quality cells are incl
 - **Read depth**: The total number of reads per cell, which reflects sequencing depth and overall data quality
 - **Graph connectivity**: Metrics such as average k-core and percentage of dangling nodes, which assess the quality of the protein interaction network structure
 - **Unspecific background**: The fraction of isotype control signal, which quantifies non-specific binding and background noise
-- **Tau score**: A measure of protein composition heterogeneity that can flag cells with unusual marker profiles (shown for inspection; not used as a filter)
 
-These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, cells that fail QC are removed in **section 1.3.5** before marker selection and checkpoint export.
+These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, cells that fail QC are removed in **section 1.3.4** before marker selection and checkpoint export.
 
 ## 1.1. Read Depth
 
@@ -233,12 +232,12 @@ In the following steps, we will determine which cells to retain for downstream a
 - Unusually large cells, which may represent doublets or technical artifacts
 - Cells with high levels of nonspecific background, as evidenced by elevated isotype marker signal
 
-We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds are excluded in **section 1.3.5** before marker selection.
+We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds are excluded in **section 1.3.4** before marker selection.
 
 ### 1.3.1. Define thresholds
 
-> **Decision checkpoint** (QC thresholds — applied in section 1.3.5)  
-> Inspect the violin and rank plots above, then set `n_umi_min_threshold`, `n_umi_max_threshold`, and `isotype_percent_threshold` in the next chunk. Re-run section 1.3.5 and everything below (including the checkpoint chunk) after changing these.
+> **Decision checkpoint** (QC thresholds — applied in section 1.3.4)  
+> Inspect the violin and rank plots above, then set `n_umi_min_threshold`, `n_umi_max_threshold`, and `isotype_percent_threshold` in the next chunk. Re-run section 1.3.4 and everything below (including the checkpoint chunk) after changing these.
 
 Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
 
@@ -518,25 +517,7 @@ export_plot(
 )
 ```
 
-### 1.3.4. Tau score
-
-The Tau score measures the heterogeneity of protein composition per cell. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition than is typical. The plot below is for inspection only; Tau is not used to remove cells in this workflow.
-
-```{r}
-#| label: quality_control_tau_score
-
-TauPlot(pg_data, group_by = "sample_alias")
-
-export_plot(
-  filename = here::here(
-    "results/01_quality_control/tau_plots/quality_control_tau_score"
-  ),
-  width = 10,
-  height = 8
-)
-```
-
-### 1.3.5. Apply cell filters
+### 1.3.4. Apply cell filters
 
 After reviewing the QC plots and thresholds above, remove cells that fail any of the rules below. The filtered object is saved as `pg_data_merged.rds` at the end of this module.
 
