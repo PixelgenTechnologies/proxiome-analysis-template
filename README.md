@@ -274,7 +274,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | Module | What to do |
 |--------|------------|
 | **01 — sample table** | Check `metadata.csv` paths and sample IDs match your data; set `data_dir` if files are not in `data/` |
-| **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.5 onward |
+| **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
 | **01 — marker selection** | Review `selected_markers` after running the selection code |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
 | **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"donor1"`) |

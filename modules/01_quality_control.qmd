@@ -2,7 +2,7 @@
 
 **Module 01 — Load data and quality control.** Start here. This module loads your PXL files, runs quality control, filters cells, and selects markers for clustering. Continue with `02_clustering_annotation.qmd` when finished. Look for **Decision checkpoint** callouts when editing values.
 
-> **If you know scRNA-seq:** PNA uses the same Seurat-style workflow, but the input is a `.pxl` file (pipeline output) instead of a count matrix. Key differences: **molecule counts** (`n_umi`, `reads_in_component`) replace gene UMIs; **k-core** and **dangling nodes** measure protein graph connectivity; **isotype fraction** is like mitochondrial percentage; **tau score** flags abnormal compositional profiles; **CLR normalization** replaces log-normalization; **proximity/colocalization** (module `04`) is the main PNA-specific readout with no direct scRNA analog.
+> **PNA data:** The input is a `.pxl` file from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline. Each cell is represented as a proximity network graph of antibody-bound DNA molecules, and is loaded into a `Seurat` object. The cell size is often expressed as the number of unique molecules per marker (`n_umi` for the total detected proteins, `reads_in_component` for the sequencing depth behind it). Because the graph is measured directly, quality control also uses graph-topology metrics; `average_k_core` and the fraction of dangling nodes, alongside `isotype_fraction`, which estimates non-specific antibody binding from isotype controls. In module `02` protein counts are normalized with a centered log-ratio (CLR) transform per cell. In module `04` we perform spatial analysis using proximity scores to measure colocalization and clustering of markers.
 
 ```{r}
 #| label: module01_setup
@@ -76,9 +76,8 @@ Quality control is a critical step that ensures only high-quality cells are incl
 - **Read depth**: The total number of reads per cell, which reflects sequencing depth and overall data quality
 - **Graph connectivity**: Metrics such as average k-core and percentage of dangling nodes, which assess the quality of the protein interaction network structure
 - **Unspecific background**: The fraction of isotype control signal, which quantifies non-specific binding and background noise
-- **Tau score**: A measure of protein composition heterogeneity that helps identify cells with abnormal marker expression profiles
 
-These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, cells that fail QC are removed in **section 1.3.5** before marker selection and checkpoint export.
+These metrics are visualized through violin plots and distribution plots to facilitate inspection across samples. Based on these visualizations and predefined thresholds, cells that fail QC are removed in **section 1.3.4** before marker selection and checkpoint export.
 
 ## 1.1. Read Depth
 
@@ -233,14 +232,13 @@ In the following steps, we will determine which cells to retain for downstream a
 - Unusually small cells, which may indicate cell fragments
 - Unusually large cells, which may represent doublets or technical artifacts
 - Cells with high levels of nonspecific background, as evidenced by elevated isotype marker signal
-- Cells with abnormal marker expression profiles, as indicated by the tau score
 
-We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds are excluded in **section 1.3.5** before marker selection.
+We will begin by visually inspecting these quality metrics. Cells that fail to meet the defined thresholds are excluded in **section 1.3.4** before marker selection.
 
 ### 1.3.1. Define thresholds
 
-> **Decision checkpoint** (QC thresholds — applied in section 1.3.5)  
-> Inspect the violin and rank plots above, then set `n_umi_min_threshold`, `n_umi_max_threshold`, and `isotype_percent_threshold` in the next chunk. Re-run section 1.3.5 and everything below (including the checkpoint chunk) after changing these.
+> **Decision checkpoint** (QC thresholds — applied in section 1.3.4)  
+> Inspect the violin and rank plots above, then set `n_umi_min_threshold`, `n_umi_max_threshold`, and `isotype_percent_threshold` in the next chunk. Re-run section 1.3.4 and everything below (including the checkpoint chunk) after changing these.
 
 Revisit these thresholds according to your data. Sometimes it is necessary to use different thresholds for different samples. The thresholds are defined as follows:
 
@@ -351,7 +349,6 @@ umi_normal <- pg_data[[]] |>
       n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
     )
   ) |>
-  filter(tau_type == "normal") |>
   select(sample_id, umi_normal)
 
 umi_normal_count <- umi_normal |>
@@ -360,8 +357,7 @@ umi_normal_count <- umi_normal |>
   summarise(normal_count = sum(umi_normal), .groups = "drop")
 
 umi_outliers <- pg_data[[]] |>
-  select(sample_id, n_umi, tau_type) |>
-  filter(tau_type == "normal") |>
+  select(sample_id, n_umi) |>
   mutate(
     umi_low = n_umi < n_umi_min_threshold,
     umi_high = n_umi > n_umi_max_threshold
@@ -397,8 +393,7 @@ point_colors <- pg_data[[]] |>
   )
 
 pg_data[[]] |>
-  select(sample_id, rank, n_umi, tau_type) |>
-  filter(tau_type == "normal") |>
+  select(sample_id, rank, n_umi) |>
   ggplot(aes(x = rank, y = n_umi)) +
   geom_point(
     data = point_colors,
@@ -523,28 +518,7 @@ export_plot(
 )
 ```
 
-### 1.3.4. Tau score filtering
-
-> **Review before filtering**  
-> Outlier cells are removed in **section 1.3.5** with `subset(tau_type == "normal")`. Use the Tau plot below to confirm that rule fits your experiment; change the filtering in that chunk only if you understand the trade-offs.
-
-The Tau score measures the heterogeneity of protein composition per cell, and can be used to detect various types of outliers. Cells with high Tau have high counts for few proteins, while cells with low Tau have a more heterogeneous composition of proteins than we would expect from a normal cell. As these outliers likely represent technical artefacts, we can remove them from the dataset.
-
-```{r}
-#| label: quality_control_tau_score
-
-TauPlot(pg_data, group_by = "sample_alias")
-
-export_plot(
-  filename = here::here(
-    "results/01_quality_control/tau_plots/quality_control_tau_score"
-  ),
-  width = 10,
-  height = 8
-)
-```
-
-### 1.3.5. Apply cell filters
+### 1.3.4. Apply cell filters
 
 After reviewing the QC plots and thresholds above, remove cells that fail any of the rules below. The filtered object is saved as `pg_data_merged.rds` at the end of this module.
 
@@ -554,7 +528,6 @@ After reviewing the QC plots and thresholds above, remove cells that fail any of
 cells_before <- ncol(pg_data)
 pg_data <-
   pg_data |>
-  subset(tau_type == "normal") |>
   subset(n_umi > n_umi_min_threshold &
     n_umi < n_umi_max_threshold) |>
   subset(isotype_fraction < isotype_percent_threshold / 100)

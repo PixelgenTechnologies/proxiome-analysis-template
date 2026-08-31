@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Custom data locations: set `data_dir` at the top of `modules/common_setup.R` when `metadata.csv` and PXL files are not in the project `data/` folder. The `file_path` column in `metadata.csv` accepts a filename in `data_dir`, a relative path, or an absolute path.
 
+### Removed
+
+- Tau from module `01`: cells are not filtered by `tau_type`, `TauPlot` is not generated, and Tau is no longer described in the QC text.
+
 ### Changed
 
 - Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
