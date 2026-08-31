@@ -1,5 +1,9 @@
 is_absolute_path <- function(path) {
-  return(grepl("^(?:[A-Za-z]:[\\\\/]|\\\\\\\\|/)", path))
+  return(
+    startsWith(path, "/") ||
+      startsWith(path, "\\\\") ||
+      grepl("^[A-Za-z]:[/\\\\]", path)
+  )
 }
 
 #' Resolve a data file from a filename, relative path, or absolute path.
