@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Tau-based cell filtering. Module `01` no longer subsets cells with `tau_type == "normal"`. The Tau plot remains as a QC visualization.
+
 ### Changed
 
 - Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
