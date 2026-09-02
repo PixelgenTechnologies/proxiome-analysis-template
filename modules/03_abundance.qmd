@@ -58,6 +58,13 @@ plot_data <- plot_data_clr |>
       mutate(metric = "Count")
   )
 
+# Rotate x-axis labels so they stay readable when there are many cell types
+# (or samples). hjust = 1 right-aligns each label to its tick.
+abundance_x_theme <- theme(
+  legend.position = "none",
+  axis.text.x = element_text(angle = 45, hjust = 1)
+)
+
 plot_data |>
   filter(marker %in% markers_for_abundance_plots) |>
   group_by(marker) |>
@@ -69,7 +76,7 @@ plot_data |>
       ggplot(aes(sample_alias, abundance, color = sample_alias)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = sample_palette) +
       labs(title = "CLR per sample", x = "", y = "CLR")
 
@@ -80,7 +87,7 @@ plot_data |>
       ggplot(aes(sample_alias, abundance, color = sample_alias)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = sample_palette) +
       labs(title = "Count per sample", x = "", y = "Count") +
       ylim(NA, count_99)
@@ -100,7 +107,7 @@ plot_data |>
       ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = cell_palette) +
       labs(title = "CLR per cell type", x = "", y = "CLR")
 
@@ -109,7 +116,7 @@ plot_data |>
       ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = cell_palette) +
       labs(title = "Count per cell type", x = "", y = "Count") +
       ylim(NA, count_99)
@@ -130,7 +137,7 @@ plot_data |>
       ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = cell_palette) +
       labs(title = glue::glue("CLR per cell type faceted by {abundance_plots_grouping_column}"), x = "", y = "CLR") +
       facet_wrap(~ .data[[abundance_plots_grouping_column]])
@@ -140,7 +147,7 @@ plot_data |>
       ggplot(aes(cell_annotation, abundance, color = cell_annotation)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = cell_palette) +
       labs(title = glue::glue("Count per cell type faceted by {abundance_plots_grouping_column}"), x = "", y = "Count") +
       facet_wrap(~ .data[[abundance_plots_grouping_column]]) +
@@ -160,7 +167,7 @@ plot_data |>
       ggplot(aes(condition, abundance, color = condition)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = condition_palette) +
       labs(title = "CLR per condition per cell type", x = "", y = "CLR") +
       facet_wrap(~cell_annotation)
@@ -170,7 +177,7 @@ plot_data |>
       ggplot(aes(condition, abundance, color = condition)) +
       ggbeeswarm::geom_quasirandom() +
       theme_bw() +
-      theme(legend.position = "none") +
+      abundance_x_theme +
       scale_color_manual(values = condition_palette) +
       labs(title = "Count per condition per cell type", x = "", y = "Count") +
       facet_wrap(~cell_annotation) +
