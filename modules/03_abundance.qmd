@@ -40,7 +40,7 @@ markers_for_abundance_plots <- rownames(pg_data)[seq_len(min(10, nrow(pg_data)))
 
 # Column used to facet the "per cell type" plots. Set to "condition" (default) to
 # facet by experimental condition, or "sample_alias" to facet by individual sample.
-abundance_plots_grouping_column <- "sample_alias"
+abundance_plots_grouping_column <- "condition"
 
 all_markers <- rownames(pg_data)
 
