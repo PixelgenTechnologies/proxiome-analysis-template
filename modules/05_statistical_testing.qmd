@@ -31,13 +31,13 @@ Sections 5.1–5.3 use **cell-level** Wilcoxon tests (cells pooled by `condition
 ```{r}
 #| label: statistical_testing_set_reference
 
-reference_condition <- "donor1"
+reference_condition <- "resting"
 
 # Optional sample-level limma path (sections 5.5–5.7). Requires ≥2 samples
 # (sample_alias) per condition. Default FALSE so the bundled example still renders.
-# CI pseudobulk smoke sets PAT_SMOKE_PSEUDOBULK=1 after technical-split checkpoints
-# (see .github/smoke-test/smoke_pseudobulk.R); that also skips cell-level Wilcoxon.
 run_pseudobulk <- FALSE
+
+# Smoke test specific switch to enable limma pseudobulk; skipping cell-level Wilcoxon. [extract this some way?]
 if (identical(Sys.getenv("PAT_SMOKE_PSEUDOBULK"), "1")) {
   run_pseudobulk <- TRUE
   message("PAT_SMOKE_PSEUDOBULK=1: enabling limma pseudobulk; skipping cell-level Wilcoxon")
@@ -793,16 +793,34 @@ validate_pseudobulk_covariates <- function(covariate_cols, metadata) {
   invisible(NULL)
 }
 
-# Join covariate columns from metadata.csv onto the per-sample table used by limma
+# Join covariate columns from metadata.csv onto the per-sample table used by limma.
+# Never join `condition` here — it is the limma contrast variable and must stay on
+# sample_info as a single column (a join can otherwise create condition.x/y).
 attach_pseudobulk_covariates <- function(sample_info, metadata, covariate_cols) {
   if (is.null(covariate_cols) || length(covariate_cols) == 0) {
     return(sample_info)
   }
-  sample_info |>
+
+  covariate_cols <- setdiff(
+    as.character(covariate_cols),
+    c("condition", "sample_alias")
+  )
+  if (length(covariate_cols) == 0) {
+    return(sample_info)
+  }
+
+  out <- sample_info |>
     left_join(
       metadata |> select(sample_alias, all_of(covariate_cols)),
       by = "sample_alias"
     )
+
+  if (!"condition" %in% names(out) && "condition.x" %in% names(out)) {
+    out$condition <- out$condition.x
+    out <- out |> select(-starts_with("condition."))
+  }
+
+  out
 }
 
 # Samples (sample_alias × condition) with at least min_cells in this cell type
