@@ -1,3 +1,7 @@
 sample_id,sample_alias,condition,file_path,donor,age,sex
-S1,S1_donor1,donor1,PBMCs_resting_S01_HG2.layout.pxl,donor1,58,Female
-S2,S2_donor3,donor3,PBMCs_resting_S01_HG6.layout.pxl,donor3,21,Female
+S1,S1_resting,resting,PNA064_Sample_1_S1.layout.pxl,donor1,24,female
+S2,S2_PHA,PHA,PNA064_Sample_2_S2.layout.pxl,donor1,25,female
+S3,S3_resting,resting,PNA064_Sample_3_S3.layout.pxl,donor2,49,male
+S4,S4_PHA,PHA,PNA064_Sample_5_S5.layout.pxl,donor2,60,male
+S5,S5_resting,resting,PNA056_Maud_PBMCs_unstimulated_sample01_S1.layout.dataset.pxl,donor3,30,female
+S6,S6_PHA,PHA,PNA056_Maud_PBMCs_PHA_sample02_S2.layout.dataset.pxl,donor3,35,female
