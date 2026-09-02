@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
 
+### Fixed
+
+- Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
+
 ## [0.6.3] 2026-08-20
 
 ### Fixed
