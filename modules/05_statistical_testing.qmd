@@ -37,10 +37,13 @@ reference_condition <- "resting"
 # (sample_alias) per condition. Default FALSE so the bundled example still renders.
 run_pseudobulk <- FALSE
 
-# Smoke test specific switch to enable limma pseudobulk; skipping cell-level Wilcoxon. [extract this some way?]
-if (identical(Sys.getenv("PAT_SMOKE_PSEUDOBULK"), "1")) {
-  run_pseudobulk <- TRUE
-  message("PAT_SMOKE_PSEUDOBULK=1: enabling limma pseudobulk; skipping cell-level Wilcoxon")
+# Cell-level Wilcoxon path (sections 5.1–5.3). Set FALSE to skip those chunks.
+run_cell_level <- TRUE
+
+# Optional CI smoke overrides (see .github/smoke-test/apply_module05_overrides.R)
+smoke_hook <- here::here(".github/smoke-test/apply_module05_overrides.R")
+if (file.exists(smoke_hook)) {
+  source(smoke_hook)
 }
 
 # Minimum cells per sample × cell type before including that pseudobulk observation
@@ -67,7 +70,7 @@ Results are organized by cell type and include both the raw statistical outputs 
 
 ```{r}
 #| label: statistical_testing_differential_abundance_analysis
-#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
+#| eval: !expr isTRUE(run_cell_level)
 
 differential_abundance_analysis <-
   names(markers_to_test) |>
@@ -110,7 +113,7 @@ Here we create two types of summarizing plots for the differential abundance ana
 
 ```{r}
 #| label: statistical_testing_differential_abundance_plots
-#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
+#| eval: !expr isTRUE(run_cell_level)
 
 # Determine the effect size column name
 effect_size_col <- "difference"
@@ -338,7 +341,7 @@ The analysis is performed separately for each cell type, comparing clustering pa
 
 ```{r}
 #| label: statistical_testing_differential_proximity
-#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
+#| eval: !expr isTRUE(run_cell_level)
 
 differential_clustering_analysis <-
   names(markers_to_test) |>
@@ -395,7 +398,7 @@ Here we create two types of summarizing plots for the differential clustering an
 
 ```{r}
 #| label: statistical_testing_differential_clustering_plots
-#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
+#| eval: !expr isTRUE(run_cell_level)
 
 # Determine the effect size column name
 effect_size_col <- "diff_median"
@@ -621,7 +624,7 @@ Differential colocalization analysis identifies markers that exhibit statistical
 
 ```{r}
 #| label: statistical_testing_differential_colocalization
-#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
+#| eval: !expr isTRUE(run_cell_level)
 
 differential_colocalization_analysis <-
   names(markers_to_test) |>
@@ -674,7 +677,7 @@ Here we create summarizing plots for the differential colocalization analysis re
 
 ```{r}
 #| label: statistical_testing_differential_colocalization_plot
-#| eval: !expr Sys.getenv("PAT_SMOKE_PSEUDOBULK") != "1"
+#| eval: !expr isTRUE(run_cell_level)
 
 # Determine target conditions - check if dataframe has target/contrast columns
 if ("target" %in% colnames(differential_colocalization_analysis)) {
@@ -773,8 +776,8 @@ pseudobulk_n_labels <- 5L
 # Count sample_alias values per condition and decide whether limma can run
 check_pseudobulk_replicates <- function(meta_df, min_n = 2L) {
   counts <- meta_df |>
-    distinct(sample_alias, condition) |>
-    count(condition, name = "n_samples")
+    distinct(.data$sample_alias, .data$condition) |>
+    dplyr::count(.data$condition, name = "n_samples")
   list(ok = nrow(counts) > 0 && all(counts$n_samples >= min_n), counts = counts)
 }
 
@@ -827,26 +830,59 @@ attach_pseudobulk_covariates <- function(sample_info, metadata, covariate_cols) 
 pseudobulk_keep_samples <- function(obj, min_cells) {
   obj[[]] |>
     as_tibble(rownames = "component") |>
-    count(sample_alias, condition, name = "n_cells") |>
+    dplyr::count(.data$sample_alias, .data$condition, name = "n_cells") |>
     filter(n_cells >= min_cells)
 }
 
-# CLR abundance + sample metadata. Fetch assay and meta separately: with
-# Seurat 5, FetchData(..., layer = "data") can drop metadata columns.
+# CLR abundance + sample metadata. Fetch meta and assay separately, then merge
+# on cell id. Do not cbind() — Seurat 5 FetchData can leak/drop `condition`,
+# after which dplyr/plyr looks up a free object named condition and errors.
 pseudobulk_fetch_abundance <- function(obj, markers_vec) {
-  markers_vec <- as.character(markers_vec)
-  meta_cols <- c("sample_alias", "condition")
-  missing_meta <- setdiff(meta_cols, colnames(obj[[]]))
+  markers_vec <- setdiff(
+    as.character(unname(markers_vec)),
+    c("sample_alias", "condition", "cell_id")
+  )
+  missing_meta <- setdiff(c("sample_alias", "condition"), colnames(obj[[]]))
   if (length(missing_meta) > 0) {
     stop(
       "Missing columns in object metadata: ",
       paste(missing_meta, collapse = ", ")
     )
   }
-  cbind(
-    obj[[]][, meta_cols, drop = FALSE],
-    FetchData(obj, vars = markers_vec, layer = "data")
+  if (length(markers_vec) == 0L) {
+    stop("No assay markers left to fetch after dropping metadata column names.")
+  }
+
+  # [[ ]] not $: $ can return NULL and tibble() then silently drops the column.
+  md <- as.data.frame(obj[[]], stringsAsFactors = FALSE)
+  meta <- data.frame(
+    cell_id = if (!is.null(rownames(md)) && !identical(rownames(md), as.character(seq_len(nrow(md))))) {
+      rownames(md)
+    } else {
+      Cells(obj)
+    },
+    sample_alias = md[["sample_alias"]],
+    condition = md[["condition"]],
+    stringsAsFactors = FALSE
   )
+
+  assay <- FetchData(obj, vars = markers_vec, layer = "data")
+  assay <- assay[, intersect(colnames(assay), markers_vec), drop = FALSE]
+  assay <- data.frame(
+    cell_id = rownames(assay),
+    assay,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  merged <- merge(meta, assay, by = "cell_id", all.x = TRUE, sort = FALSE)
+  if (!all(c("sample_alias", "condition") %in% names(merged))) {
+    stop(
+      "Lost sample_alias/condition after merge. Columns: ",
+      paste(names(merged), collapse = ", ")
+    )
+  }
+  merged
 }
 
 # Sample-level proximity summaries for one cell-type object.
@@ -897,16 +933,27 @@ agg_to_expr_mat <- function(
   sample_info,
   values_fill = NULL
 ) {
+  sample_ids <- as.character(sample_info$sample_alias)
   mat <- agg |>
+    mutate(sample_alias = as.character(sample_alias)) |>
     select(all_of(c(feature_col, "sample_alias", value_col))) |>
     pivot_wider(
       names_from = sample_alias,
       values_from = all_of(value_col),
-      values_fill = values_fill
+      values_fill = values_fill,
+      values_fn = mean,
+      names_repair = "minimal"
     ) |>
     column_to_rownames(feature_col) |>
     as.matrix()
-  mat[, sample_info$sample_alias, drop = FALSE]
+  missing_samples <- setdiff(sample_ids, colnames(mat))
+  if (length(missing_samples) > 0) {
+    stop(
+      "Pseudobulk matrix is missing samples: ",
+      paste(missing_samples, collapse = ", ")
+    )
+  }
+  mat[, sample_ids, drop = FALSE]
 }
 
 # Write RDS + CSV under results/05_statistical_testing/{modality}/pseudobulk/
@@ -927,11 +974,15 @@ pseudobulk_limma_fit <- function(
   reference_condition,
   covariate_cols = NULL
 ) {
-  sample_info <- sample_info |>
-    mutate(
-      sample_alias = as.character(sample_alias),
-      condition = factor(as.character(condition))
+  sample_info <- as.data.frame(sample_info, stringsAsFactors = FALSE)
+  if (!"condition" %in% names(sample_info)) {
+    stop(
+      "sample_info has no condition column. Columns: ",
+      paste(names(sample_info), collapse = ", ")
     )
+  }
+  sample_info$sample_alias <- as.character(sample_info[["sample_alias"]])
+  sample_info$condition <- factor(as.character(sample_info[["condition"]]))
   stopifnot(identical(colnames(expr_mat), sample_info$sample_alias))
   if (!reference_condition %in% levels(sample_info$condition)) {
     stop("reference_condition not present in sample_info$condition")
@@ -966,6 +1017,10 @@ pseudobulk_limma_fit <- function(
   if (length(targets) == 0) {
     return(tibble())
   }
+  # Need residual DF after condition (+ covariate) coefficients.
+  if (nrow(sample_info) <= ncol(design)) {
+    return(tibble())
+  }
   contrast_strings <- paste0(targets, "-", reference_condition)
   # Levels must match lmFit's design (conditions + covariates). Contrasts
   # only involve condition columns; covariate coefficients stay at 0.
@@ -978,7 +1033,7 @@ pseudobulk_limma_fit <- function(
   map_dfr(seq_along(targets), function(i) {
     tt <- limma::topTable(
       fit2,
-      coef = contrast_strings[[i]],
+      coef = i,
       number = Inf,
       sort.by = "none"
     ) |>
@@ -1006,9 +1061,9 @@ run_pseudobulk_limma <- function(
   values_fill = NULL
 ) {
   sample_info <- agg |>
-    distinct(sample_alias, condition) |>
+    distinct(.data$sample_alias, .data$condition) |>
     attach_pseudobulk_covariates(metadata, covariate_cols) |>
-    arrange(sample_alias)
+    arrange(.data$sample_alias)
   expr_mat <- agg_to_expr_mat(
     agg,
     feature_col,
@@ -1065,10 +1120,10 @@ run_pseudobulk_proximity_limma <- function(agg, cell_type) {
 pseudobulk_sample_zscore_heatmap <- function(mat, sample_info, legend_title = "Z-score") {
   sample_info <- sample_info |>
     mutate(
-      sample_alias = as.character(sample_alias),
-      condition = as.character(condition)
+      sample_alias = as.character(.data$sample_alias),
+      condition = as.character(.data$condition)
     ) |>
-    arrange(condition, sample_alias)
+    arrange(.data$condition, .data$sample_alias)
   stopifnot(all(sample_info$sample_alias %in% colnames(mat)))
   mat <- mat[, sample_info$sample_alias, drop = FALSE]
   mat_z <- t(scale(t(mat)))
@@ -1270,23 +1325,26 @@ if (isTRUE(pseudobulk_ok)) {
     map(function(cell_type) {
       tryCatch(
         {
-          markers_vec <- as.character(markers_to_test[[cell_type]])
+          markers_vec <- setdiff(
+            as.character(unname(markers_to_test[[cell_type]])),
+            c("sample_alias", "condition", "cell_id")
+          )
           obj <- subset(pg_data, cell_annotation == cell_type)
           dat <- pseudobulk_fetch_abundance(obj, markers_vec)
           n_cells <- dat |>
-            count(sample_alias, condition, name = "n_cells") |>
+            dplyr::count(.data$sample_alias, .data$condition, name = "n_cells") |>
             filter(n_cells >= pseudobulk_min_cells)
           if (nrow(n_cells) < 2) {
             return(NULL)
           }
           agg <- dat |>
-            filter(sample_alias %in% n_cells$sample_alias) |>
+            filter(.data$sample_alias %in% n_cells$sample_alias) |>
             pivot_longer(
               all_of(markers_vec),
               names_to = "marker",
               values_to = "clr"
             ) |>
-            group_by(sample_alias, condition, marker) |>
+            group_by(.data$sample_alias, .data$condition, .data$marker) |>
             summarise(mean_clr = mean(clr), .groups = "drop")
           fit <- run_pseudobulk_limma(
             agg,
@@ -1409,21 +1467,21 @@ if (
         obj <- subset(pg_data, cell_annotation == cell_type)
         dat <- pseudobulk_fetch_abundance(obj, markers_vec)
         n_keep <- dat |>
-          count(sample_alias, condition, name = "n_cells") |>
+          dplyr::count(.data$sample_alias, .data$condition, name = "n_cells") |>
           filter(n_cells >= pseudobulk_min_cells)
         if (nrow(n_keep) >= 2) {
           agg <- dat |>
-            filter(sample_alias %in% n_keep$sample_alias) |>
+            filter(.data$sample_alias %in% n_keep$sample_alias) |>
             pivot_longer(
               all_of(markers_vec),
               names_to = "marker",
               values_to = "clr"
             ) |>
-            group_by(sample_alias, condition, marker) |>
+            group_by(.data$sample_alias, .data$condition, .data$marker) |>
             summarise(mean_clr = mean(clr), .groups = "drop")
           sample_info_hm <- agg |>
-            distinct(sample_alias, condition) |>
-            arrange(condition, sample_alias)
+            distinct(.data$sample_alias, .data$condition) |>
+            arrange(.data$condition, .data$sample_alias)
           marker_order <- top_markers_cell_type |>
             arrange(desc(abs(effect_size))) |>
             pull(marker) |>
@@ -1660,8 +1718,8 @@ if (
           rename(marker = marker_1)
         if (nrow(agg) >= 1 && n_distinct(agg$sample_alias) >= 2) {
           sample_info_hm <- agg |>
-            distinct(sample_alias, condition) |>
-            arrange(condition, sample_alias)
+            distinct(.data$sample_alias, .data$condition) |>
+            arrange(.data$condition, .data$sample_alias)
           marker_order <- top_markers_cell_type |>
             filter(marker %in% unique(agg$marker)) |>
             arrange(desc(abs(effect_size))) |>
@@ -1871,8 +1929,8 @@ if (
 
         if (nrow(agg) >= 1 && n_distinct(agg$sample_alias) >= 2) {
           sample_info_hm <- agg |>
-            distinct(sample_alias, condition) |>
-            arrange(condition, sample_alias)
+            distinct(.data$sample_alias, .data$condition) |>
+            arrange(.data$condition, .data$sample_alias)
 
           row_order <- pair_info |>
             mutate(order_idx = match(pair_id, top_pairs_cell$pair_id)) |>
