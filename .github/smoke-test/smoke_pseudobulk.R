@@ -9,6 +9,7 @@
 # Usage (from repo root, after modules 01–02 checkpoints exist):
 #   PAT_SMOKE_PSEUDOBULK=1 Rscript .github/smoke-test/smoke_pseudobulk.R
 #   PAT_SMOKE_PSEUDOBULK=1 quarto render modules/05_statistical_testing.qmd
+# (module 05 sources apply_module05_overrides.R to enable limma / skip Wilcoxon)
 
 args <- commandArgs(trailingOnly = FALSE)
 file_arg <- grep("^--file=", args, value = TRUE)
