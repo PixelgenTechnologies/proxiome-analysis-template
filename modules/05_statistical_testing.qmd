@@ -34,7 +34,8 @@ Sections 5.1–5.3 use **cell-level** Wilcoxon tests (cells pooled by `condition
 # Baseline / control condition. Must match a value in metadata$condition.
 # All tests compare each other condition against this one (target − reference).
 # Output folders are named {target}_vs_{reference}.
-reference_condition <- "resting"
+# Bundled example metadata uses donor1 / donor3 (both samples are resting).
+reference_condition <- "donor1"
 
 # If TRUE, also run sample-level limma tests (sections 5.5–5.7). Requires at
 # least two samples (sample_alias) per condition. Results are written under
