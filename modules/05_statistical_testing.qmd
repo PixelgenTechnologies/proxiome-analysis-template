@@ -1618,7 +1618,7 @@ if (isTRUE(pseudobulk_ok)) {
 ## 5.5. Differential abundance analysis (pseudobulk-level)
 
 > **Decision checkpoint** (enable above: `run_pseudobulk`)  
-> Pseudobulk aggregates CLR abundance to **mean per `sample_alias` × cell type**, then fits limma across samples. Needs ≥2 samples per `condition`. Sample-level tables are written as `summary_abundance_data.rds` (and `.csv`); limma results as `differential_abundance_analysis.rds`. Module 07 still reads the Wilcoxon results from §5.1 (`abundance/cell_level/`) unless you point it at `abundance/pseudobulk/`.
+> Pseudobulk aggregates CLR abundance to **mean per `sample_alias` × cell type**, then fits limma across samples. Needs ≥2 samples per `condition`. Sample-level tables are written as `summary_abundance_data.rds` (and `.csv`); limma results as `differential_abundance_analysis.rds`. In module 07, set `stats_method` to `"pseudobulk"` to feed these tables into enrichment (default `"cell_level"` uses §5.1 Wilcoxon results).
 
 ```{r}
 #| label: statistical_testing_pseudobulk_abundance
@@ -1857,7 +1857,7 @@ if (
 
 ## 5.7. Differential colocalization analysis (pseudobulk-level)
 
-Off-diagonal pairs (`marker_1 != marker_2`) from the same sample-level table as §5.6, then limma. Same `diff_median` naming as §5.3 for schema compatibility. To use these results in module 07, point its coloc RDS path to `results/05_statistical_testing/colocalization/pseudobulk/differential_colocalization_analysis.rds` (and the abundance path similarly under `abundance/pseudobulk/`).
+Off-diagonal pairs (`marker_1 != marker_2`) from the same sample-level table as §5.6, then limma. Same `diff_median` naming as §5.3 for schema compatibility. In module 07, set `stats_method` to `"pseudobulk"` to use these results (and the matching abundance tables) for enrichment.
 
 ```{r}
 #| label: statistical_testing_pseudobulk_colocalization
