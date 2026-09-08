@@ -1457,12 +1457,30 @@ pseudobulk_limma_fit <- function(
   if (nrow(sample_info) <= ncol(design)) {
     return(tibble())
   }
-  contrast_strings <- paste0(targets, "-", reference_condition)
-  # Contrasts compare conditions only; covariate effects are held fixed
-  contrast_matrix <- limma::makeContrasts(
-    contrasts = contrast_strings,
-    levels = design
+  # Build contrasts numerically. makeContrasts() parses strings as R
+  # expressions, so names with hyphens, spaces, or a leading digit fail.
+  # Covariate columns stay 0 so those effects are held fixed.
+  contrast_matrix <- matrix(
+    0,
+    nrow = ncol(design),
+    ncol = length(targets),
+    dimnames = list(
+      colnames(design),
+      paste0(targets, "-", reference_condition)
+    )
   )
+  ref_col <- match(reference_condition, colnames(design))
+  if (is.na(ref_col)) {
+    stop("reference_condition is not a column of the design matrix")
+  }
+  for (i in seq_along(targets)) {
+    tgt_col <- match(targets[[i]], colnames(design))
+    if (is.na(tgt_col)) {
+      stop("Target condition is not a column of the design matrix: ", targets[[i]])
+    }
+    contrast_matrix[tgt_col, i] <- 1
+    contrast_matrix[ref_col, i] <- -1
+  }
   fit <- limma::lmFit(expr_mat, design)
   fit2 <- limma::eBayes(limma::contrasts.fit(fit, contrast_matrix))
   map_dfr(seq_along(targets), function(i) {
