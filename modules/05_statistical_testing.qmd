@@ -38,9 +38,9 @@ Sections 5.1–5.3 use **cell-level** Wilcoxon tests (cells pooled by `condition
 reference_condition <- "donor1"
 
 # If TRUE, also run sample-level limma tests (sections 5.5–5.7). Requires at
-# least two samples (sample_alias) per condition. Results are written under
-# results/05_statistical_testing/{modality}/pseudobulk/.
-run_pseudobulk <- TRUE
+# least two samples (sample_alias) per condition. Off by default. Results
+# are written under results/05_statistical_testing/{modality}/pseudobulk/.
+run_pseudobulk <- FALSE
 
 # If TRUE, run cell-level Wilcoxon tests (sections 5.1–5.3). These are the
 # default inputs for module 07. Set FALSE to skip that path.
