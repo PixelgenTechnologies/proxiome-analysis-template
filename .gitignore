@@ -15,7 +15,9 @@ proxiome_analysis_template_files/
 *.html
 
 # Utility files
-.cursor/
+.cursor/*
+!.cursor/environment.json
+!.cursor/Dockerfile
 .positai
 renv/
 renv.lock
