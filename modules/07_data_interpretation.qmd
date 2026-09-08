@@ -74,14 +74,13 @@ if (!file.exists(daa_path) || !file.exists(coloc_path)) {
   )
 }
 
+# Always read the RDS for stats_method. A full-template render defines
+# cell-level Wilcoxon objects in module 05 under these names, so an
+# exists() skip would keep Wilcoxon tables while claiming to load
+# pseudobulk/ (or the reverse if those names were overwritten).
 message("Loading module 05 results from ", stats_method, "/")
-
-if (!exists("differential_abundance_analysis", inherits = TRUE)) {
-  differential_abundance_analysis <- readRDS(daa_path)
-}
-if (!exists("differential_colocalization_analysis", inherits = TRUE)) {
-  differential_colocalization_analysis <- readRDS(coloc_path)
-}
+differential_abundance_analysis <- readRDS(daa_path)
+differential_colocalization_analysis <- readRDS(coloc_path)
 ```
 
 ## 7.2. Build protein sets
