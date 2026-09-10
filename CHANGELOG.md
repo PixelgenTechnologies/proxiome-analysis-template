@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Module `05` limma pseudobulk now keeps the design matrix aligned with `expr_mat` when covariates from `metadata.csv` are missing or `sample_alias` values do not match exactly (renames, technical-split suffixes). Incomplete samples are dropped together instead of `model.matrix` omitting covariate rows on its own.
 - Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
 - Module `03` abundance plots rotate x-axis labels 45 degrees so they stay readable with many cell types or samples.
 - `aggregate_sample_abundance` now pivots only markers returned by `FetchData`. Missing features no longer abort the per-cell-type limma fit; remaining markers are still aggregated.
