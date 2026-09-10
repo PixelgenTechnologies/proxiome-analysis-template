@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
 - Module `03` abundance plots rotate x-axis labels 45 degrees so they stay readable with many cell types or samples.
+- `aggregate_sample_abundance` now pivots only markers returned by `FetchData`. Missing features no longer abort the per-cell-type limma fit; remaining markers are still aggregated.
 
 ## [0.6.3] 2026-08-20
 
