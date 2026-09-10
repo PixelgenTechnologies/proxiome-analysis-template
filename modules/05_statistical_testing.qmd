@@ -151,7 +151,9 @@ adjust_global_fdr <- function(df, hard_fail = FALSE) {
 }
 
 # Cell-level differential proximity (clustering or colocalization) for one cell
-# type. Uses a Wilcoxon test on proximity scores. Keep only markers in
+# type. Uses a Wilcoxon test on proximity scores. pair_mode maps to
+# DifferentialProximityAnalysis metric_type: "self" (clustering), "co"
+# (cross-marker colocalization), or "all" (both). Keep only markers in
 # markers_to_test. Call adjust_global_fdr(..., hard_fail = TRUE) after combining
 # cell types.
 run_cell_level_proximity_da <- function(
@@ -1188,6 +1190,17 @@ run_pseudobulk_limma <- function(
     )
     return(empty_fit(sample_info, expr_mat))
   }
+  # min_cells / covariate drops can leave a condition with a single sample
+  # even when the whole object passed the replicate gate.
+  cond_n <- table(sample_info$condition)
+  if (any(cond_n < 2L)) {
+    message(
+      "Skipping limma: need ≥2 samples per condition after filtering. ",
+      "Counts: ",
+      paste(names(cond_n), as.integer(cond_n), sep = "=", collapse = ", ")
+    )
+    return(empty_fit(sample_info, expr_mat))
+  }
   sample_info$condition <- relevel(
     sample_info$condition,
     ref = reference_condition
@@ -1213,6 +1226,27 @@ run_pseudobulk_limma <- function(
       "Design matrix rows (", nrow(design),
       ") do not match expr_mat columns (", ncol(expr_mat), ")"
     )
+  }
+
+  # Drop covariate columns that are linear combinations of condition
+  # (e.g. donor identical to condition). If a condition coefficient itself
+  # is aliased, the contrast is not identifiable.
+  aliased <- limma::nonEstimable(design)
+  if (!is.null(aliased) && length(aliased) > 0) {
+    cond_names <- levels(sample_info$condition)
+    if (any(aliased %in% cond_names)) {
+      message(
+        "Skipping limma: condition coefficients are aliased with covariates (",
+        paste(aliased, collapse = ", "),
+        ")."
+      )
+      return(empty_fit(sample_info, expr_mat))
+    }
+    message(
+      "Dropping aliased covariate columns from the design: ",
+      paste(aliased, collapse = ", ")
+    )
+    design <- design[, !colnames(design) %in% aliased, drop = FALSE]
   }
 
   targets <- setdiff(levels(sample_info$condition), reference_condition)
@@ -1248,7 +1282,14 @@ run_pseudobulk_limma <- function(
     contrast_matrix[ref_col, i] <- -1
   }
   fit <- limma::lmFit(expr_mat, design)
-  fit2 <- limma::eBayes(limma::contrasts.fit(fit, contrast_matrix))
+  # trend: allow variance to depend on the mean (CLR / log2_ratio).
+  # robust: down-weight outlier features so they do not dominate the
+  # empirical Bayes prior on this small protein panel.
+  fit2 <- limma::eBayes(
+    limma::contrasts.fit(fit, contrast_matrix),
+    trend = TRUE,
+    robust = TRUE
+  )
   res <- map_dfr(seq_along(targets), function(i) {
     tt <- limma::topTable(
       fit2,
@@ -1464,7 +1505,7 @@ export_marker_diff_plots(
 
 ## 5.3. Differential Colocalization Analysis (cell-level)
 
-Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
+Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing **cross-marker** pairs (`metric_type = "co"`) between target and reference conditions — self-proximity is tested in §5.2, not here. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
 
 
 ```{r}
@@ -1475,7 +1516,7 @@ differential_colocalization_analysis <-
   names(markers_to_test) |>
   map(function(x) {
     tryCatch(
-      run_cell_level_proximity_da(x, markers_to_test[[x]], pair_mode = "all"),
+      run_cell_level_proximity_da(x, markers_to_test[[x]], pair_mode = "co"),
       error = function(e) {
         message(paste("Error for cell type:", x, ":", e))
         return(NULL)

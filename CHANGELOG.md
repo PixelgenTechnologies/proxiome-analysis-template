@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Cell-level colocalization in module `05` now uses `metric_type = "co"` so self-proximity pairs are not retested and passed to module 07 as colocalization partners.
+- Module `05` limma pseudobulk skips a cell type unless ≥2 samples remain in every condition after `min_cells` and covariate filtering; aliased design columns are dropped (or the fit is skipped if a condition coefficient is aliased). `eBayes` uses `trend = TRUE` and `robust = TRUE`.
 - Module `05` limma pseudobulk now keeps the design matrix aligned with `expr_mat` when covariates from `metadata.csv` are missing or `sample_alias` values do not match exactly (renames, technical-split suffixes). Incomplete samples are dropped together instead of `model.matrix` omitting covariate rows on its own.
 - Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
 - Module `03` abundance plots rotate x-axis labels 45 degrees so they stay readable with many cell types or samples.
