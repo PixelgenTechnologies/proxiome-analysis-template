@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Custom data locations: set `data_dir` at the top of `modules/common_setup.R` when `metadata.csv` and PXL files are not in the project `data/` folder. The `file_path` column in `metadata.csv` accepts a filename in `data_dir`, a relative path, or an absolute path.
+- Optional limma pseudobulk path in module `05` (setup in §5.4; tests in §§5.5–5.7): sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization when `run_pseudobulk <- TRUE` (≥2 `sample_alias` per `condition`). Each modality now has parallel `cell_level/` (Wilcoxon) and `pseudobulk/` (limma) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency added: `limma`.
 
 ### Removed
 
@@ -18,11 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
+- Module `05` helper cleanup: duplicate sample-heatmap builders and one-shot wrappers were folded into a smaller shared set. Analysis outputs, result paths, and plot options are unchanged.
 
 ### Fixed
 
+- Cell-level colocalization in module `05` now uses `metric_type = "co"` so self-proximity pairs are not retested and passed to module 07 as colocalization partners.
+- Module `05` limma pseudobulk skips a cell type unless ≥2 samples remain in every condition after `min_cells` and covariate filtering; aliased design columns are dropped (or the fit is skipped if a condition coefficient is aliased). `eBayes` uses `trend = TRUE` and `robust = TRUE`.
+- Module `05` limma pseudobulk now keeps the design matrix aligned with `expr_mat` when covariates from `metadata.csv` are missing or `sample_alias` values do not match exactly (renames, technical-split suffixes). Incomplete samples are dropped together instead of `model.matrix` omitting covariate rows on its own.
 - Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
 - Module `03` abundance plots rotate x-axis labels 45 degrees so they stay readable with many cell types or samples.
+- `aggregate_sample_abundance` now pivots only markers returned by `FetchData`. Missing features no longer abort the per-cell-type limma fit; remaining markers are still aggregated.
 
 ## [0.6.3] 2026-08-20
 
