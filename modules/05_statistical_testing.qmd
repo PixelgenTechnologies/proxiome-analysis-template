@@ -134,7 +134,7 @@ save_diff_results <- function(df, modality, level, basename) {
   invisible(out_dir)
 }
 
-# Recalculate FDR across the full results table (usually all cell types together).
+# Recalculate FDR within each cell type × contrast (group × target).
 # hard_fail = TRUE stops with a clear error if there are no rows to adjust.
 adjust_global_fdr <- function(df, hard_fail = FALSE) {
   if (!is.data.frame(df) || nrow(df) == 0L || !"p" %in% names(df)) {
@@ -147,7 +147,22 @@ adjust_global_fdr <- function(df, hard_fail = FALSE) {
     }
     return(df)
   }
-  dplyr::mutate(df, p_adj = p.adjust(.data$p, method = "fdr"))
+  missing_cols <- setdiff(c("group", "target"), names(df))
+  if (length(missing_cols) > 0) {
+    stop(
+      "FDR adjustment needs columns group and target. Missing: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  # One BH family per cell type and target-vs-reference contrast, matching
+  # how volcanoes are read. reference is included when present so two
+  # baselines cannot share a family.
+  group_cols <- intersect(c("group", "target", "reference"), names(df))
+  df |>
+    group_by(across(all_of(group_cols))) |>
+    mutate(p_adj = p.adjust(.data$p, method = "fdr")) |>
+    ungroup()
 }
 
 # Cell-level differential proximity (clustering or colocalization) for one cell
@@ -1385,7 +1400,7 @@ Differential abundance analysis identifies markers that exhibit statistically si
 
 The analysis is performed separately for each annotated cell type, comparing marker abundance between a target condition (e.g., stimulated, treated) and a reference condition (e.g., resting, control). For each marker within each cell type, a statistical test (typically the Wilcoxon rank-sum test, also known as the Mann-Whitney U test) is used to assess whether the distribution of marker abundance differs significantly between conditions. The Wilcoxon test is a non-parametric test that does not assume normal distribution of the data, making it robust for single-cell data which often exhibits non-normal distributions and high variability.
 
-The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using the false discovery rate (FDR) method to control for the large number of statistical tests performed across multiple markers and cell types.
+The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using FDR within each cell type and contrast (not across all cell types together).
 
 Results are organized by cell type and include both the raw statistical outputs and summary visualizations. Markers with significant differences (typically p_adj < 0.05) and large effect sizes are of particular biological interest, as they represent markers whose expression is substantially altered by the experimental condition. This analysis enables identification of condition-specific markers, understanding of cellular responses to treatments, and discovery of biomarkers associated with different experimental states.
 
@@ -1451,7 +1466,7 @@ export_marker_diff_plots(
 
 Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
 
-The analysis is performed separately for each cell type, comparing clustering patterns between target and reference conditions. A statistical test (typically the Wilcoxon rank-sum test) is used to assess whether the distribution of clustering scores (log2 ratio of observed versus expected self-proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
+The analysis is performed separately for each cell type, comparing clustering patterns between target and reference conditions. A statistical test (typically the Wilcoxon rank-sum test) is used to assess whether the distribution of clustering scores (log2 ratio of observed versus expected self-proximity) differs significantly between conditions. Multiple testing correction is applied using FDR within each cell type and contrast.
 
 ```{r}
 #| label: statistical_testing_differential_proximity
@@ -1505,7 +1520,7 @@ export_marker_diff_plots(
 
 ## 5.3. Differential Colocalization Analysis (cell-level)
 
-Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing **cross-marker** pairs (`metric_type = "co"`) between target and reference conditions — self-proximity is tested in §5.2, not here. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
+Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing **cross-marker** pairs (`metric_type = "co"`) between target and reference conditions — self-proximity is tested in §5.2, not here. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR within each cell type and contrast.
 
 
 ```{r}
