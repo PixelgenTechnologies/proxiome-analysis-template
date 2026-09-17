@@ -15,6 +15,10 @@ on:
         description: "After building the image, download public PXLs and render the full PAT HTML (smoke test)"
         type: boolean
         default: true
+      run_pseudobulk_smoke:
+        description: "After HTML smoke, also run limma pseudobulk on technical-split replicates (same PXLs; requires smoke test)"
+        type: boolean
+        default: false
 
 # Least privilege at the root; jobs elevate only what they need.
 permissions:
@@ -25,6 +29,8 @@ env:
   # Smoke test on releases and manual runs (optional via input).
   # Skipped on ordinary main pushes/PRs to avoid multi-GB downloads on every CI run.
   RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) }}
+  # Optional add-on to HTML smoke (workflow_dispatch only; never on Release by default).
+  RUN_PSEUDOBULK_SMOKE: ${{ github.event_name == 'workflow_dispatch' && inputs.run_smoke_test && inputs.run_pseudobulk_smoke }}
   PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' }}
   IMAGE_NAME: quay.io/pixelgen-technologies/proxiome-analysis-template
 
@@ -182,6 +188,26 @@ jobs:
               set -euo pipefail
               quarto render proxiome_analysis_template.qmd --embed-resources
               test -f proxiome_analysis_template.html
+            '
+          df -h
+
+      - name: Pseudobulk smoke (optional)
+        if: env.RUN_PSEUDOBULK_SMOKE == 'true'
+        run: |
+          IMAGE="${{ needs.build.outputs.staging_image }}"
+          echo "Running limma pseudobulk smoke against ${IMAGE}"
+          docker run --rm \
+            -e PAT_SMOKE_PSEUDOBULK=1 \
+            -v "${PWD}:/workspace" \
+            -w /workspace \
+            "${IMAGE}" \
+            bash -lc '
+              set -euo pipefail
+              Rscript .github/smoke-test/smoke_pseudobulk.R
+              quarto render modules/05_statistical_testing.qmd
+              test -f results/05_statistical_testing/abundance/pseudobulk/differential_abundance_analysis.rds
+              test -f results/05_statistical_testing/clustering/pseudobulk/differential_clustering_analysis.rds
+              test -f results/05_statistical_testing/colocalization/pseudobulk/differential_colocalization_analysis.rds
             '
           df -h
 
