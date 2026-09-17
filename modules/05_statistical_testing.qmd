@@ -134,6 +134,49 @@ save_diff_results <- function(df, modality, level, basename) {
   invisible(out_dir)
 }
 
+# bind_rows() of all-NULL per-cell-type results is a 0×0 tibble. Module 07
+# then errors in filter(p_adj < ...) instead of the empty-set warning.
+# These schemas match a successful limma table after FDR so that path works.
+empty_abundance_diff_results <- function() {
+  tibble(
+    marker = character(),
+    difference = numeric(),
+    p = numeric(),
+    target = character(),
+    reference = character(),
+    method = character(),
+    group = character(),
+    p_adj = numeric()
+  )
+}
+
+empty_proximity_diff_results <- function() {
+  tibble(
+    marker_1 = character(),
+    marker_2 = character(),
+    diff_median = numeric(),
+    p = numeric(),
+    target = character(),
+    reference = character(),
+    method = character(),
+    group = character(),
+    p_adj = numeric()
+  )
+}
+
+# Keep real combined results; replace a zero-column bind_rows() output
+# with a 0-row table that still has the columns callers filter on.
+ensure_diff_result_schema <- function(df, schema, label = "differential results") {
+  if (is.data.frame(df) && ncol(df) > 0L) {
+    return(df)
+  }
+  message(
+    "No ", label, " after per-cell-type tests; ",
+    "writing an empty table with the expected columns."
+  )
+  schema
+}
+
 # Recalculate FDR within each cell type × contrast (group × target).
 # hard_fail = TRUE stops with a clear error if there are no rows to adjust.
 adjust_global_fdr <- function(df, hard_fail = FALSE) {
@@ -1383,7 +1426,11 @@ run_pseudobulk_proximity_modality <- function(
         }
       )
     }) |>
-    bind_rows()
+    bind_rows() |>
+    ensure_diff_result_schema(
+      empty_proximity_diff_results(),
+      label = paste("pseudobulk", label, "results")
+    )
 
   if (nrow(differential) > 0) {
     differential <- adjust_global_fdr(differential)
@@ -1682,7 +1729,11 @@ if (isTRUE(pseudobulk_ok)) {
 
   differential_abundance_analysis_pseudobulk <- abundance_pseudobulk_parts |>
     map("res") |>
-    bind_rows()
+    bind_rows() |>
+    ensure_diff_result_schema(
+      empty_abundance_diff_results(),
+      label = "pseudobulk abundance results"
+    )
 
   if (nrow(differential_abundance_analysis_pseudobulk) > 0) {
     differential_abundance_analysis_pseudobulk <-
