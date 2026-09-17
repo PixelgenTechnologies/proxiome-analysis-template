@@ -90,35 +90,68 @@ Significant markers from differential abundance and unique markers from signific
 ```{r}
 #| label: module07_build_protein_sets
 
-daa_sets <-
-  differential_abundance_analysis |>
-  filter(
-    p_adj < daa_p_adj_threshold,
-    abs(difference) >= daa_effect_size_threshold,
-    difference != 0
-  ) |>
-  mutate(direction = if_else(difference > 0, "up", "down")) |>
-  group_by(source = "differential_abundance", group, target, direction) |>
-  summarise(
-    markers = list(sort(unique(marker))),
-    n_markers = n_distinct(marker),
-    .groups = "drop"
+# 0-row schema used when a module 05 table is empty or has no columns.
+# bind_rows() of all-NULL limma fits writes a 0×0 RDS; filter(p_adj < ...)
+# would error on that object, so treat it as no significant markers and
+# fall through to the empty-set warning below.
+empty_protein_sets <- function() {
+  tibble(
+    source = character(),
+    group = character(),
+    target = character(),
+    direction = character(),
+    markers = list(),
+    n_markers = integer()
   )
+}
+
+has_diff_columns <- function(df, extra) {
+  is.data.frame(df) && all(c("p_adj", "group", "target", extra) %in% names(df))
+}
+
+daa_sets <-
+  if (!has_diff_columns(
+    differential_abundance_analysis,
+    c("difference", "marker")
+  )) {
+    empty_protein_sets()
+  } else {
+    differential_abundance_analysis |>
+      filter(
+        p_adj < daa_p_adj_threshold,
+        abs(difference) >= daa_effect_size_threshold,
+        difference != 0
+      ) |>
+      mutate(direction = if_else(difference > 0, "up", "down")) |>
+      group_by(source = "differential_abundance", group, target, direction) |>
+      summarise(
+        markers = list(sort(unique(marker))),
+        n_markers = n_distinct(marker),
+        .groups = "drop"
+      )
+  }
 
 coloc_sets <-
-  differential_colocalization_analysis |>
-  filter(
-    p_adj < coloc_p_adj_threshold,
-    abs(diff_median) >= coloc_effect_size_threshold,
-    diff_median != 0
-  ) |>
-  mutate(direction = if_else(diff_median > 0, "up", "down")) |>
-  group_by(source = "differential_colocalization", group, target, direction) |>
-  summarise(
-    markers = list(sort(unique(c(marker_1, marker_2)))),
-    .groups = "drop"
-  ) |>
-  mutate(n_markers = map_int(markers, length))
+  if (!has_diff_columns(
+    differential_colocalization_analysis,
+    c("diff_median", "marker_1", "marker_2")
+  )) {
+    empty_protein_sets()
+  } else {
+    differential_colocalization_analysis |>
+      filter(
+        p_adj < coloc_p_adj_threshold,
+        abs(diff_median) >= coloc_effect_size_threshold,
+        diff_median != 0
+      ) |>
+      mutate(direction = if_else(diff_median > 0, "up", "down")) |>
+      group_by(source = "differential_colocalization", group, target, direction) |>
+      summarise(
+        markers = list(sort(unique(c(marker_1, marker_2)))),
+        .groups = "drop"
+      ) |>
+      mutate(n_markers = map_int(markers, length))
+  }
 
 protein_sets <-
   bind_rows(daa_sets, coloc_sets) |>
