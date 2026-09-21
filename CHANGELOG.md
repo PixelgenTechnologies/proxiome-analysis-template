@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Module `05` FDR (`p_adj`) is now Benjamini–Hochberg within each cell type × contrast (`group` × `target`), not across the full results table.
 - Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
-- Module `05` helper cleanup: duplicate sample-heatmap builders and one-shot wrappers were folded into a smaller shared set. Analysis outputs, result paths, and plot options are unchanged.
+- Module `05` helper cleanup: duplicate sample-heatmap builders and one-shot wrappers were folded into a smaller shared set. Empty differential tables share one schema helper; unused FDR `hard_fail` is removed. Analysis outputs, result paths, and plot options are unchanged.
 
 ### Fixed
 
