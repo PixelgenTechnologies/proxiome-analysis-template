@@ -134,13 +134,11 @@ save_diff_results <- function(df, modality, level, basename) {
   invisible(out_dir)
 }
 
-# bind_rows() of all-NULL per-cell-type results is a 0×0 tibble. Module 07
-# then errors in filter(p_adj < ...) instead of the empty-set warning.
-# These schemas match a successful limma table after FDR so that path works.
-empty_abundance_diff_results <- function() {
-  tibble(
-    marker = character(),
-    difference = numeric(),
+# bind_rows() of all-NULL per-cell-type results is a 0×0 tibble. Replace that
+# with a 0-row table that still has the columns module 07 filters on.
+empty_diff_results <- function(kind = c("abundance", "proximity")) {
+  kind <- match.arg(kind)
+  shared <- tibble(
     p = numeric(),
     target = character(),
     reference = character(),
@@ -148,25 +146,19 @@ empty_abundance_diff_results <- function() {
     group = character(),
     p_adj = numeric()
   )
+  if (identical(kind, "abundance")) {
+    bind_cols(tibble(marker = character(), difference = numeric()), shared)
+  } else {
+    bind_cols(
+      tibble(marker_1 = character(), marker_2 = character(), diff_median = numeric()),
+      shared
+    )
+  }
 }
 
-empty_proximity_diff_results <- function() {
-  tibble(
-    marker_1 = character(),
-    marker_2 = character(),
-    diff_median = numeric(),
-    p = numeric(),
-    target = character(),
-    reference = character(),
-    method = character(),
-    group = character(),
-    p_adj = numeric()
-  )
-}
-
-# Keep real combined results; replace a zero-column bind_rows() output
-# with a 0-row table that still has the columns callers filter on.
-ensure_diff_result_schema <- function(df, schema, label = "differential results") {
+# Keep real combined results; coerce a zero-column bind_rows() output to the
+# empty schema for kind ("abundance" or "proximity").
+ensure_diff_result_schema <- function(df, kind, label = "differential results") {
   if (is.data.frame(df) && ncol(df) > 0L) {
     return(df)
   }
@@ -174,20 +166,13 @@ ensure_diff_result_schema <- function(df, schema, label = "differential results"
     "No ", label, " after per-cell-type tests; ",
     "writing an empty table with the expected columns."
   )
-  schema
+  empty_diff_results(kind)
 }
 
 # Recalculate FDR within each cell type × contrast (group × target).
-# hard_fail = TRUE stops with a clear error if there are no rows to adjust.
-adjust_global_fdr <- function(df, hard_fail = FALSE) {
+# Empty tables are returned unchanged.
+adjust_global_fdr <- function(df) {
   if (!is.data.frame(df) || nrow(df) == 0L || !"p" %in% names(df)) {
-    if (isTRUE(hard_fail)) {
-      stop(
-        "No differential results to FDR-adjust. ",
-        "All cell-type tests failed or returned empty; see messages above.",
-        call. = FALSE
-      )
-    }
     return(df)
   }
   missing_cols <- setdiff(c("group", "target"), names(df))
@@ -213,8 +198,7 @@ adjust_global_fdr <- function(df, hard_fail = FALSE) {
 # DifferentialProximityAnalysis metric_type: "self" (clustering), "co"
 # (cross-marker colocalization), or "all" (both). Keep only markers in
 # markers_to_test. After combining cell types, use ensure_diff_result_schema()
-# then adjust_global_fdr() without hard_fail so empty Wilcoxon proximity does
-# not abort the document before the optional limma path in §§5.4–5.7.
+# then adjust_global_fdr(); empty Wilcoxon proximity must not abort §§5.4–5.7.
 run_cell_level_proximity_da <- function(
   cell_type,
   markers_vec,
@@ -1437,13 +1421,11 @@ run_pseudobulk_proximity_modality <- function(
     }) |>
     bind_rows() |>
     ensure_diff_result_schema(
-      empty_proximity_diff_results(),
+      "proximity",
       label = paste("pseudobulk", label, "results")
-    )
+    ) |>
+    adjust_global_fdr()
 
-  if (nrow(differential) > 0) {
-    differential <- adjust_global_fdr(differential)
-  }
   save_diff_results(differential, modality, "pseudobulk", basename)
   differential
 }
@@ -1484,6 +1466,10 @@ differential_abundance_analysis <-
     )
   }) |>
   bind_rows() |>
+  ensure_diff_result_schema(
+    "abundance",
+    label = "cell-level abundance results"
+  ) |>
   adjust_global_fdr()
 
 save_diff_results(
@@ -1541,7 +1527,7 @@ differential_clustering_analysis <-
   }) |>
   bind_rows() |>
   ensure_diff_result_schema(
-    empty_proximity_diff_results(),
+    "proximity",
     label = "cell-level clustering results"
   ) |>
   adjust_global_fdr()
@@ -1604,7 +1590,7 @@ differential_colocalization_analysis <-
   }) |>
   bind_rows() |>
   ensure_diff_result_schema(
-    empty_proximity_diff_results(),
+    "proximity",
     label = "cell-level colocalization results"
   ) |>
   adjust_global_fdr()
@@ -1756,14 +1742,10 @@ if (isTRUE(pseudobulk_ok)) {
     map("res") |>
     bind_rows() |>
     ensure_diff_result_schema(
-      empty_abundance_diff_results(),
+      "abundance",
       label = "pseudobulk abundance results"
-    )
-
-  if (nrow(differential_abundance_analysis_pseudobulk) > 0) {
-    differential_abundance_analysis_pseudobulk <-
-      adjust_global_fdr(differential_abundance_analysis_pseudobulk)
-  }
+    ) |>
+    adjust_global_fdr()
 
   save_diff_results(
     differential_abundance_analysis_pseudobulk,
