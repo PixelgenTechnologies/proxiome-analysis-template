@@ -25,12 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Module `05` no longer writes a zero-column table under `pseudobulk/` when every per-cell-type limma fit is skipped or errors after the global replicate gate. Combined results use an empty schema that includes `p_adj`, so module `07` takes the existing empty protein-set warning instead of failing in `filter()`.
+- Cell-level clustering and colocalization no longer `stop()` when every Wilcoxon test is empty, so `run_pseudobulk <- TRUE` still reaches §§5.4–5.7. Empty proximity tables are written with the expected columns and plots are skipped.
 - Cell-level colocalization in module `05` now uses `metric_type = "co"` so self-proximity pairs are not retested and passed to module 07 as colocalization partners.
 - Module `05` limma pseudobulk skips a cell type unless ≥2 samples remain in every condition after `min_cells` and covariate filtering; aliased design columns are dropped (or the fit is skipped if a condition coefficient is aliased). `eBayes` uses `trend = TRUE` and `robust = TRUE`.
 - Module `05` limma pseudobulk now keeps the design matrix aligned with `expr_mat` when covariates from `metadata.csv` are missing or `sample_alias` values do not match exactly (renames, technical-split suffixes). Incomplete samples are dropped together instead of `model.matrix` omitting covariate rows on its own.
 - Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
 - Module `03` abundance plots rotate x-axis labels 45 degrees so they stay readable with many cell types or samples.
 - `aggregate_sample_abundance` now pivots only markers returned by `FetchData`. Missing features no longer abort the per-cell-type limma fit; remaining markers are still aggregated.
+- `aggregate_sample_abundance` inner-joins assay values, counts only cells with finite CLR toward `min_cells`, and uses `mean(..., na.rm = TRUE)` so missing CLR no longer poisons a sample's limma input.
 
 ## [0.6.3] 2026-08-20
 

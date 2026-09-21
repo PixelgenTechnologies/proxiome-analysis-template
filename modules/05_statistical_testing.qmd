@@ -212,8 +212,9 @@ adjust_global_fdr <- function(df, hard_fail = FALSE) {
 # type. Uses a Wilcoxon test on proximity scores. pair_mode maps to
 # DifferentialProximityAnalysis metric_type: "self" (clustering), "co"
 # (cross-marker colocalization), or "all" (both). Keep only markers in
-# markers_to_test. Call adjust_global_fdr(..., hard_fail = TRUE) after combining
-# cell types.
+# markers_to_test. After combining cell types, use ensure_diff_result_schema()
+# then adjust_global_fdr() without hard_fail so empty Wilcoxon proximity does
+# not abort the document before the optional limma path in §§5.4–5.7.
 run_cell_level_proximity_da <- function(
   cell_type,
   markers_vec,
@@ -275,8 +276,9 @@ top_features_by_significance <- function(df, n, group_cols = NULL) {
 }
 
 # Mean CLR per sample for markers in one cell-type object. Returns NULL when
-# fewer than two samples have at least min_cells (too few for a heatmap / limma).
-# Metadata and assay values are merged on cell_id so sample labels are preserved.
+# fewer than two samples have at least min_cells with finite CLR (too few for
+# a heatmap / limma). Metadata and assay values are inner-joined on cell_id
+# so unmatched cells do not count as replicates or turn sample means into NA.
 aggregate_sample_abundance <- function(
   obj,
   markers_vec,
@@ -335,13 +337,19 @@ aggregate_sample_abundance <- function(
     check.names = FALSE
   )
 
-  dat <- merge(meta, assay, by = "cell_id", all.x = TRUE, sort = FALSE)
+  # Inner join: unmatched metadata cells would otherwise become NA CLR rows
+  # that still count toward min_cells and make mean(clr) NA for every marker.
+  dat <- merge(meta, assay, by = "cell_id", sort = FALSE)
   if (!all(c("sample_alias", "condition") %in% names(dat))) {
     stop(
       "Lost sample_alias/condition after merge. Columns: ",
       paste(names(dat), collapse = ", ")
     )
   }
+
+  # Count only cells with at least one finite CLR, matching how means skip NAs
+  dat <- dat |>
+    filter(if_any(all_of(markers_vec), is.finite))
 
   n_keep <- dat |>
     dplyr::count(.data$sample_alias, .data$condition, name = "n_cells") |>
@@ -358,7 +366,8 @@ aggregate_sample_abundance <- function(
       values_to = "clr"
     ) |>
     group_by(.data$sample_alias, .data$condition, .data$marker) |>
-    summarise(mean_clr = mean(clr), .groups = "drop")
+    summarise(mean_clr = mean(clr, na.rm = TRUE), .groups = "drop") |>
+    filter(is.finite(mean_clr))
 }
 
 # Turn long sample-level summaries into a features × samples matrix for limma / heatmaps
@@ -1531,7 +1540,11 @@ differential_clustering_analysis <-
     )
   }) |>
   bind_rows() |>
-  adjust_global_fdr(hard_fail = TRUE)
+  ensure_diff_result_schema(
+    empty_proximity_diff_results(),
+    label = "cell-level clustering results"
+  ) |>
+  adjust_global_fdr()
 
 save_diff_results(
   differential_clustering_analysis,
@@ -1556,13 +1569,17 @@ Here we create summarizing plots for the differential clustering analysis result
 #| label: statistical_testing_differential_clustering_plots
 #| eval: !expr isTRUE(run_cell_level)
 
-export_marker_diff_plots(
-  differential_clustering_analysis,
-  modality = "clustering",
-  effect_col = "diff_median",
-  feature_col = "marker_1",
-  analysis_label = "Differential clustering analysis"
-)
+if (nrow(differential_clustering_analysis) > 0) {
+  export_marker_diff_plots(
+    differential_clustering_analysis,
+    modality = "clustering",
+    effect_col = "diff_median",
+    feature_col = "marker_1",
+    analysis_label = "Differential clustering analysis"
+  )
+} else {
+  message("Skipping cell-level clustering plots: no Wilcoxon results.")
+}
 ```
 
 ## 5.3. Differential Colocalization Analysis (cell-level)
@@ -1586,7 +1603,11 @@ differential_colocalization_analysis <-
     )
   }) |>
   bind_rows() |>
-  adjust_global_fdr(hard_fail = TRUE)
+  ensure_diff_result_schema(
+    empty_proximity_diff_results(),
+    label = "cell-level colocalization results"
+  ) |>
+  adjust_global_fdr()
 
 save_diff_results(
   differential_colocalization_analysis,
@@ -1608,13 +1629,17 @@ Here we create summarizing plots for the differential colocalization analysis re
 #| label: statistical_testing_differential_colocalization_plot
 #| eval: !expr isTRUE(run_cell_level)
 
-export_colocalization_diff_plots(
-  differential_colocalization_analysis,
-  level = "cell_level",
-  analysis_label = "Differential Colocalization Analysis",
-  fill_lab = "Difference\nin medians",
-  min_heatmap_pairs = 2L
-)
+if (nrow(differential_colocalization_analysis) > 0) {
+  export_colocalization_diff_plots(
+    differential_colocalization_analysis,
+    level = "cell_level",
+    analysis_label = "Differential Colocalization Analysis",
+    fill_lab = "Difference\nin medians",
+    min_heatmap_pairs = 2L
+  )
+} else {
+  message("Skipping cell-level colocalization plots: no Wilcoxon results.")
+}
 ```
 
 
