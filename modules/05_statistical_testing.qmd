@@ -506,11 +506,13 @@ export_diff_plots <- function(
       heatmap_mat <- t(heatmap_mat)
     }
     if (nrow(heatmap_mat) > 0 && ncol(heatmap_mat) > 0) {
+      # Size by plotted axes: columns → width, rows → height. Coloc stays
+      # pairs × cell types; abundance/clustering are transposed to cell types × markers.
       export_plot(
         filename = file.path(base_output_dir, paste0("differential_", modality, "_heatmap")),
         plot = effect_heatmap(heatmap_mat),
-        width = max(6, nrow(heatmap_mat) * 0.15 + 1.5),
-        height = max(4, ncol(heatmap_mat) * 0.2 + 1.5)
+        width = max(6, ncol(heatmap_mat) * 0.15 + 1.5),
+        height = max(4, nrow(heatmap_mat) * 0.2 + 1.5)
       )
     }
   }
