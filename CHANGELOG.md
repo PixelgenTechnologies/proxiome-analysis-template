@@ -9,23 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional limma pseudobulk path in module `05` (setup in §5.4; tests in §§5.5–5.7): sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization when `run_pseudobulk <- TRUE` (≥2 `sample_alias` per `condition`). Each modality now has parallel `cell_level/` (Wilcoxon) and `pseudobulk/` (limma) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency added: `limma`.
-
-### Changed
-
-- Module `05` plot/filter knobs (`n_volcano_labels`, `diff_p_adj_cutoff`, `diff_abs_effect_min`, `coloc_cross_ct_heatmap_n`, and Wilcoxon proximity filters) are hardcoded in the helpers instead of exposed in the setup chunk. Sample-level aggregation no longer filters by `min_cells`; §5.4 warns (and skips limma) when a condition has fewer than two samples.
-- Module `05` FDR (`p_adj`) is now Benjamini–Hochberg within each cell type × contrast (`group` × `target`), not across the full results table.
-- Module `05` helpers are grouped by role (result I/O, sample matrices, plots; limma in §5.4) and simplified to the happy path. Cell-level Wilcoxon proximity is inlined in §§5.2–5.3. Abundance, clustering, and colocalization plots share one `export_diff_plots()` helper and one volcano style. Cell-level proximity side heatmaps use `aggregate_sample_proximity()`. Limma uses `reference_condition` / `metadata` from the setup chunk and returns a results tibble; clustering and coloc fits are inlined in §§5.6–5.7. Extra FetchData/merge, prefix-join, and aliased-design guards are dropped. Empty differential tables still share one schema helper for module 07.
-
-### Fixed
-
-- When limma pseudobulk is enabled but the shared proximity summary is empty, module `05` still writes schema-complete `differential_clustering_analysis.rds` and `differential_colocalization_analysis.rds` under `pseudobulk/`, matching abundance. Module `07` then uses the empty protein-set warning instead of stopping on a missing coloc file, and the optional CI `test -f` smoke checks pass.
-- Module `05` effect heatmaps size export width by matrix columns and height by rows, so the cross–cell-type colocalization heatmap (pairs × cell types, not transposed) is tall enough for the pair rows.
-- Module `05` no longer writes a zero-column table under `pseudobulk/` when every per-cell-type limma fit is skipped or errors after the global replicate gate. Combined results use an empty schema that includes `p_adj`, so module `07` takes the existing empty protein-set warning instead of failing in `filter()`.
-- Cell-level clustering and colocalization no longer `stop()` when every Wilcoxon test is empty, so `run_pseudobulk <- TRUE` still reaches §§5.4–5.7. Empty proximity tables are written with the expected columns and plots are skipped.
-- Cell-level colocalization in module `05` now uses `metric_type = "co"` so self-proximity pairs are not retested and passed to module 07 as colocalization partners.
-- Module `05` limma pseudobulk warns in §5.4 if a condition (or a cell type × condition) has fewer than two samples, then skips the fit. Incomplete covariate rows are still dropped. `eBayes` uses `trend = TRUE` and `robust = TRUE`.
-- `aggregate_sample_abundance` pivots whatever marker columns `FetchData` returns, so a missing feature no longer aborts the per-cell-type limma fit.
+- Optional limma pseudobulk path in module `05`: sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization when `run_pseudobulk <- TRUE`. Each modality now has parallel `cell_level/` (Wilcoxon) and `pseudobulk/` (limma) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency added: `limma`.
 
 ## [0.6.4] 2026-09-18
 
