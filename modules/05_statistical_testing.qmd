@@ -520,7 +520,10 @@ export_diff_plots <- function(
         plot_data_hm <- cell_data |>
           filter(p_adj < 0.05) |>
           arrange(desc(neg_log10_p_adj))
-        if (nrow(plot_data_hm) < 1) {
+        # ColocalizationHeatmap errors with fewer than two rows, so skip
+        # a cell type that has 0 or 1 significant pairs instead of aborting
+        # export_diff_plots after results have already been written.
+        if (nrow(plot_data_hm) < 2) {
           next
         }
         plot_markers <- unique(c(plot_data_hm$marker_1, plot_data_hm$marker_2))
