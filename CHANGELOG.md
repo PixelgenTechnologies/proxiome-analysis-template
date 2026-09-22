@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When limma pseudobulk is enabled but the shared proximity summary is empty, module `05` still writes schema-complete `differential_clustering_analysis.rds` and `differential_colocalization_analysis.rds` under `pseudobulk/`, matching abundance. Module `07` then uses the empty protein-set warning instead of stopping on a missing coloc file, and the optional CI `test -f` smoke checks pass.
 - Module `05` effect heatmaps size export width by matrix columns and height by rows, so the cross–cell-type colocalization heatmap (pairs × cell types, not transposed) is tall enough for the pair rows.
 - Module `05` no longer writes a zero-column table under `pseudobulk/` when every per-cell-type limma fit is skipped or errors after the global replicate gate. Combined results use an empty schema that includes `p_adj`, so module `07` takes the existing empty protein-set warning instead of failing in `filter()`.
 - Cell-level clustering and colocalization no longer `stop()` when every Wilcoxon test is empty, so `run_pseudobulk <- TRUE` still reaches §§5.4–5.7. Empty proximity tables are written with the expected columns and plots are skipped.
