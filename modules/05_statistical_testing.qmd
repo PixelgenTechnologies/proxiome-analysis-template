@@ -1,6 +1,6 @@
 # 5. Statistical testing
 
-**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run the first chunk below after module `02` has finished.
+**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests (cell-level Wilcoxon by default; optional limma pseudobulk in §§5.5–5.7). Skip this module if you do not need formal comparisons. Run the first chunk below after module `02` has finished.
 
 ```{r}
 #| label: module05_setup
@@ -18,34 +18,592 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 }
 ```
 
-## 5.0. Set reference sample
+## 5.0. Set Up Statistical Testing
 
 > **Decision checkpoint** (statistical contrasts)  
-> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in module `05` use this baseline.
+> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in module `05` use this baseline.  
+> Optionally set `run_pseudobulk <- TRUE` to also run sample-level limma tests (requires ≥2 `sample_alias` values per `condition`).
 
-By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state. 
+By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state.
+
+Sections 5.1–5.3 use **cell-level** Wilcoxon tests (cells pooled by `condition`). These are the default outputs consumed by module 07 (under `{modality}/cell_level/`). With many cells they can overstate significance; when you have biological replicates, enable the optional **pseudobulk** limma path (setup in §5.4; tests in §§5.5–5.7). That path aggregates to `sample_alias` × cell type, then tests across samples; outputs go under `{modality}/pseudobulk/`.
 
 ```{r}
 #| label: statistical_testing_set_reference
 
+# Baseline / control condition. Must match a value in metadata$condition.
+# All tests compare each other condition against this one (target − reference).
+# Output folders are named {target}_vs_{reference}.
 reference_condition <- "donor1"
+if (!reference_condition %in% pg_data$condition) stop("The reference condition is not present in the Seurat object")
 
-if (!reference_condition %in% metadata$condition) stop("The reference condition is not present in the sample metadata")
+# If TRUE, run cell-level Wilcoxon tests (sections 5.1–5.3). Set FALSE to skip.
+run_cell_level <- TRUE
+# If TRUE, run sample-level limma tests (sections 5.5–5.7). Set FALSE to skip.
+run_pseudobulk <- FALSE
+
+# Optional continuous-integration overrides. Loaded after the flags above so
+# smoke tests can change them (see .github/smoke-test/apply_module05_overrides.R).
+smoke_hook <- here::here(".github/smoke-test/apply_module05_overrides.R")
+if (file.exists(smoke_hook)) {
+  source(smoke_hook)
+}
+
+# Optional batch / donor columns from metadata.csv to include in limma models,
+# e.g. c("donor", "batch"). Leave as NULL for none. Do not add `condition` here.
+pseudobulk_covariate_cols <- NULL
+```
+
+Helpers used by the analysis and plotting chunks below, grouped by role. Usually you will not need to modify these.
+
+### Helper Functions
+
+Helpers for creating the correct input and output tables for the analysis and plotting functions.
+
+```{r}
+#| label: statistical_testing_result_helpers
+#| include: false
+
+# Add columns to dataframes used by the volcano and heatmap functions
+prepare_diff_plot_data <- function(df, effect_col, feature_col = NULL) {
+  out <- df |>
+    mutate(
+      neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
+      significant = p_adj < 0.05,
+      effect_size = !!sym(effect_col)
+    )
+  if (!is.null(feature_col)) {
+    out <- out |> mutate(marker = !!sym(feature_col))
+  }
+  out
+}
+
+# Save the results to the results/05_statistical_testing/{modality}/{level} directory
+save_diff_results <- function(df, modality, level, basename) {
+  out_dir <- here::here("results/05_statistical_testing", modality, level)
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  saveRDS(df, file.path(out_dir, paste0(basename, ".rds")))
+  write.csv(df, file.path(out_dir, paste0(basename, ".csv")), row.names = FALSE)
+  invisible(out_dir)
+}
+
+# Create an empty table that module 07 expects when no results are available; depending on the modality, the table will have different columns.
+empty_diff_results <- function(kind = c("abundance", "proximity")) {
+  kind <- match.arg(kind)
+  shared <- tibble(
+    p = numeric(),
+    target = character(),
+    reference = character(),
+    method = character(),
+    group = character(),
+    p_adj = numeric()
+  )
+  if (identical(kind, "abundance")) {
+    bind_cols(tibble(marker = character(), difference = numeric()), shared)
+  } else {
+    bind_cols(
+      tibble(marker_1 = character(), marker_2 = character(), diff_median = numeric()),
+      shared
+    )
+  }
+}
+
+# Ensure this empty dataframe has the expected columns; this is a safety check to ensure that the empty table has the correct columns for the given modality
+ensure_diff_result_schema <- function(df, kind, label = "differential results") {
+  if (is.data.frame(df) && ncol(df) > 0L) {
+    return(df)
+  }
+  message("No ", label, "; writing an empty table with the expected columns.")
+  empty_diff_results(kind)
+}
+
+# Helper function for BH p-value adjustment within cell type × contrast (not across the whole table)
+adjust_global_fdr <- function(df) {
+  if (!is.data.frame(df) || nrow(df) == 0L || !"p" %in% names(df)) {
+    return(df)
+  }
+  df |>
+    group_by(across(any_of(c("group", "target", "reference")))) |>
+    mutate(p_adj = p.adjust(.data$p, method = "fdr")) |>
+    ungroup()
+}
+```
+
+### Sample-level Aggregation
+
+Per-sample means for volcano side heatmaps and pseudobulk analyses.
+
+#### Abundance
+
+Create the table of per-sample means for the abundance modality here already; we will use it in the volcano and heatmap functions of the single cell level analysis as well as for the pseudobulk level analysis.
+
+```{r}
+#| label: statistical_testing_aggregate_abundance
+#| include: false
+
+# Mean CLR per sample × cell type × marker. Used for volcano side heatmaps
+# (§5.1.1) and limma (§5.5). Saved under cell_level/; §5.5 also writes the
+# same object under pseudobulk/ when limma runs.
+summary_abundance_data <-
+  names(markers_to_test) |>
+  map(function(cell_type) {
+    dat <- FetchData(
+      subset(pg_data, cell_annotation == cell_type),
+      vars = c(
+        "sample_alias",
+        "condition",
+        as.character(unname(markers_to_test[[cell_type]]))
+      ),
+      layer = "data"
+    )
+    marker_cols <- setdiff(colnames(dat), c("sample_alias", "condition"))
+    dat |>
+      pivot_longer(all_of(marker_cols), names_to = "marker", values_to = "clr") |>
+      group_by(.data$sample_alias, .data$condition, .data$marker) |>
+      summarise(mean_clr = mean(clr, na.rm = TRUE), .groups = "drop") |>
+      mutate(group = cell_type)
+  }) |>
+  bind_rows()
+
+save_diff_results(
+  summary_abundance_data,
+  "abundance",
+  "cell_level",
+  "summary_abundance_data"
+)
+```
+
+#### Proximity
+
+Build the per-sample proximity table once here, the same way as abundance above, so the cell-level plots (§§5.2.1, 5.3.1) and the pseudobulk fits (§§5.6–5.7) all show and test the same numbers. `FilterProximityScores()` drops pairs below an isotype-derived background, then `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type.
+
+```{r}
+#| label: statistical_testing_proximity_helpers
+#| include: false
+
+# Mean log2_ratio per sample × pair. Clustering and colocalization both use this table.
+# Weak pairs are dropped with FilterProximityScores: median isotype fraction + 2 MAD
+# (minimum 0.001), matching the usual pixelatorR spatial-analysis rule.
+aggregate_sample_proximity <- function(
+  obj,
+  markers_vec,
+  group_vars = c("sample_alias", "condition")
+) {
+  background_threshold_pct <- if ("isotype_fraction" %in% colnames(obj[[]])) {
+    max(
+      median(obj$isotype_fraction, na.rm = TRUE) +
+        2 * mad(obj$isotype_fraction, na.rm = TRUE),
+      0.001
+    )
+  } else {
+    0.001
+  }
+  proximity_data <- ProximityScores(
+    obj,
+    lazy = TRUE,
+    meta_data_columns = group_vars,
+    add_marker_proportions = TRUE
+  ) |>
+    filter(marker_1 %in% markers_vec, marker_2 %in% markers_vec) |>
+    FilterProximityScores(background_threshold_pct = background_threshold_pct)
+
+  SummarizeProximityScores(
+    proximity_data,
+    proximity_metric = "log2_ratio",
+    group_vars = group_vars,
+    summary_stat = "mean",
+    include_missing_obs = TRUE
+  ) |>
+    mutate(feature = paste(marker_1, marker_2, sep = "__"))
+}
+```
+
+```{r}
+#| label: statistical_testing_aggregate_proximity
+
+# One table for clustering and colocalization, at both levels: mean log2_ratio
+# per sample × cell type × pair. Self-proximity is the marker_1 == marker_2
+# subset. Saved under cell_level/; §5.6 also writes it under pseudobulk/.
+summary_proximity_data <-
+  names(markers_to_test) |>
+  map(function(cell_type) {
+    tryCatch(
+      aggregate_sample_proximity(
+        subset(pg_data, cell_annotation == cell_type),
+        markers_to_test[[cell_type]]
+      ) |>
+        mutate(group = cell_type),
+      error = function(e) {
+        message(paste("Proximity summary error for", cell_type, ":", e$message))
+        NULL
+      }
+    )
+  }) |>
+  bind_rows()
+
+if (nrow(summary_proximity_data) > 0) {
+  # Clustering and colocalization read the same table, so write it under both
+  save_diff_results(summary_proximity_data, "clustering", "cell_level", "summary_proximity_data")
+  save_diff_results(summary_proximity_data, "colocalization", "cell_level", "summary_proximity_data")
+} else {
+  message("No sample-level proximity summaries; proximity side heatmaps will be skipped.")
+}
+```
+
+### Plotting Functions
+
+Volcanoes, sample heatmaps, and effect heatmaps. These functions are used to create the plots for the differential abundance and clustering analyses.
+
+```{r}
+#| label: statistical_testing_plot_helpers
+#| include: false
+
+top_features_by_significance <- function(df, n, group_cols = NULL) {
+  if (!is.null(group_cols)) {
+    df <- df |> group_by(across(all_of(group_cols)))
+  }
+  df |>
+    slice_max(order_by = .data$neg_log10_p_adj, n = n, with_ties = FALSE) |>
+    ungroup()
+}
+
+sample_zscore_heatmap <- function(mat, sample_info, legend_title = "Z-score") {
+  sample_info <- sample_info |>
+    mutate(
+      sample_alias = as.character(.data$sample_alias),
+      condition = as.character(.data$condition)
+    ) |>
+    arrange(.data$condition, .data$sample_alias)
+  mat <- mat[, sample_info$sample_alias, drop = FALSE]
+  mat_z <- t(scale(t(mat)))
+  mat_z[!is.finite(mat_z)] <- 0
+  z_lim <- max(2, max(abs(mat_z), na.rm = TRUE), na.rm = TRUE)
+  ann_col <- data.frame(
+    condition = factor(sample_info$condition, levels = unique(sample_info$condition)),
+    row.names = sample_info$sample_alias
+  )
+  ComplexHeatmap::pheatmap(
+    mat_z,
+    color = PixelgenGradient(100, "BluesCherry"),
+    breaks = seq(-z_lim, z_lim, length.out = 101),
+    cluster_rows = FALSE,
+    cluster_cols = FALSE,
+    annotation_col = ann_col,
+    annotation_colors = list(condition = condition_palette[levels(ann_col$condition)]),
+    cellwidth = 12,
+    cellheight = max(3.5, min(8, 350 / max(nrow(mat_z), 1))),
+    heatmap_legend_param = list(title = legend_title),
+    fontsize_row = 6,
+    fontsize_col = 7,
+    angle_col = "45"
+  ) |>
+    as.ggplot()
+}
+
+export_volcano_with_optional_heatmap <- function(volcano, sample_hm, expr_mat, filename) {
+  if (is.null(sample_hm) || is.null(expr_mat)) {
+    export_plot(filename = filename, plot = volcano, width = 5.5, height = 4.5)
+    return(invisible(NULL))
+  }
+  export_plot(
+    filename = filename,
+    plot = patchwork::wrap_plots(volcano, sample_hm, nrow = 1, widths = c(1, 1.2)),
+    width = 5.5 + max(4, ncol(expr_mat) * 0.35 + 2.5),
+    height = max(4.5, nrow(expr_mat) * 0.12 + 2)
+  )
+}
+
+# Sample means heatmap for the labeled volcano features. summary_df is
+# summary_abundance_data or summary_proximity_data; both levels pass the same
+# table so the cell-level and pseudobulk heatmaps show identical values.
+build_volcano_side_heatmap <- function(cell_type, top_df, modality, summary_df = NULL) {
+  empty <- list(sample_hm = NULL, expr_mat = NULL)
+  feature_order <- top_df |>
+    arrange(desc(neg_log10_p_adj)) |>
+    pull(marker) |>
+    unique()
+  if (length(feature_order) < 1 || is.null(summary_df) || nrow(summary_df) < 1) {
+    return(empty)
+  }
+
+  if (identical(modality, "abundance")) {
+    agg <- summary_df |>
+      filter(group == cell_type, marker %in% feature_order)
+    value_col <- "mean_clr"
+    legend_title <- "CLR\nZ-score"
+    values_fill <- NULL
+  } else {
+    agg <- summary_df |>
+      filter(group == cell_type) |>
+      mutate(marker = if (identical(modality, "clustering")) marker_1 else feature)
+    agg <- if (identical(modality, "clustering")) {
+      agg |> filter(marker_1 == marker_2, marker %in% feature_order)
+    } else {
+      agg |> filter(marker %in% feature_order)
+    }
+    value_col <- "mean_log2_ratio"
+    legend_title <- "log2_ratio\nZ-score"
+    values_fill <- 0
+  }
+
+  if (is.null(agg) || nrow(agg) < 1) {
+    return(empty)
+  }
+  sample_info <- agg |>
+    distinct(.data$sample_alias, .data$condition) |>
+    arrange(.data$condition, .data$sample_alias)
+  expr_mat <- agg |>
+    mutate(sample_alias = as.character(sample_alias)) |>
+    select(all_of(c("marker", "sample_alias", value_col))) |>
+    pivot_wider(
+      names_from = sample_alias,
+      values_from = all_of(value_col),
+      values_fill = values_fill,
+      values_fn = mean
+    ) |>
+    column_to_rownames("marker") |>
+    as.matrix()
+  expr_mat <- expr_mat[, as.character(sample_info$sample_alias), drop = FALSE]
+  keep <- intersect(feature_order, rownames(expr_mat))
+  if (length(keep) < 1) {
+    return(empty)
+  }
+  expr_mat <- expr_mat[keep, , drop = FALSE]
+  list(
+    sample_hm = sample_zscore_heatmap(expr_mat, sample_info, legend_title),
+    expr_mat = expr_mat
+  )
+}
+
+diff_volcano <- function(
+  plot_data,
+  label_data,
+  title,
+  subtitle,
+  x_lab = "Effect size",
+  label_size = 2,
+  facet = TRUE
+) {
+  p <- plot_data |>
+    ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
+    geom_point(size = 0.5) +
+    geom_vline(xintercept = 0) +
+    geom_vline(xintercept = c(-1, 1), col = "grey") +
+    geom_text(
+      data = label_data,
+      aes(label = marker),
+      hjust = 0.5,
+      vjust = -0.5,
+      size = label_size
+    )
+  if (isTRUE(facet)) {
+    p <- p + facet_wrap(~group, scales = "free")
+  }
+  p +
+    scale_x_continuous(
+      limits = range(plot_data$effect_size, na.rm = TRUE),
+      expand = expansion(0.1)
+    ) +
+    scale_y_continuous(expand = expansion(c(0, 0.1))) +
+    scale_color_gradientn(
+      colors = gradient_palette,
+      limits = c(-1, 1) * max(abs(plot_data$effect_size), na.rm = TRUE)
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank()) +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      x = x_lab,
+      y = "-log10(adjusted p-value)",
+      color = "Effect size"
+    )
+}
+
+effect_heatmap <- function(mat) {
+  max_abs_effect <- max(abs(quantile(as.numeric(mat), c(0.01, 0.99), na.rm = TRUE)))
+  mat |>
+    pheatmap(
+      color = PixelgenGradient(100, "BluesCherry"),
+      breaks = seq(-max_abs_effect, max_abs_effect, length.out = 101),
+      cellwidth = 8,
+      cellheight = 8,
+      cluster_rows = TRUE,
+      cluster_cols = TRUE,
+      heatmap_legend_param = list(title = "Effect size"),
+      fontsize = 8
+    ) |>
+    as.ggplot()
+}
+
+# Faceted volcano, per–cell-type volcano + sample heatmap, and an effect heatmap.
+# Colocalization also writes a pair-dot heatmap per cell type.
+export_diff_plots <- function(
+  results_df,
+  modality,
+  effect_col,
+  analysis_label,
+  feature_col = "marker",
+  level = "cell_level",
+  volcano_subtitle = "Effect size vs statistical significance by cell type",
+  heatmap_summary_df = NULL,
+  fill_lab = "Difference\nin medians",
+  n_volcano_labels = 10L
+) {
+  if (identical(modality, "colocalization")) {
+    results_df <- results_df |>
+      mutate(marker = paste(marker_1, marker_2, sep = "__"))
+    feature_col <- "marker"
+  }
+  plot_data_base <- prepare_diff_plot_data(results_df, effect_col, feature_col)
+  plot_subdir <- paste0("differential_", modality, "_plots")
+  is_coloc <- identical(modality, "colocalization")
+
+  for (target_condition in unique(stats::na.omit(plot_data_base$target))) {
+    plot_data <- plot_data_base |> filter(target == target_condition)
+    if (nrow(plot_data) == 0) {
+      next
+    }
+    comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
+    base_output_dir <- here::here(
+      "results/05_statistical_testing",
+      modality,
+      level,
+      plot_subdir,
+      comparison_dir
+    )
+    contrast_lab <- paste0(target_condition, " vs ", reference_condition)
+    export_plot(
+      filename = file.path(base_output_dir, paste0("differential_", modality, "_volcano")),
+      plot = diff_volcano(
+        plot_data,
+        top_features_by_significance(plot_data, n_volcano_labels, "group"),
+        title = paste0(analysis_label, " (", contrast_lab, ")"),
+        subtitle = volcano_subtitle,
+        x_lab = paste0("Effect size (", effect_col, ")")
+      ),
+      width = 12,
+      height = 8
+    )
+
+    for (cell_type in unique(plot_data$group)) {
+      cell_data <- plot_data |> filter(group == cell_type)
+      if (nrow(cell_data) < 1) {
+        next
+      }
+      cell_type_dir <- file.path(base_output_dir, cell_type)
+      dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+      top_hits <- top_features_by_significance(cell_data, n_volcano_labels)
+      volcano_cell <- diff_volcano(
+        cell_data,
+        top_hits,
+        title = analysis_label,
+        subtitle = paste0("Cell type: ", cell_type, " (", contrast_lab, ")"),
+        x_lab = paste0("Effect size (", effect_col, ")"),
+        label_size = 3,
+        facet = FALSE
+      )
+      hm <- build_volcano_side_heatmap(
+        cell_type,
+        top_hits,
+        modality = modality,
+        summary_df = heatmap_summary_df
+      )
+      export_volcano_with_optional_heatmap(
+        volcano_cell,
+        hm$sample_hm,
+        hm$expr_mat,
+        file.path(cell_type_dir, "volcano_plot")
+      )
+
+      if (is_coloc) {
+        plot_data_hm <- cell_data |>
+          filter(p_adj < 0.05) |>
+          arrange(desc(neg_log10_p_adj))
+        # ColocalizationHeatmap errors with fewer than two rows, so skip
+        # a cell type that has 0 or 1 significant pairs instead of aborting
+        # export_diff_plots after results have already been written.
+        if (nrow(plot_data_hm) < 2) {
+          next
+        }
+        plot_markers <- unique(c(plot_data_hm$marker_1, plot_data_hm$marker_2))
+        export_plot(
+          filename = file.path(cell_type_dir, "colocalization_heatmap"),
+          plot = ColocalizationHeatmap(
+            plot_data_hm,
+            marker1_col = "marker_1",
+            marker2_col = "marker_2",
+            value_col = "diff_median",
+            type = "dots",
+            colors = gradient_palette,
+            size_col_transform = \(x) -log10(x)
+          ) &
+            labs(size = "-log10(p_adj)") &
+            scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data_hm$p_adj)))) &
+            labs(
+              fill = fill_lab,
+              title = analysis_label,
+              subtitle = paste0("Cell type: ", cell_type, " (", contrast_lab, ")")
+            ),
+          width = max(c(4, length(plot_markers) * 0.15 + 1.5)),
+          height = max(c(4, length(plot_markers) * 0.15 + 3))
+        )
+      }
+    }
+
+    sig <- if (is_coloc) {
+      plot_data |> filter(significant)
+    } else {
+      plot_data |>
+        group_by(.data$marker) |>
+        filter(any(significant) & any(abs(effect_size) > 0.5)) |>
+        ungroup()
+    }
+    if (nrow(sig) < 1) {
+      next
+    }
+    if (is_coloc) {
+      keep_pairs <- sig |>
+        group_by(marker) |>
+        summarise(max_neg_log10_p = max(neg_log10_p_adj), .groups = "drop") |>
+        slice_max(order_by = max_neg_log10_p, n = 50L, with_ties = FALSE)
+      sig <- sig |> filter(marker %in% keep_pairs$marker)
+    }
+    heatmap_mat <- sig |>
+      select(marker, group, effect_size) |>
+      pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
+      column_to_rownames("marker") |>
+      as.matrix()
+    if (!is_coloc) {
+      heatmap_mat <- t(heatmap_mat)
+    }
+    if (nrow(heatmap_mat) > 0 && ncol(heatmap_mat) > 0) {
+      export_plot(
+        filename = file.path(base_output_dir, paste0("differential_", modality, "_heatmap")),
+        plot = effect_heatmap(heatmap_mat),
+        width = max(6, ncol(heatmap_mat) * 0.15 + 1.5),
+        height = max(4, nrow(heatmap_mat) * 0.2 + 1.5)
+      )
+    }
+  }
+  invisible(NULL)
+}
 ```
 
 
-## 5.1. Differential abundance analysis
+## 5.1. Differential abundance analysis (cell-level)
 
 Differential abundance analysis identifies markers that exhibit statistically significant differences in expression levels between experimental conditions. This analysis is essential for understanding how experimental treatments, disease states, or other conditions affect protein expression patterns within specific cell types.
 
 The analysis is performed separately for each annotated cell type, comparing marker abundance between a target condition (e.g., stimulated, treated) and a reference condition (e.g., resting, control). For each marker within each cell type, a statistical test (typically the Wilcoxon rank-sum test, also known as the Mann-Whitney U test) is used to assess whether the distribution of marker abundance differs significantly between conditions. The Wilcoxon test is a non-parametric test that does not assume normal distribution of the data, making it robust for single-cell data which often exhibits non-normal distributions and high variability.
 
-The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using the false discovery rate (FDR) method to control for the large number of statistical tests performed across multiple markers and cell types.
+The test compares marker expression values (typically CLR-normalized values) between cells in the target condition versus cells in the reference condition. For each marker, the analysis reports an effect size (typically the difference in mean or median expression) and a p-value indicating the statistical significance of the difference. Multiple testing correction is applied using FDR within each cell type and contrast (not across all cell types together).
 
 Results are organized by cell type and include both the raw statistical outputs and summary visualizations. Markers with significant differences (typically p_adj < 0.05) and large effect sizes are of particular biological interest, as they represent markers whose expression is substantially altered by the experimental condition. This analysis enables identification of condition-specific markers, understanding of cellular responses to treatments, and discovery of biomarkers associated with different experimental states.
 
 ```{r}
 #| label: statistical_testing_differential_abundance_analysis
+#| eval: !expr isTRUE(run_cell_level)
 
 differential_abundance_analysis <-
   names(markers_to_test) |>
@@ -67,280 +625,81 @@ differential_abundance_analysis <-
     )
   }) |>
   bind_rows() |>
-  mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+  ensure_diff_result_schema(
+    "abundance",
+    label = "cell-level abundance results"
+  ) |>
+  adjust_global_fdr()
 
-dir.create(here::here("results/05_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
-
-# Save the differential abundance analysis results to a file
-saveRDS(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.rds"))
-
-# Save the differential abundance analysis results to a csv file
-write.csv(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
+save_diff_results(
+  differential_abundance_analysis,
+  "abundance",
+  "cell_level",
+  "differential_abundance_analysis"
+)
 ```    
 
 ### 5.1.1. Summarizing plots
 
-Here we create two types of summarizing plots for the differential abundance analysis results:
+Here we create summarizing plots for the differential abundance analysis results:
 
-1. **Volcano plot**: Shows the relationship between effect size (log fold change) and statistical significance (-log10 adjusted p-value) for each marker, faceted by cell type. This helps identify markers that are both significantly different and have large effect sizes.
+1. **Volcano plot**: Effect size vs −log10 adjusted p-value, faceted by cell type. The top markers labeled on each panel are selected by **adjusted significance** (not largest |effect|).
 
-2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially abundant in which cell types.
+2. **Per–cell-type volcano + sample heatmap**: For each cell type, the volcano is exported beside a row-z-scored heatmap of sample-mean CLR for the labeled markers, using `summary_abundance_data` (same table as §5.5).
+
+3. **Effect-size heatmap**: Significant markers (p_adj < 0.05 and |effect| > 0.5) across cell types.
 
 ```{r}
 #| label: statistical_testing_differential_abundance_plots
+#| eval: !expr isTRUE(run_cell_level)
 
-# Determine the effect size column name
-effect_size_col <- "difference"
-
-# Determine the feature/marker column name
-feature_col <- "marker"
-
-# Determine target conditions - check if dataframe has target/contrast columns
-if ("target" %in% colnames(differential_abundance_analysis)) {
-  # If target column exists, get all unique targets
-  target_conditions <- unique(differential_abundance_analysis$target)
-  target_conditions <- target_conditions[!is.na(target_conditions)]
-} else {
-  stop("Could not find target column. Available columns: ", paste(colnames(differential_abundance_analysis), collapse = ", "))
-}
-
-# Prepare base data for plotting (add target column if it doesn't exist)
-# p_adj values of zero (floating-point underflow) are coerced to
-# min_p_value_threshold before the -log10 transform to prevent Inf values
-# that would clip data-point labels in volcano plots.
-plot_data_base <- differential_abundance_analysis |>
-  mutate(
-    neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
-    significant = p_adj < 0.05,
-    effect_size = !!sym(effect_size_col),
-    marker = !!sym(feature_col)
-  )
-
-
-# Loop through each target condition and create plots
-for (target_condition in target_conditions) {
-  # Filter data for this target (if target column exists)
-  if ("target" %in% colnames(plot_data_base)) {
-    plot_data <- plot_data_base |>
-      filter(target == target_condition)
-  }
-
-  # Skip if no data for this target
-  if (nrow(plot_data) == 0) {
-    warning(paste("No data found for target condition:", target_condition))
-    next
-  }
-
-  # Create directory name based on target and reference
-  comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-  base_output_dir <- here::here("results/05_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
-
-  # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
-  # This plot helps identify markers that are both significantly different and have large effect sizes
-  # Identify top 5 most extreme effect sizes per cell type for labeling
-  top_markers_faceted <- plot_data |>
-    group_by(group) |>
-    slice_max(order_by = abs(effect_size), n = 5) |>
-    ungroup()
-
-  volcano_plot_differential_abundance <-
-    plot_data |>
-    ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-    geom_point(size = 0.5) +
-    geom_vline(xintercept = 0) +
-    geom_vline(xintercept = c(-1, 1), col = "grey") +
-    geom_text(
-      data = top_markers_faceted,
-      aes(label = marker),
-      hjust = 0.5,
-      vjust = -0.5,
-      size = 2
-    ) +
-    facet_wrap(~group, scales = "free") +
-    scale_x_continuous(
-      limits = c(min(plot_data$effect_size, na.rm = TRUE), max(plot_data$effect_size, na.rm = TRUE)),
-      expand = expansion(0.1)
-    ) +
-    scale_y_continuous(
-      expand = expansion(c(0, 0.1))
-    ) +
-    scale_color_gradientn(
-      colors = gradient_palette,
-      limits = c(-1, 1) * max(abs(plot_data$effect_size), na.rm = TRUE)
-    ) +
-    theme_bw() +
-    theme(
-      panel.grid = element_blank()
-    ) +
-    labs(
-      title = paste("Differential abundance analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
-      subtitle = "Effect size vs statistical significance by cell type",
-      x = paste("Effect size (", effect_size_col, ")", sep = ""),
-      y = "-log10(adjusted p-value)",
-      color = "Effect size"
-    )
-
-  # Save faceted volcano plot in the comparison directory
-  export_plot(
-    filename = file.path(base_output_dir, "differential_abundance_volcano"),
-    plot = volcano_plot_differential_abundance,
-    width = 12,
-    height = 8
-  )
-
-  # Plot 2: Non-faceted volcano plots per cell type
-  # Create individual folders per cell type and save non-faceted volcano plots for each cell type
-  # Get unique cell types (groups)
-  unique_cell_types <- unique(plot_data$group)
-
-  # For each cell type, create a non-faceted volcano plot
-  for (cell_type in unique_cell_types) {
-    # Create directory for this cell type
-    cell_type_dir <- file.path(base_output_dir, cell_type)
-    dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
-
-    # Filter data for this cell type
-    cell_type_plot_data <- plot_data |>
-      filter(group == cell_type)
-
-    # Create non-faceted volcano plot for this cell type
-    # Identify top 5 most extreme effect sizes for labeling
-    top_markers_cell_type <- cell_type_plot_data |>
-      slice_max(order_by = abs(effect_size), n = 5)
-
-    volcano_plot_cell_type <-
-      cell_type_plot_data |>
-      ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-      geom_point(size = 0.5) +
-      geom_vline(xintercept = 0) +
-      geom_vline(xintercept = c(-1, 1), col = "grey") +
-      geom_text(
-        data = top_markers_cell_type,
-        aes(label = marker),
-        hjust = 0.5,
-        vjust = -0.5,
-        size = 3
-      ) +
-      facet_wrap(~group, scales = "free") +
-      scale_x_continuous(
-        limits = c(
-          min(cell_type_plot_data$effect_size, na.rm = TRUE),
-          max(cell_type_plot_data$effect_size, na.rm = TRUE)
-        ),
-        expand = expansion(0.1)
-      ) +
-      scale_y_continuous(
-        expand = expansion(c(0, 0.1))
-      ) +
-      scale_color_gradientn(
-        colors = gradient_palette,
-        limits = c(-1, 1) * max(abs(cell_type_plot_data$effect_size), na.rm = TRUE)
-      ) +
-      theme_bw() +
-      theme(
-        panel.grid = element_blank()
-      ) +
-      labs(
-        title = paste("Differential abundance analysis: Volcano plot", sep = ""),
-        subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
-        x = paste("Effect size (", effect_size_col, ")", sep = ""),
-        y = "-log10(adjusted p-value)",
-        color = "Effect size"
-      )
-
-    # Save non-faceted volcano plot
-    export_plot(
-      filename = file.path(cell_type_dir, "volcano_plot"),
-      plot = volcano_plot_cell_type,
-      width = 5.5,
-      height = 4.5
-    )
-  }
-
-  # Plot 3: Heatmap showing significant markers across cell types
-  # This provides an overview of which markers are differentially abundant in which cell types
-  # Filter for significant markers and prepare data for heatmap
-  significant_markers <-
-    plot_data |>
-    group_by(marker) |>
-    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
-    select(marker, group, effect_size) |>
-    # Pivot to wide format for heatmap
-    pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
-    column_to_rownames("marker") |>
-    as.matrix()
-
-  # Only create heatmap if there are significant markers
-  if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
-    # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
-    effect_vals <- as.numeric(significant_markers)
-    effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
-    max_abs_effect <- max(abs(effect_quantiles))
-    breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
-
-    heatmap_differential_abundance <-
-      significant_markers |>
-      t() |>
-      pheatmap(
-        color = PixelgenGradient(100, "BluesCherry"),
-        breaks = breaks_range,
-        cellwidth = 8,
-        cellheight = 8,
-        cluster_rows = TRUE,
-        cluster_cols = TRUE,
-        heatmap_legend_param = list(title = "Effect size"),
-        fontsize = 8
-      ) |>
-      as.ggplot()
-
-    export_plot(
-      filename = file.path(base_output_dir, "differential_abundance_heatmap"),
-      plot = heatmap_differential_abundance,
-
-      # ~0.3 in per marker column + 4 in base margin; ~0.5 in per cell-type row + 2 in base margin.
-      width = max(6, nrow(significant_markers) * 0.15 + 1.5),
-      height = max(4, ncol(significant_markers) * 0.2 + 1.5)
-    )
-  } else {
-    warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
-  }
-}
+# Very small p-values are floored before −log10 so volcano axes stay finite
+export_diff_plots(
+  differential_abundance_analysis,
+  modality = "abundance",
+  effect_col = "difference",
+  analysis_label = "Differential abundance analysis",
+  heatmap_summary_df = summary_abundance_data
+)
 ```
 
-## 5.2. Differential Clustering Analysis
+## 5.2. Differential Clustering Analysis (cell-level)
 
 Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
 
-The analysis is performed separately for each cell type, comparing clustering patterns between target and reference conditions. A statistical test (typically the Wilcoxon rank-sum test) is used to assess whether the distribution of clustering scores (log2 ratio of observed versus expected self-proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
+The analysis is performed separately for each cell type, comparing clustering patterns between target and reference conditions. A statistical test (typically the Wilcoxon rank-sum test) is used to assess whether the distribution of clustering scores (log2 ratio of observed versus expected self-proximity) differs significantly between conditions. Multiple testing correction is applied using FDR within each cell type and contrast.
 
 ```{r}
 #| label: statistical_testing_differential_proximity
+#| eval: !expr isTRUE(run_cell_level)
 
 differential_clustering_analysis <-
   names(markers_to_test) |>
   map(function(x) {
     tryCatch(
       {
-        # Store markers in a variable to ensure proper evaluation in lazy query context
-        # Convert to character vector to ensure proper SQL translation
-        markers_vec <- as.character(markers_to_test[[x]])
-        proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
-          lazy = TRUE,
-          meta_data_columns = c("sample_alias", "condition")
-        ) |>
-          filter(marker_1 == marker_2) |>
-          filter(marker_1 %in% markers_vec) |>
-          filter(marker_2 %in% markers_vec) |>
-          collect()
-
-        res <- DifferentialProximityAnalysis(proximity_data,
+        res <- DifferentialProximityAnalysis(
+          subset(pg_data, cell_annotation == x),
           contrast_column = "condition",
           reference = reference_condition,
           proximity_metric = "log2_ratio",
-          min_n_obs = 5
-        )
+          metric_type = "self",
+          method = "seurat",
+          min_cells_per_group = 10L,
+          diff_threshold = 0.01,
+          min_pct = 0,
+          min_diff_pct = -Inf,
+          lazy = TRUE
+        ) |>
+          filter(
+            marker_1 %in% markers_to_test[[x]],
+            marker_2 %in% markers_to_test[[x]]
+          )
+        if (nrow(res) == 0L) {
+          return(NULL)
+        }
         res$group <- x
-        return(res)
+        res
       },
       error = function(e) {
         message(paste("Error for cell type:", x, ":", e))
@@ -349,279 +708,85 @@ differential_clustering_analysis <-
     )
   }) |>
   bind_rows() |>
-  mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+  ensure_diff_result_schema(
+    "proximity",
+    label = "cell-level clustering results"
+  ) |>
+  adjust_global_fdr()
 
-dir.create(here::here("results/05_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
-
-# Save the differential abundance analysis results to a file
-saveRDS(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.rds"))
-
-# Save the differential abundance analysis results to a csv file
-write.csv(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
+save_diff_results(
+  differential_clustering_analysis,
+  "clustering",
+  "cell_level",
+  "differential_clustering_analysis"
+)
 ```
 
 
 ### 5.2.1. Summarizing plots
 
-Here we create two types of summarizing plots for the differential clustering analysis results:
+Here we create summarizing plots for the differential clustering analysis results:
 
-1. **Volcano plot**: Shows the relationship between effect size (log fold change) and statistical significance (-log10 adjusted p-value) for each marker, faceted by cell type. This helps identify markers that are both significantly different and have large effect sizes.
+1. **Volcano plot**: Effect size vs −log10 adjusted p-value, faceted by cell type. Labeled markers are the top hits by **adjusted significance**.
 
-2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially clustered in which cell types.
+2. **Per–cell-type volcano + sample heatmap**: Volcano beside a row-z-scored heatmap of sample-mean self-proximity (`log2_ratio`) for the labeled markers.
+
+3. **Effect-size heatmap**: Significant markers across cell types.
 
 ```{r}
 #| label: statistical_testing_differential_clustering_plots
+#| eval: !expr isTRUE(run_cell_level)
 
-# Determine the effect size column name
-effect_size_col <- "diff_median"
-
-# Determine the feature/marker column name
-feature_col <- "marker_1"
-
-# Determine target conditions - check if dataframe has target/contrast columns
-if ("target" %in% colnames(differential_clustering_analysis)) {
-  # If target column exists, get all unique targets
-  target_conditions <- unique(differential_clustering_analysis$target)
-  target_conditions <- target_conditions[!is.na(target_conditions)]
+if (nrow(differential_clustering_analysis) > 0) {
+  export_diff_plots(
+    differential_clustering_analysis,
+    modality = "clustering",
+    effect_col = "diff_median",
+    feature_col = "marker_1",
+    analysis_label = "Differential clustering analysis",
+    heatmap_summary_df = summary_proximity_data
+  )
 } else {
-  stop("Could not find target column. Available columns: ", paste(colnames(differential_clustering_analysis), collapse = ", "))
-}
-
-# Prepare base data for plotting (add target column if it doesn't exist)
-# p_adj values of zero are coerced to min_p_value_threshold before the
-# -log10 transform to prevent Inf values that would clip data-point labels.
-plot_data_base <- differential_clustering_analysis |>
-  mutate(
-    neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
-    significant = p_adj < 0.05,
-    effect_size = !!sym(effect_size_col),
-    marker = !!sym(feature_col)
-  )
-
-
-# Loop through each target condition and create plots
-for (target_condition in target_conditions) {
-  # Filter data for this target (if target column exists)
-  if ("target" %in% colnames(plot_data_base)) {
-    plot_data <- plot_data_base |>
-      filter(target == target_condition)
-  }
-
-  # Skip if no data for this target
-  if (nrow(plot_data) == 0) {
-    warning(paste("No data found for target condition:", target_condition))
-    next
-  }
-
-  # Create directory name based on target and reference
-  comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-  base_output_dir <- here::here("results/05_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
-
-  # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
-  # This plot helps identify markers that are both significantly different and have large effect sizes
-  # Identify top 5 most extreme effect sizes per cell type for labeling
-  top_markers_faceted <- plot_data |>
-    group_by(group) |>
-    slice_max(order_by = abs(effect_size), n = 5) |>
-    ungroup()
-
-  volcano_plot_differential_clustering <-
-    plot_data |>
-    ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-    geom_point(size = 0.5) +
-    geom_vline(xintercept = 0) +
-    geom_vline(xintercept = c(-1, 1), col = "grey") +
-    geom_text(
-      data = top_markers_faceted,
-      aes(label = marker),
-      hjust = 0.5,
-      vjust = -0.5,
-      size = 2
-    ) +
-    facet_wrap(~group, scales = "free") +
-    scale_x_continuous(
-      limits = c(min(plot_data$effect_size, na.rm = TRUE), max(plot_data$effect_size, na.rm = TRUE)),
-      expand = expansion(0.1)
-    ) +
-    scale_y_continuous(
-      expand = expansion(c(0, 0.1))
-    ) +
-    scale_color_gradientn(
-      colors = gradient_palette,
-      limits = c(-1, 1) * max(abs(plot_data$effect_size), na.rm = TRUE)
-    ) +
-    theme_bw() +
-    theme(
-      panel.grid = element_blank()
-    ) +
-    labs(
-      title = paste("Differential clustering analysis: Volcano plot (", target_condition, " vs ", reference_condition, ")", sep = ""),
-      subtitle = "Effect size vs statistical significance by cell type",
-      x = paste("Effect size (", effect_size_col, ")", sep = ""),
-      y = "-log10(adjusted p-value)",
-      color = "Effect size"
-    )
-
-  # Save faceted volcano plot in the comparison directory
-  export_plot(
-    filename = file.path(base_output_dir, "differential_clustering_volcano"),
-    plot = volcano_plot_differential_clustering,
-    width = 12,
-    height = 8
-  )
-
-  # Plot 2: Non-faceted volcano plots per cell type
-  # Create individual folders per cell type and save non-faceted volcano plots for each cell type
-  # Get unique cell types (groups)
-  unique_cell_types <- unique(plot_data$group)
-
-  # For each cell type, create a non-faceted volcano plot
-  for (cell_type in unique_cell_types) {
-    # Create directory for this cell type
-    cell_type_dir <- file.path(base_output_dir, cell_type)
-    dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
-
-    # Filter data for this cell type
-    cell_type_plot_data <- plot_data |>
-      filter(group == cell_type)
-
-    # Create non-faceted volcano plot for this cell type
-    # Identify top 5 most extreme effect sizes for labeling
-    top_markers_cell_type <- cell_type_plot_data |>
-      slice_max(order_by = abs(effect_size), n = 5)
-
-    volcano_plot_cell_type <-
-      cell_type_plot_data |>
-      ggplot(aes(x = effect_size, y = neg_log10_p_adj, color = effect_size)) +
-      geom_point(size = 0.5) +
-      geom_vline(xintercept = 0) +
-      geom_vline(xintercept = c(-1, 1), col = "grey") +
-      geom_text(
-        data = top_markers_cell_type,
-        aes(label = marker),
-        hjust = 0.5,
-        vjust = -0.5,
-        size = 3
-      ) +
-      facet_wrap(~group, scales = "free") +
-      scale_x_continuous(
-        limits = c(
-          min(cell_type_plot_data$effect_size, na.rm = TRUE),
-          max(cell_type_plot_data$effect_size, na.rm = TRUE)
-        ),
-        expand = expansion(0.1)
-      ) +
-      scale_y_continuous(
-        expand = expansion(c(0, 0.1))
-      ) +
-      scale_color_gradientn(
-        colors = gradient_palette,
-        limits = c(-1, 1) * max(abs(cell_type_plot_data$effect_size), na.rm = TRUE)
-      ) +
-      theme_bw() +
-      theme(
-        panel.grid = element_blank()
-      ) +
-      labs(
-        title = paste("Differential clustering analysis: Volcano plot", sep = ""),
-        subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = ""),
-        x = paste("Effect size (", effect_size_col, ")", sep = ""),
-        y = "-log10(adjusted p-value)",
-        color = "Effect size"
-      )
-
-    # Save non-faceted volcano plot
-    export_plot(
-      filename = file.path(cell_type_dir, "volcano_plot"),
-      plot = volcano_plot_cell_type,
-      width = 5.5,
-      height = 4.5
-    )
-  }
-
-  # Plot 3: Heatmap showing significant markers across cell types
-  # This provides an overview of which markers are differentially clustered in which cell types
-  # Filter for significant markers and prepare data for heatmap
-  significant_markers <-
-    plot_data |>
-    group_by(marker) |>
-    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
-    select(marker, group, effect_size) |>
-    # Pivot to wide format for heatmap
-    pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
-    column_to_rownames("marker") |>
-    as.matrix()
-
-  # Only create heatmap if there are significant markers
-  if (nrow(significant_markers) > 0 && ncol(significant_markers) > 0) {
-    # Determine color scale breaks based on robust data range (use 1st and 99th percentiles to reduce outlier influence)
-    effect_vals <- as.numeric(significant_markers)
-    effect_quantiles <- quantile(effect_vals, probs = c(0.01, 0.99), na.rm = TRUE)
-    max_abs_effect <- max(abs(effect_quantiles))
-    breaks_range <- seq(-max_abs_effect, max_abs_effect, length.out = 101)
-
-    heatmap_differential_clustering <-
-      significant_markers |>
-      t() |>
-      pheatmap(
-        color = PixelgenGradient(100, "BluesCherry"),
-        breaks = breaks_range,
-        cellwidth = 8,
-        cellheight = 8,
-        cluster_rows = TRUE,
-        cluster_cols = TRUE,
-        heatmap_legend_param = list(title = "Effect size"),
-        fontsize = 8
-      ) |>
-      as.ggplot()
-
-    export_plot(
-      filename = file.path(base_output_dir, "differential_clustering_heatmap"),
-      plot = heatmap_differential_clustering,
-
-      # ~0.3 in per marker column + 4 in base margin; ~0.5 in per cell-type row + 2 in base margin.
-      width = max(6, nrow(significant_markers) * 0.15 + 1.5),
-      height = max(4, ncol(significant_markers) * 0.2 + 1.5)
-    )
-  } else {
-    warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
-  }
+  message("Skipping cell-level clustering plots: no Wilcoxon results.")
 }
 ```
 
-## 5.3. Differential Colocalization Analysis
+## 5.3. Differential Colocalization Analysis (cell-level)
 
-Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
+Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing **cross-marker** pairs (`metric_type = "co"`) between target and reference conditions — self-proximity is tested in §5.2, not here. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR within each cell type and contrast.
 
 
 ```{r}
 #| label: statistical_testing_differential_colocalization
-
+#| eval: !expr isTRUE(run_cell_level)
 
 differential_colocalization_analysis <-
   names(markers_to_test) |>
   map(function(x) {
     tryCatch(
       {
-        # Store markers in a variable to ensure proper evaluation in lazy query context
-        # Convert to character vector to ensure proper SQL translation
-        markers_vec <- as.character(markers_to_test[[x]])
-        proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
-          lazy = TRUE,
-          meta_data_columns = c("sample_alias", "condition")
-        ) |>
-          filter(marker_1 %in% markers_vec) |>
-          filter(marker_2 %in% markers_vec) |>
-          collect()
-
-        res <- DifferentialProximityAnalysis(proximity_data,
+        res <- DifferentialProximityAnalysis(
+          subset(pg_data, cell_annotation == x),
           contrast_column = "condition",
           reference = reference_condition,
           proximity_metric = "log2_ratio",
-          min_n_obs = 5
-        )
+          metric_type = "co",
+          method = "seurat",
+          min_cells_per_group = 10L,
+          diff_threshold = 0.01,
+          min_pct = 0,
+          min_diff_pct = -Inf,
+          lazy = TRUE
+        ) |>
+          filter(
+            marker_1 %in% markers_to_test[[x]],
+            marker_2 %in% markers_to_test[[x]]
+          )
+        if (nrow(res) == 0L) {
+          return(NULL)
+        }
         res$group <- x
-        return(res)
+        res
       },
       error = function(e) {
         message(paste("Error for cell type:", x, ":", e))
@@ -630,125 +795,419 @@ differential_colocalization_analysis <-
     )
   }) |>
   bind_rows() |>
-  mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
+  ensure_diff_result_schema(
+    "proximity",
+    label = "cell-level colocalization results"
+  ) |>
+  adjust_global_fdr()
 
-dir.create(here::here("results/05_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
-
-# Save the differential abundance analysis results to a file
-saveRDS(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"))
-
-# Save the differential abundance analysis results to a csv file
-write.csv(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
+save_diff_results(
+  differential_colocalization_analysis,
+  "colocalization",
+  "cell_level",
+  "differential_colocalization_analysis"
+)
 ```
 
 ### 5.3.1. Summarizing plots
 
 Here we create summarizing plots for the differential colocalization analysis results:
 
-1. **Colocalization Heatmap**: Displays the difference in medians for marker pairs, with dot size representing statistical significance (-log10 adjusted p-value). This provides an overview of which marker pairs are differentially colocalized for each cell type and condition comparison.
+1. **Volcano plot**: Effect size vs −log10 adjusted p-value for marker pairs. Labeled pairs are the top hits by **adjusted significance**.
+2. **Per–cell-type volcano + sample heatmap**: Volcano beside a row-z-scored heatmap of sample-mean pair `log2_ratio` for the labeled pairs.
+3. **Colocalization heatmap**: Difference in medians for marker pairs with p_adj < 0.05 (dot size = −log10 adjusted p-value).
 
 ```{r}
 #| label: statistical_testing_differential_colocalization_plot
+#| eval: !expr isTRUE(run_cell_level)
 
-# Determine target conditions - check if dataframe has target/contrast columns
-if ("target" %in% colnames(differential_colocalization_analysis)) {
-  # If target column exists, get all unique targets
-  target_conditions <- unique(differential_colocalization_analysis$target)
-  target_conditions <- target_conditions[!is.na(target_conditions)]
+if (nrow(differential_colocalization_analysis) > 0) {
+  export_diff_plots(
+    differential_colocalization_analysis,
+    modality = "colocalization",
+    effect_col = "diff_median",
+    analysis_label = "Differential Colocalization Analysis",
+    heatmap_summary_df = summary_proximity_data
+  )
 } else {
-  stop("Could not find target column. Available columns: ", paste(colnames(differential_colocalization_analysis), collapse = ", "))
+  message("Skipping cell-level colocalization plots: no Wilcoxon results.")
+}
+```
+
+
+## 5.4. Pseudobulk setup
+
+Limma helpers for this section only. Usually you will not need to modify these.
+
+```{r}
+#| label: statistical_testing_limma_helpers
+#| include: false
+
+# Sample-level means → limma vs reference_condition. Uses metadata and
+# pseudobulk_covariate_cols from the setup chunk.
+run_pseudobulk_limma <- function(agg, feature_col, value_col, values_fill = NULL) {
+  covariate_cols <- setdiff(as.character(pseudobulk_covariate_cols), c("condition", "sample_alias"))
+  sample_info <- agg |>
+    distinct(.data$sample_alias, .data$condition) |>
+    mutate(sample_alias = as.character(.data$sample_alias))
+  if (length(covariate_cols) > 0) {
+    sample_info <- sample_info |>
+      left_join(
+        metadata |>
+          transmute(
+            sample_alias = as.character(.data$sample_alias),
+            across(all_of(covariate_cols))
+          ) |>
+          distinct(sample_alias, .keep_all = TRUE),
+        by = "sample_alias"
+      ) |>
+      drop_na(all_of(covariate_cols))
+  }
+  sample_info <- sample_info |>
+    mutate(
+      condition = droplevels(relevel(
+        factor(as.character(.data$condition)),
+        ref = reference_condition
+      ))
+    ) |>
+    arrange(.data$sample_alias)
+
+  expr_mat <- agg |>
+    mutate(sample_alias = as.character(sample_alias)) |>
+    filter(.data$sample_alias %in% sample_info$sample_alias) |>
+    select(all_of(c(feature_col, "sample_alias", value_col))) |>
+    pivot_wider(
+      names_from = sample_alias,
+      values_from = all_of(value_col),
+      values_fill = values_fill,
+      values_fn = mean
+    ) |>
+    column_to_rownames(feature_col) |>
+    as.matrix()
+  expr_mat <- expr_mat[, sample_info$sample_alias, drop = FALSE]
+
+  rhs <- if (length(covariate_cols) > 0) {
+    paste("~ condition +", paste(covariate_cols, collapse = " + "))
+  } else {
+    "~ condition"
+  }
+  design <- model.matrix(stats::as.formula(rhs), data = sample_info)
+  fit <- eBayes(lmFit(expr_mat, design), trend = TRUE, robust = TRUE)
+  map_dfr(
+    setdiff(levels(sample_info$condition), reference_condition),
+    function(target) {
+      topTable(fit, coef = paste0("condition", target), number = Inf, sort.by = "none") |>
+        as_tibble(rownames = "feature") |>
+        transmute(
+          feature,
+          difference = .data$logFC,
+          p = .data$P.Value,
+          target = target,
+          reference = reference_condition,
+          method = "limma_pseudobulk"
+        )
+    }
+  )
+}
+```
+
+Run pre-flight checks for the pseudobulk analysis.
+
+```{r}
+#| label: statistical_testing_pseudobulk_setup
+
+# Limma needs ≥2 samples per condition. Aggregation itself does not filter.
+pseudobulk_rep_counts <- pg_data[[]] |>
+  as.data.frame(stringsAsFactors = FALSE) |>
+  dplyr::distinct(.data$sample_alias, .data$condition) |>
+  dplyr::count(.data$condition, name = "n_samples")
+pseudobulk_replicates_ok <- nrow(pseudobulk_rep_counts) > 0 &&
+  all(pseudobulk_rep_counts$n_samples >= 2L)
+pseudobulk_ok <- isTRUE(run_pseudobulk) && isTRUE(pseudobulk_replicates_ok)
+
+if (isTRUE(run_pseudobulk) && !isTRUE(pseudobulk_replicates_ok)) {
+  warning(
+    "Skipping limma pseudobulk: need ≥2 sample_alias per condition.\n",
+    paste(capture.output(print(pseudobulk_rep_counts)), collapse = "\n"),
+    call. = FALSE
+  )
+} else if (!isTRUE(run_pseudobulk)) {
+  message("Skipping limma pseudobulk (run_pseudobulk = FALSE).")
 }
 
-# Get unique cell types (groups)
-unique_cell_types <- unique(differential_colocalization_analysis$group)
-unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
-
-show_only_sign <- TRUE # Show only significant results (p_adj < 0.001)
-
-# Loop through each target condition and cell type combination
-for (target_condition in target_conditions) {
-  # Create directory name based on target and reference
-  comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-  base_output_dir <- here::here("results/05_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
-
-  for (cell_type in unique_cell_types) {
-    # Create directory for this cell type
-    cell_type_dir <- file.path(base_output_dir, cell_type)
-    dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
-
-    # Filter data for this target and cell type
-    # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
-    plot_data <-
-      differential_colocalization_analysis |>
-      filter(group == cell_type & target == target_condition)
-
-    plot_data <-
-      plot_data |>
-      filter(p_adj < 0.001) |>
-      arrange(desc(abs(diff_median)))
-
-    if (!show_only_sign) {
-      plot_markers <-
-        plot_data |>
-        select(marker_1, marker_2) |>
-        unlist() |>
-        unique() |>
-        head(20)
-
-      plot_data <-
-        plot_data |>
-        filter(
-          marker_1 %in% plot_markers,
-          marker_2 %in% plot_markers
-        )
-    } else {
-      plot_data <-
-        plot_data |>
-        head(500)
-    }
-
-    # Skip if insufficient data for this combination
-    if (nrow(plot_data) < 2) {
-      warning(paste("Insufficient data for plotting (", nrow(plot_data), "rows) for target condition:", target_condition, "and cell type:", cell_type))
-      next
-    }
-
-    n_plot_markers <-
-      plot_data |>
-      select(marker_1, marker_2) |>
-      unlist() |>
-      unique() |>
-      length()
-
-    # Create the colocalization heatmap plot
-    # Add title indicating the target and cell type
-    colocalization_heatmap <-
-      ColocalizationHeatmap(
-        plot_data,
-        marker1_col = "marker_1",
-        marker2_col = "marker_2",
-        value_col = "diff_median",
-        type = "dots",
-        colors = gradient_palette,
-        size_col_transform = \(x) {
-          -log10(x)
-        }
-      ) &
-        labs(size = "-log10(p_adj)") &
-        scale_size(range = c(1, 5), limits = c(0, max(-log10(plot_data$p_adj)))) &
-        labs(fill = "Difference\nin medians") &
-        labs(
-          title = paste("Differential Colocalization Analysis", sep = ""),
-          subtitle = paste("Cell type: ", cell_type, " (", target_condition, " vs ", reference_condition, ")", sep = "")
-        )
-
-    # Save the plot
-    export_plot(
-      filename = file.path(cell_type_dir, "colocalization_heatmap"),
-      plot = colocalization_heatmap,
-      width = max(c(4, n_plot_markers * 0.15 + 1.5)),
-      height = max(c(4, n_plot_markers * 0.15 + 3))
+if (isTRUE(pseudobulk_ok)) {
+  thin_cts <- as_tibble(pg_data[[]], rownames = "component") |>
+    filter(.data$cell_annotation %in% names(markers_to_test)) |>
+    distinct(.data$cell_annotation, .data$sample_alias, .data$condition) |>
+    count(.data$cell_annotation, .data$condition, name = "n_samples") |>
+    filter(n_samples < 2)
+  if (nrow(thin_cts) > 0) {
+    warning(
+      "These cell types have <2 samples in a condition; limma may skip them:\n",
+      paste(capture.output(print(thin_cts)), collapse = "\n"),
+      call. = FALSE
     )
   }
+  if (!is.null(pseudobulk_covariate_cols) && length(pseudobulk_covariate_cols) > 0) {
+    missing_cols <- setdiff(as.character(pseudobulk_covariate_cols), colnames(metadata))
+    if (length(missing_cols) > 0) {
+      stop(
+        "Missing covariate columns in metadata.csv: ",
+        paste(missing_cols, collapse = ", ")
+      )
+    }
+  }
+  suppressPackageStartupMessages(library(limma))
+}
+```
+
+## 5.5. Differential abundance analysis (pseudobulk-level)
+
+> **Decision checkpoint** (enable above: `run_pseudobulk`)  
+> Limma is fit on **`summary_abundance_data`** (mean CLR per `sample_alias` × cell type × marker, built in the aggregation chunk). Needs ≥2 samples per `condition`. The same table is also written under `pseudobulk/`; limma results as `differential_abundance_analysis.rds`. In module 07, set `stats_method` to `"pseudobulk"` to feed these tables into enrichment (default `"cell_level"` uses §5.1 Wilcoxon results).
+
+```{r}
+#| label: statistical_testing_pseudobulk_abundance
+
+if (isTRUE(pseudobulk_ok)) {
+  # Same sample-mean CLR table as §5.1.1 heatmaps; write it under pseudobulk/
+  # so module 07 / plots can find it next to the limma results.
+  save_diff_results(
+    summary_abundance_data,
+    "abundance",
+    "pseudobulk",
+    "summary_abundance_data"
+  )
+
+  differential_abundance_analysis_pseudobulk <-
+    names(markers_to_test) |>
+    map(function(cell_type) {
+      tryCatch(
+        {
+          res <- run_pseudobulk_limma(
+            summary_abundance_data |> filter(group == cell_type),
+            "marker",
+            "mean_clr"
+          )
+          if (nrow(res) == 0) {
+            NULL
+          } else {
+            res |>
+              rename(marker = feature) |>
+              mutate(group = cell_type)
+          }
+        },
+        error = function(e) {
+          message(paste("Pseudobulk abundance error for", cell_type, ":", e$message))
+          NULL
+        }
+      )
+    }) |>
+    bind_rows() |>
+    ensure_diff_result_schema(
+      "abundance",
+      label = "pseudobulk abundance results"
+    ) |>
+    adjust_global_fdr()
+
+  save_diff_results(
+    differential_abundance_analysis_pseudobulk,
+    "abundance",
+    "pseudobulk",
+    "differential_abundance_analysis"
+  )
+}
+```
+
+### 5.5.1. Pseudobulk abundance plots
+
+```{r}
+#| label: statistical_testing_pseudobulk_abundance_plots
+
+if (
+  isTRUE(pseudobulk_ok) &&
+    exists("differential_abundance_analysis_pseudobulk") &&
+    nrow(differential_abundance_analysis_pseudobulk) > 0
+) {
+  export_diff_plots(
+    differential_abundance_analysis_pseudobulk,
+    modality = "abundance",
+    effect_col = "difference",
+    analysis_label = "Pseudobulk differential abundance",
+    level = "pseudobulk",
+    volcano_subtitle = "limma on mean CLR per sample × cell type",
+    heatmap_summary_df = summary_abundance_data
+  )
+}
+```
+
+## 5.6. Differential clustering analysis (pseudobulk-level)
+
+Self-proximity (`marker_1 == marker_2`) from `summary_proximity_data` (built with the aggregation helpers above, shared with §5.2), then limma. Column `diff_median` stores the limma logFC (mean difference) for schema compatibility with §5.2 / module 07.
+
+```{r}
+#| label: statistical_testing_save_pseudobulk_proximity
+
+if (isTRUE(pseudobulk_ok) && nrow(summary_proximity_data) > 0) {
+  # Same table as the cell-level sections; write it next to the limma results
+  save_diff_results(summary_proximity_data, "clustering", "pseudobulk", "summary_proximity_data")
+  save_diff_results(summary_proximity_data, "colocalization", "pseudobulk", "summary_proximity_data")
+}
+```
+
+```{r}
+#| label: statistical_testing_pseudobulk_clustering
+
+if (isTRUE(pseudobulk_ok)) {
+  # Abundance always writes a schema-complete RDS when the replicate gate
+  # passes. Do the same here if the shared proximity summary is empty.
+  differential_clustering_analysis_pseudobulk <-
+    (
+      if (nrow(summary_proximity_data) > 0) {
+        names(markers_to_test) |>
+          map(function(cell_type) {
+            tryCatch(
+              {
+                cell_agg <- summary_proximity_data |>
+                  filter(group == cell_type, marker_1 == marker_2)
+                run_pseudobulk_limma(cell_agg, "feature", "mean_log2_ratio", values_fill = 0) |>
+                  left_join(distinct(cell_agg, feature, marker_1, marker_2), by = "feature") |>
+                  transmute(
+                    marker_1,
+                    marker_2,
+                    diff_median = difference,
+                    p,
+                    target,
+                    reference,
+                    method,
+                    group = cell_type
+                  )
+              },
+              error = function(e) {
+                message(paste("Pseudobulk clustering error for", cell_type, ":", e$message))
+                NULL
+              }
+            )
+          }) |>
+          bind_rows()
+      } else {
+        tibble()
+      }
+    ) |>
+    ensure_diff_result_schema(
+      "proximity",
+      label = "pseudobulk clustering results"
+    ) |>
+    adjust_global_fdr()
+
+  save_diff_results(
+    differential_clustering_analysis_pseudobulk,
+    "clustering",
+    "pseudobulk",
+    "differential_clustering_analysis"
+  )
+}
+```
+
+### 5.6.1. Pseudobulk clustering plots
+
+```{r}
+#| label: statistical_testing_pseudobulk_clustering_plots
+
+if (
+  isTRUE(pseudobulk_ok) &&
+    exists("differential_clustering_analysis_pseudobulk") &&
+    nrow(differential_clustering_analysis_pseudobulk) > 0
+) {
+  export_diff_plots(
+    differential_clustering_analysis_pseudobulk,
+    modality = "clustering",
+    effect_col = "diff_median",
+    feature_col = "marker_1",
+    analysis_label = "Pseudobulk differential clustering",
+    level = "pseudobulk",
+    volcano_subtitle = "limma on mean log2_ratio per sample × cell type",
+    heatmap_summary_df = summary_proximity_data
+  )
+}
+```
+
+## 5.7. Differential colocalization analysis (pseudobulk-level)
+
+Off-diagonal pairs (`marker_1 != marker_2`) from the same sample-level table as §5.6, then limma. Same `diff_median` naming as §5.3 for schema compatibility. In module 07, set `stats_method` to `"pseudobulk"` to use these results (and the matching abundance tables) for enrichment.
+
+```{r}
+#| label: statistical_testing_pseudobulk_colocalization
+
+if (isTRUE(pseudobulk_ok)) {
+  # Same empty-summary contract as clustering / abundance: always write the RDS.
+  differential_colocalization_analysis_pseudobulk <-
+    (
+      if (nrow(summary_proximity_data) > 0) {
+        names(markers_to_test) |>
+          map(function(cell_type) {
+            tryCatch(
+              {
+                cell_agg <- summary_proximity_data |>
+                  filter(group == cell_type, marker_1 != marker_2)
+                run_pseudobulk_limma(cell_agg, "feature", "mean_log2_ratio", values_fill = 0) |>
+                  left_join(distinct(cell_agg, feature, marker_1, marker_2), by = "feature") |>
+                  transmute(
+                    marker_1,
+                    marker_2,
+                    diff_median = difference,
+                    p,
+                    target,
+                    reference,
+                    method,
+                    group = cell_type
+                  )
+              },
+              error = function(e) {
+                message(paste("Pseudobulk coloc error for", cell_type, ":", e$message))
+                NULL
+              }
+            )
+          }) |>
+          bind_rows()
+      } else {
+        tibble()
+      }
+    ) |>
+    ensure_diff_result_schema(
+      "proximity",
+      label = "pseudobulk coloc results"
+    ) |>
+    adjust_global_fdr()
+
+  save_diff_results(
+    differential_colocalization_analysis_pseudobulk,
+    "colocalization",
+    "pseudobulk",
+    "differential_colocalization_analysis"
+  )
+}
+```
+
+### 5.7.1. Pseudobulk colocalization plots
+
+```{r}
+#| label: statistical_testing_pseudobulk_colocalization_plots
+
+if (
+  isTRUE(pseudobulk_ok) &&
+    exists("differential_colocalization_analysis_pseudobulk") &&
+    nrow(differential_colocalization_analysis_pseudobulk) > 0
+) {
+  export_diff_plots(
+    differential_colocalization_analysis_pseudobulk,
+    modality = "colocalization",
+    effect_col = "diff_median",
+    analysis_label = "Pseudobulk differential colocalization",
+    level = "pseudobulk",
+    volcano_subtitle = "limma on mean log2_ratio per sample (pairs)",
+    fill_lab = "Difference\n(mean)",
+    heatmap_summary_df = summary_proximity_data
+  )
 }
 ```
