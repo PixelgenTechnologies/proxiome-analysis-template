@@ -38,7 +38,7 @@ reference_condition <- "donor1"
 
 # If TRUE, run cell-level Wilcoxon tests (sections 5.1–5.3). Set FALSE to skip.
 run_cell_level <- TRUE
-# If TRUE, run sample-level limma tests (sections 5.5–5.7). 
+# If TRUE, run sample-level limma tests (sections 5.5–5.7).
 run_pseudobulk <- FALSE
 
 # Optional continuous-integration overrides. Loaded after the flags above so
