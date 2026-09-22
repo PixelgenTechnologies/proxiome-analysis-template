@@ -1033,9 +1033,11 @@ if (isTRUE(pseudobulk_ok)) {
     bind_rows()
 
   if (nrow(summary_proximity_data_pseudobulk) == 0) {
+    # Still write empty clustering/coloc result tables below (same contract as
+    # abundance) so module 07 and CI `test -f` checks see the expected RDS files.
     message(
       "No sample-level proximity summaries; ",
-      "clustering and colocalization pseudobulk tests will be skipped."
+      "writing empty clustering and colocalization result tables."
     )
   } else {
     # Same table is used for clustering and colocalization; save under both
@@ -1058,38 +1060,46 @@ if (isTRUE(pseudobulk_ok)) {
 ```{r}
 #| label: statistical_testing_pseudobulk_clustering
 
-if (
-  isTRUE(pseudobulk_ok) &&
-    exists("summary_proximity_data_pseudobulk") &&
-    nrow(summary_proximity_data_pseudobulk) > 0
-) {
+if (isTRUE(pseudobulk_ok)) {
+  # Abundance always writes a schema-complete RDS when the replicate gate
+  # passes. Do the same here if the shared proximity summary is empty.
   differential_clustering_analysis_pseudobulk <-
-    names(markers_to_test) |>
-    map(function(cell_type) {
-      tryCatch(
-        {
-          cell_agg <- summary_proximity_data_pseudobulk |>
-            filter(group == cell_type, marker_1 == marker_2)
-          run_pseudobulk_limma(cell_agg, "feature", "mean_log2_ratio", values_fill = 0) |>
-            left_join(distinct(cell_agg, feature, marker_1, marker_2), by = "feature") |>
-            transmute(
-              marker_1,
-              marker_2,
-              diff_median = difference,
-              p,
-              target,
-              reference,
-              method,
-              group = cell_type
+    (
+      if (
+        exists("summary_proximity_data_pseudobulk") &&
+          is.data.frame(summary_proximity_data_pseudobulk) &&
+          nrow(summary_proximity_data_pseudobulk) > 0
+      ) {
+        names(markers_to_test) |>
+          map(function(cell_type) {
+            tryCatch(
+              {
+                cell_agg <- summary_proximity_data_pseudobulk |>
+                  filter(group == cell_type, marker_1 == marker_2)
+                run_pseudobulk_limma(cell_agg, "feature", "mean_log2_ratio", values_fill = 0) |>
+                  left_join(distinct(cell_agg, feature, marker_1, marker_2), by = "feature") |>
+                  transmute(
+                    marker_1,
+                    marker_2,
+                    diff_median = difference,
+                    p,
+                    target,
+                    reference,
+                    method,
+                    group = cell_type
+                  )
+              },
+              error = function(e) {
+                message(paste("Pseudobulk clustering error for", cell_type, ":", e$message))
+                NULL
+              }
             )
-        },
-        error = function(e) {
-          message(paste("Pseudobulk clustering error for", cell_type, ":", e$message))
-          NULL
-        }
-      )
-    }) |>
-    bind_rows() |>
+          }) |>
+          bind_rows()
+      } else {
+        tibble()
+      }
+    ) |>
     ensure_diff_result_schema(
       "proximity",
       label = "pseudobulk clustering results"
@@ -1135,38 +1145,45 @@ Off-diagonal pairs (`marker_1 != marker_2`) from the same sample-level table as 
 ```{r}
 #| label: statistical_testing_pseudobulk_colocalization
 
-if (
-  isTRUE(pseudobulk_ok) &&
-    exists("summary_proximity_data_pseudobulk") &&
-    nrow(summary_proximity_data_pseudobulk) > 0
-) {
+if (isTRUE(pseudobulk_ok)) {
+  # Same empty-summary contract as clustering / abundance: always write the RDS.
   differential_colocalization_analysis_pseudobulk <-
-    names(markers_to_test) |>
-    map(function(cell_type) {
-      tryCatch(
-        {
-          cell_agg <- summary_proximity_data_pseudobulk |>
-            filter(group == cell_type, marker_1 != marker_2)
-          run_pseudobulk_limma(cell_agg, "feature", "mean_log2_ratio", values_fill = 0) |>
-            left_join(distinct(cell_agg, feature, marker_1, marker_2), by = "feature") |>
-            transmute(
-              marker_1,
-              marker_2,
-              diff_median = difference,
-              p,
-              target,
-              reference,
-              method,
-              group = cell_type
+    (
+      if (
+        exists("summary_proximity_data_pseudobulk") &&
+          is.data.frame(summary_proximity_data_pseudobulk) &&
+          nrow(summary_proximity_data_pseudobulk) > 0
+      ) {
+        names(markers_to_test) |>
+          map(function(cell_type) {
+            tryCatch(
+              {
+                cell_agg <- summary_proximity_data_pseudobulk |>
+                  filter(group == cell_type, marker_1 != marker_2)
+                run_pseudobulk_limma(cell_agg, "feature", "mean_log2_ratio", values_fill = 0) |>
+                  left_join(distinct(cell_agg, feature, marker_1, marker_2), by = "feature") |>
+                  transmute(
+                    marker_1,
+                    marker_2,
+                    diff_median = difference,
+                    p,
+                    target,
+                    reference,
+                    method,
+                    group = cell_type
+                  )
+              },
+              error = function(e) {
+                message(paste("Pseudobulk coloc error for", cell_type, ":", e$message))
+                NULL
+              }
             )
-        },
-        error = function(e) {
-          message(paste("Pseudobulk coloc error for", cell_type, ":", e$message))
-          NULL
-        }
-      )
-    }) |>
-    bind_rows() |>
+          }) |>
+          bind_rows()
+      } else {
+        tibble()
+      }
+    ) |>
     ensure_diff_result_schema(
       "proximity",
       label = "pseudobulk coloc results"
