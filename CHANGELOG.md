@@ -18,21 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Module `05` plot/filter knobs (`n_volcano_labels`, `diff_p_adj_cutoff`, `diff_abs_effect_min`, `coloc_cross_ct_heatmap_n`, and Wilcoxon proximity filters) are hardcoded in the helpers instead of exposed in the setup chunk. Sample-level aggregation no longer filters by `min_cells`; §5.4 warns (and skips limma) when a condition has fewer than two samples.
 - Module `05` FDR (`p_adj`) is now Benjamini–Hochberg within each cell type × contrast (`group` × `target`), not across the full results table.
 - Standardised analysis modules on the native R pipe `|>`. Magrittr `%>%` anonymous functions and `.` placeholders were rewritten so they work with `|>`. Linting now enables `pipe_consistency_linter(pipe = "|>")`.
-- Module `05` helper cleanup: duplicate sample-heatmap builders and one-shot wrappers were folded into a smaller shared set. Empty differential tables share one schema helper; unused FDR `hard_fail` is removed. Analysis outputs, result paths, and plot options are unchanged.
+- Module `05` helpers are grouped by role (result I/O, sample matrices, plots; limma in §5.4) and simplified to the happy path. Cell-level Wilcoxon proximity is inlined in §§5.2–5.3. Abundance, clustering, and colocalization plots share one `export_diff_plots()` helper and one volcano style. Cell-level proximity side heatmaps use `aggregate_sample_proximity()`. Limma uses `reference_condition` / `metadata` from the setup chunk and returns a results tibble; clustering and coloc fits are inlined in §§5.6–5.7. Extra FetchData/merge, prefix-join, and aliased-design guards are dropped. Empty differential tables still share one schema helper for module 07.
 
 ### Fixed
 
 - Module `05` no longer writes a zero-column table under `pseudobulk/` when every per-cell-type limma fit is skipped or errors after the global replicate gate. Combined results use an empty schema that includes `p_adj`, so module `07` takes the existing empty protein-set warning instead of failing in `filter()`.
 - Cell-level clustering and colocalization no longer `stop()` when every Wilcoxon test is empty, so `run_pseudobulk <- TRUE` still reaches §§5.4–5.7. Empty proximity tables are written with the expected columns and plots are skipped.
 - Cell-level colocalization in module `05` now uses `metric_type = "co"` so self-proximity pairs are not retested and passed to module 07 as colocalization partners.
-- Module `05` limma pseudobulk skips a cell type unless ≥2 samples remain in every condition after `min_cells` and covariate filtering; aliased design columns are dropped (or the fit is skipped if a condition coefficient is aliased). `eBayes` uses `trend = TRUE` and `robust = TRUE`.
-- Module `05` limma pseudobulk now keeps the design matrix aligned with `expr_mat` when covariates from `metadata.csv` are missing or `sample_alias` values do not match exactly (renames, technical-split suffixes). Incomplete samples are dropped together instead of `model.matrix` omitting covariate rows on its own.
+- Module `05` limma pseudobulk warns in §5.4 if a condition (or a cell type × condition) has fewer than two samples, then skips the fit. Incomplete covariate rows are still dropped. `eBayes` uses `trend = TRUE` and `robust = TRUE`.
 - Module `03` `abundance_plots_grouping_column` now defaults to `"condition"`, matching the comments and changelog.
 - Module `03` abundance plots rotate x-axis labels 45 degrees so they stay readable with many cell types or samples.
-- `aggregate_sample_abundance` now pivots only markers returned by `FetchData`. Missing features no longer abort the per-cell-type limma fit; remaining markers are still aggregated.
-- `aggregate_sample_abundance` inner-joins assay values, counts only cells with finite CLR toward `min_cells`, and uses `mean(..., na.rm = TRUE)` so missing CLR no longer poisons a sample's limma input.
+- `aggregate_sample_abundance` pivots whatever marker columns `FetchData` returns, so a missing feature no longer aborts the per-cell-type limma fit.
 
 ## [0.6.3] 2026-08-20
 
