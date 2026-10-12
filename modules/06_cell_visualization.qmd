@@ -1,7 +1,7 @@
 # 6. Cell visualization
 
 **Module 06 — Cell visualization.** 2D and 3D single-cell graph plots using
-pixelatorR's `Plot2DGraphM` and `Plot3DGraph`. This shows *where* proteins sit on a
+pixelatorR's `cell_plot` visualization framework. This shows *where* proteins sit on a
 single cell's surface graph (clustering, polarization and colocalization patterns
 that population-level scores in module `04` summarise but don't show directly). Run
 after module `02`. See the [cell visualization tutorial](https://software.pixelgen.com/pna-analysis/R/tutorials/cell_visualization/)
@@ -23,14 +23,14 @@ if (!exists("pg_data", inherits = TRUE)) {
 ## 6.1. Parameters
 
 > **Decision checkpoint** (set the cell type and markers to plot). 
-> The example uses CD8 T cells and the CD82/CD81 pair, which colocalize on the cell surface.
+> In practice, cell visualization is an interactive process, where you select cells and markers of interest based on prior knowledge and/or analysis results and then plot them - often in multiple ways. The example presented here uses CD8 T cells and the CD82/CD81 pair, which often colocalize on the cell surface. 
 
 ```{r}
 #| label: cell_viz_parameters
 
 cell_type_of_interest <- "CD8 T"            # one value from `cell_annotation`
 markers_to_viz        <- c("CD82", "CD81")  # markers to render on the graph
-n_cells               <- 4                   # cells to show in the 2D grid
+n_cells               <- 4                  # cells to show in the 2D grid
 ```
 
 ## 6.2. Select cells
@@ -42,9 +42,11 @@ take a few cells of one type; change the selection to suit your question.
 ```{r}
 #| label: cell_viz_select_cells
 
+# Sample `n_cells` cells from the cells of interest
+set.seed(42)
 cells_of_interest <-
   WhichCells(pg_data, expression = cell_annotation == cell_type_of_interest) |>
-  head(n_cells)
+  sample(n_cells)
 
 if (length(cells_of_interest) == 0) {
   stop("No cells found for '", cell_type_of_interest,
@@ -54,16 +56,35 @@ if (length(cells_of_interest) == 0) {
 
 ## 6.3. Load graphs and compute layouts
 
-The 2D and 3D plots use different layout methods, so we compute both: `wpmds` for
-the 2D grid and `cpmds` for the interactive 3D view.
+We load the cell graphs and compute the layouts for the cells of interest.
 
 ```{r}
 #| label: cell_viz_layout
 
-pg_data <- LoadCellGraphs(pg_data, cells = cells_of_interest,
-                          add_layouts = TRUE, verbose = FALSE)
-pg_data <- ComputeLayout(pg_data, layout_method = "cpmds")  # for the 3D view
+pg_data <- RemoveCellGraphs(pg_data)
+pg_data <- pg_data |>
+ LoadCellGraphs(cells = cells_of_interest) |>
+ ComputeLayout(layout_method = "spectral") 
 ```
+
+## 6.4. Fetch layout data
+
+```{r}
+#| label: cell_viz_layout_data
+
+layout_data <- FetchLayoutData(pg_data, 
+  cells = cells_of_interest,
+  layout_method = "spectral_3d",
+  vars = markers_to_viz,
+  add_marker = TRUE,
+  layer = "counts")
+
+```
+
+## 6.4. Plot A single cell
+
+
+
 
 ## 6.4. 2D graph (markers × cells)
 
@@ -73,21 +94,11 @@ abundance. Colocalizing markers light up the same regions across cells.
 ```{r}
 #| label: cell_viz_2d
 
-p_2d <- Plot2DGraphM(
-  pg_data,
-  cells         = cells_of_interest,
-  markers       = markers_to_viz,
-  layout_method = "cpmds_3d"
-)
-p_2d
-
-export_plot(
-  filename = here::here("results/06_cell_visualization",
-                        paste0(cell_type_of_interest, "_2d_graph")),
-  plot     = p_2d,
-  width    = length(cells_of_interest) * 3 + 1,
-  height   = length(markers_to_viz) * 3 + 0.5
-)
+layout_data |>
+  pivot_longer(all_of(markers_to_viz), names_to = "marker_viz", values_to = "lps") |>
+  cell_plot(color = lps) |>
+  cell_node_scale_color(limits = c(0,2)) |>
+  cell_grid(cols = component, rows = marker_viz)
 ```
 
 ## 6.5. Interactive 3D graph (one cell)
