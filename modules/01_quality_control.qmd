@@ -545,7 +545,7 @@ message(
 ## 1.4. Select markers for dimensionality reduction (optional)
 
 > **Decision checkpoint** (marker set for PCA / UMAP / clustering)  
-> Set `isotype_markers` to the isotype controls on your panel (defaults are the mouse isotypes; use your human isotype controls for a human panel). Lower `isotype_ratio` or `min_cell_fraction` to keep more markers. Leave `abundance_threshold` as `NULL` unless you also want an absolute CPM floor. After the chunk runs, edit `selected_markers`, or set `selected_markers <- rownames(pg_data)` to use every marker. Module `02` uses this list for PCA, UMAP, and clustering.
+> Set `isotype_markers` to the isotype controls on your panel. Lower `isotype_ratio` or `min_cell_fraction` to keep more markers. Leave `abundance_threshold` as `NULL` unless you also want an absolute minimum counts per million (CPM) threshold. After the chunk runs, edit `selected_markers`, or set `selected_markers <- rownames(pg_data)` to use every marker. Module `02` uses this list for PCA, UMAP, and clustering.
 
 Markers that sit at background levels add noise to PCA, UMAP, and clustering. `FindAbundantMarkers()` keeps a marker when at least `min_cell_fraction` of cells have counts per million above `isotype_ratio` times the median isotype CPM. Isotype controls are always dropped. The defaults (`isotype_ratio = 1.5`, `min_cell_fraction = 0.05`, no absolute CPM cutoff) are permissive, so a marker that is abundant in a small population still passes.
 
