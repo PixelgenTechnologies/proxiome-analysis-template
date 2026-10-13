@@ -153,9 +153,6 @@ pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify"
 ```
 
 > ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
-
-This template requires `pixelatorR` 0.23.0 or higher.
-
 <details>
 <summary><strong>Advanced: Docker (pre-built environment)</strong></summary>
 
