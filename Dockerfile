@@ -1,4 +1,6 @@
-FROM ghcr.io/pixelgentechnologies/pixelatorr:0.18.3
+# Commit that added FindAbundantMarkers. Replace with the next numbered
+# pixelatorr release once that release includes the function.
+FROM ghcr.io/pixelgentechnologies/pixelatorr:sha-bb7bcd4
 
 ARG QUARTO_VERSION="1.5.54"
 

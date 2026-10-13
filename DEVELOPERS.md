@@ -66,7 +66,7 @@ The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`
 
 The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
 
-**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.3`
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:sha-bb7bcd4` (pixelatorR main commit that added `FindAbundantMarkers`). Move this pin to the next numbered `pixelatorr` release that includes that function.
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 
@@ -145,7 +145,7 @@ install.packages("pak")
 pak::pak(c(
   "tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls",
   "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap",
-  "PixelgenTechnologies/pixelatorR"
+  "PixelgenTechnologies/pixelatorR@main"
 ))
 ```
 

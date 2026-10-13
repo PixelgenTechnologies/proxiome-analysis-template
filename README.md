@@ -148,11 +148,13 @@ Open the R project file in RStudio by double-clicking `proxiome_analysis_templat
 install.packages("pak")
 
 # Install packages
-pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR"))
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR@main"))
 
 ```
 
 > ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
+
+`pixelatorR` is installed from the `main` branch because marker selection uses `FindAbundantMarkers`.
 
 <details>
 <summary><strong>Advanced: Docker (pre-built environment)</strong></summary>
@@ -275,7 +277,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 |--------|------------|
 | **01 — sample table** | Check `metadata.csv` paths and sample IDs match your data; set `data_dir` if files are not in `data/` |
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
-| **01 — marker selection** | Review `selected_markers` after running the selection code |
+| **01 — marker selection** | Set `isotype_markers` for your panel, then review `selected_markers` |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
 | **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"donor1"`) |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Module `01` selects markers for PCA, UMAP, and clustering with `FindAbundantMarkers`. A marker is kept when its counts per million exceed 1.5 times the median isotype CPM in at least 5% of cells. There is no absolute CPM floor, so more markers pass than with the previous rule (95th percentile CPM above 2000). Isotype controls are excluded.
+- PXL loading requests detailed cell metadata so quality control still has graph columns such as `k_core_1`.
+- `pixelatorR` must provide `FindAbundantMarkers`. Local installs use the main branch. The Docker base image is `pixelatorr:sha-bb7bcd4`.
+
 ## [0.6.4] 2026-09-18
 
 ### Added
