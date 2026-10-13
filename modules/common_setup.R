@@ -105,12 +105,9 @@ suppressPackageStartupMessages({
   library(ggraph)
 })
 
-if (!"FindAbundantMarkers" %in% getNamespaceExports("pixelatorR")) {
+if (packageVersion("pixelatorR") < "0.23.0") {
   stop(
-    "This workflow needs pixelatorR with FindAbundantMarkers. ",
-    "The installed version is ", packageVersion("pixelatorR"), ". ",
-    "Install a build from the main branch:\n",
-    "  pak::pak(\"PixelgenTechnologies/pixelatorR@main\")"
+    "Please update the pixelatorR package to version 0.23.0 or higher to run this analysis workflow."
   )
 }
 

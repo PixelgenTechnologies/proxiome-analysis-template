@@ -148,13 +148,13 @@ Open the R project file in RStudio by double-clicking `proxiome_analysis_templat
 install.packages("pak")
 
 # Install packages
-pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR@main"))
+pak::pak(c("tidyverse", "Seurat", "here", "Matrix", "ggraph", "pls", "ggplotify", "harmony", "ggbeeswarm", "RcppML", "ComplexHeatmap", "clusterProfiler", "org.Hs.eg.db", "AnnotationDbi", "PixelgenTechnologies/pixelatorR"))
 
 ```
 
 > ⚠️ **Important:** Run these commands **line-by-line**, not all at once. Some packages will ask you questions during installation (e.g., "Do you want to install from source?"). Wait for each installation to complete before running the next line.
 
-`pixelatorR` is installed from the `main` branch because marker selection uses `FindAbundantMarkers`.
+This template requires `pixelatorR` 0.23.0 or higher.
 
 <details>
 <summary><strong>Advanced: Docker (pre-built environment)</strong></summary>
