@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Module `01` molecule rank plots now use the `MoleculeRankPlot` threshold, `split` and `rug` options from pixelatorR (available since 0.18.3). The hand-built, per-sample annotated rank plot (ranking, outlier counting, point colouring and text placement in the template) is replaced by a single `MoleculeRankPlot(..., split = TRUE, rug = TRUE)` call that facets by `sample_alias` and annotates each panel with the number of cells below, within, and above the UMI thresholds. The combined plot passes the thresholds to `MoleculeRankPlot` instead of adding `geom_hline` layers manually. The temporary `rank` column is no longer added to the cell metadata.
+
 ## [0.6.4] 2026-09-18
 
 ### Added
