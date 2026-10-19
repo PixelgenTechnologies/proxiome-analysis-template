@@ -26,7 +26,7 @@ dir.create(
 ## 7.0. Set interpretation parameters
 
 > **Decision checkpoint** (module 05 inputs and significance cutoffs)  
-> Set `stats_method` to `"cell_level"` (default; Wilcoxon) or `"pseudobulk"` (limma) to choose which module `05` results feed enrichment.  
+> Set `stats_method` to `"cell_level"` (default; Wilcoxon from `05a_statistical_testing_cell_level.qmd`) or `"pseudobulk"` (limma from `05b_statistical_testing_pseudobulk.qmd`) to choose which results feed enrichment.  
 > Adjust `p_adj` and effect-size thresholds for differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables. Limma effect sizes are often smaller than cell-level Wilcoxon differences — consider relaxing thresholds when using `"pseudobulk"`.
 
 ```{r}
@@ -62,20 +62,19 @@ coloc_path <- here::here(
 )
 
 if (!file.exists(daa_path) || !file.exists(coloc_path)) {
+  notebook <- if (identical(stats_method, "pseudobulk")) {
+    "modules/05b_statistical_testing_pseudobulk.qmd"
+  } else {
+    "modules/05a_statistical_testing_cell_level.qmd"
+  }
   stop(
     "Module 05 results not found for stats_method = \"", stats_method, "\". ",
-    "Run statistical testing first",
-    if (identical(stats_method, "pseudobulk")) {
-      " with run_pseudobulk <- TRUE"
-    } else {
-      ""
-    },
-    ".\nExpected:\n  ", daa_path, "\n  ", coloc_path
+    "Run ", notebook, " first.\nExpected:\n  ", daa_path, "\n  ", coloc_path
   )
 }
 
 # Always read the RDS for stats_method. A full-template render defines
-# cell-level Wilcoxon objects in module 05 under these names, so an
+# cell-level Wilcoxon objects in 05a under these names, so an
 # exists() skip would keep Wilcoxon tables while claiming to load
 # pseudobulk/ (or the reverse if those names were overwritten).
 message("Loading module 05 results from ", stats_method, "/")

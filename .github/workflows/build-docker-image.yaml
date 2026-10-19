@@ -197,14 +197,13 @@ jobs:
           IMAGE="${{ needs.build.outputs.staging_image }}"
           echo "Running limma pseudobulk smoke against ${IMAGE}"
           docker run --rm \
-            -e PAT_SMOKE_PSEUDOBULK=1 \
             -v "${PWD}:/workspace" \
             -w /workspace \
             "${IMAGE}" \
             bash -lc '
               set -euo pipefail
               Rscript .github/smoke-test/smoke_pseudobulk.R
-              quarto render modules/05_statistical_testing.qmd
+              quarto render modules/05b_statistical_testing_pseudobulk.qmd
               test -f results/05_statistical_testing/abundance/pseudobulk/differential_abundance_analysis.rds
               test -f results/05_statistical_testing/clustering/pseudobulk/differential_clustering_analysis.rds
               test -f results/05_statistical_testing/colocalization/pseudobulk/differential_colocalization_analysis.rds

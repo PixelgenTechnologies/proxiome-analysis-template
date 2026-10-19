@@ -114,17 +114,17 @@ When the smoke test runs, CI downloads donors 1 and 3 from the public [16 health
 
 ### Optional limma pseudobulk smoke
 
-The default example has one `sample_alias` per `condition`, so limma pseudobulk is skipped (`run_pseudobulk <- FALSE`). To exercise §§5.4–5.7 without changing the Release HTML path:
+The default example has one `sample_alias` per `condition`, so the full template includes only `05a` (cell-level Wilcoxon). To exercise `05b` without changing the Release HTML path:
 
 1. Actions → **Build** → Run workflow → enable **run smoke test** and **run pseudobulk smoke**.
-2. After the full HTML render, CI runs [`.github/smoke-test/smoke_pseudobulk.R`](.github/smoke-test/smoke_pseudobulk.R) (technical `rep1`/`rep2` split + downsample of the annotated checkpoint), then `quarto render modules/05_statistical_testing.qmd` with `PAT_SMOKE_PSEUDOBULK=1`. That env var is handled by [`.github/smoke-test/apply_module05_overrides.R`](.github/smoke-test/apply_module05_overrides.R) (sourced from module `05` setup): it turns on `run_pseudobulk` and turns off `run_cell_level` so Wilcoxon chunks are skipped.
+2. After the full HTML render, CI runs [`.github/smoke-test/smoke_pseudobulk.R`](.github/smoke-test/smoke_pseudobulk.R) (technical `rep1`/`rep2` split + downsample of the annotated checkpoint), then `quarto render modules/05b_statistical_testing_pseudobulk.qmd`.
 3. Asserts that `results/05_statistical_testing/{abundance,clustering,colocalization}/pseudobulk/*.rds` exist.
 
 Release publishes and ordinary smoke (flag off) are unchanged. Locally, after modules 01–02:
 
 ```bash
-PAT_SMOKE_PSEUDOBULK=1 Rscript .github/smoke-test/smoke_pseudobulk.R
-PAT_SMOKE_PSEUDOBULK=1 quarto render modules/05_statistical_testing.qmd
+Rscript .github/smoke-test/smoke_pseudobulk.R
+quarto render modules/05b_statistical_testing_pseudobulk.qmd
 ```
 
 **Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:

@@ -191,7 +191,8 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   ├── 02_clustering_annotation.qmd
 │   ├── 03_abundance.qmd
 │   ├── 04_proximity.qmd
-│   ├── 05_statistical_testing.qmd    ← Optional
+│   ├── 05a_statistical_testing_cell_level.qmd  ← Optional (Wilcoxon)
+│   ├── 05b_statistical_testing_pseudobulk.qmd  ← Optional (limma; needs replicates)
 │   ├── 06_cell_visualization.qmd     ← Optional
 │   └── 07_data_interpretation.qmd    ← Optional
 ├── results/                          ← Created automatically when running the PAT
@@ -248,22 +249,22 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 1. **Open** `proxiome_analysis_template.Rproj`
 2. **Open** `modules/01_quality_control.qmd` in RStudio
 3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, and `04`
-4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, `modules/06_cell_visualization.qmd` for single-cell graph plots, and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after module `05`)
+4. **Optional:** Open `modules/05a_statistical_testing_cell_level.qmd` for cell-level differential testing, or `modules/05b_statistical_testing_pseudobulk.qmd` when you have replicates. Then `modules/06_cell_visualization.qmd` for single-cell graph plots, and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after 05a or 05b)
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
-Module `05` defaults to cell-level Wilcoxon tests. For replicate-aware testing, set `run_pseudobulk <- TRUE` in §5.0 to also run limma on sample-level aggregates (mean CLR / mean `log2_ratio`). That path needs **≥2 `sample_alias` values per `condition`**. Each modality writes parallel folders: `cell_level/` (Wilcoxon) and `pseudobulk/` (limma), each with csv/rds at the folder root and plots per contrast / cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment.
+Module `05a` runs cell-level Wilcoxon tests and writes `cell_level/`. Module `05b` runs limma on sample-level aggregates (mean CLR / mean `log2_ratio`) and writes `pseudobulk/`. Limma needs **≥2 `sample_alias` values per `condition`**. Each modality folder (`abundance`, `clustering`, `colocalization`) holds csv/rds at the folder root and plots per contrast / cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment. Set `reference_condition` in whichever notebook you run.
 
 ### Iterate on downstream modules
 
-After module `02` finishes, you can open `03`, `04`, `05`, or `06` in a **new R session** and run the first chunk — packages, palettes, and saved data load automatically.
+After module `02` finishes, you can open `03`, `04`, `05a`, `05b`, or `06` in a **new R session** and run the first chunk — packages, palettes, and saved data load automatically.
 
 | Checkpoint file | Created by | Used by |
 |-----------------|------------|---------|
 | `pg_data_merged.rds` | module `01` (filtered cells) | module `02` |
 | `selected_markers.rds` | module `01` | module `02` |
 | `annotated_seurat_object.rds` | module `02` | modules `03`–`06` |
-| `markers_to_test.rds` | module `02` | modules `04`–`05` |
+| `markers_to_test.rds` | module `02` | modules `04`, `05a`, and `05b` |
 
 All checkpoints are saved under `results/checkpoint_data/`.
 
@@ -279,7 +280,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
 | **01 — marker selection** | Set `isotype_markers` for your panel, then review `selected_markers` |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
-| **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"donor1"`) |
+| **05a / 05b — reference condition** (optional) | Set `reference_condition` to your control condition in the notebook you run (default example: `"donor1"`). Use 05b only when each condition has at least two samples |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
 > 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
