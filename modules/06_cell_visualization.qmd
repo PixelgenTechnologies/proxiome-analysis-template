@@ -11,7 +11,7 @@ for more detail.
 #| label: module06b_setup
 
 library(here)
-here::i_am("modules/06b_cell_visualization.qmd")
+here::i_am("modules/06_cell_visualization.qmd")
 
 source(here::here("modules", "common_setup.R"))
 
@@ -216,7 +216,7 @@ export_plot(filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cel
 
 ## 6.9. Interactive 3D plots
 
-We have two functions to create interactive 3D plots of one or multiple cells. `cell_plot_interactive()` can embed a Plotly view in for example an HTML report. `cell_plot_rgl()` opens a linked-camera device and is left unevaluated so rendering the report does not require a display.
+It is possible to create interactive 3D plots of one or multiple cells by feeding a `cell_plot` recipe into `cell_plot_interactive()`. This function than creates a Plotly view, that for example can be embedded in an HTML report.
 
 ```{r}
 #| label: cell_viz_interactive
