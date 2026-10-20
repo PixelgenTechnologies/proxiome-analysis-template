@@ -4,12 +4,11 @@
 # The bundled example has one sample_alias per condition, so limma cannot run.
 # This script splits each sample into two technical replicates (rep1/rep2),
 # optionally downsamples, and trims markers_to_test for speed. It is not a
-# biological design — only plumbing coverage for §§5.4–5.7.
+# biological design — only plumbing coverage for module 05b.
 #
 # Usage (from repo root, after modules 01–02 checkpoints exist):
-#   PAT_SMOKE_PSEUDOBULK=1 Rscript .github/smoke-test/smoke_pseudobulk.R
-#   PAT_SMOKE_PSEUDOBULK=1 quarto render modules/05_statistical_testing.qmd
-# (module 05 sources apply_module05_overrides.R to enable limma / skip Wilcoxon)
+#   Rscript .github/smoke-test/smoke_pseudobulk.R
+#   quarto render modules/05b_statistical_testing_pseudobulk.qmd
 
 args <- commandArgs(trailingOnly = FALSE)
 file_arg <- grep("^--file=", args, value = TRUE)
@@ -97,4 +96,4 @@ message(
   "max ", max_markers, " markers/type, ",
   "max ", max_cells, " cells/sample_alias"
 )
-message("Next: PAT_SMOKE_PSEUDOBULK=1 quarto render modules/05_statistical_testing.qmd")
+message("Next: quarto render modules/05b_statistical_testing_pseudobulk.qmd")
