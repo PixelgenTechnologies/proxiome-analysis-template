@@ -34,7 +34,7 @@ By default, in this analysis we compare all conditions to a reference condition,
 # Baseline / control condition. Must match a value in metadata$condition.
 # All tests compare each other condition against this one (target − reference).
 # Output folders are named {target}_vs_{reference}.
-reference_condition <- "donor1"
+reference_condition <- "resting"
 if (!reference_condition %in% pg_data$condition) stop("The reference condition is not present in the Seurat object")
 
 # Optional batch / donor columns from metadata.csv to include in limma models,
@@ -337,11 +337,16 @@ if (isTRUE(pseudobulk_ok)) {
     names(markers_to_test) |>
     map(function(cell_type) {
       tryCatch(
-        aggregate_sample_proximity(
-          subset(pg_data, cell_annotation == cell_type),
-          markers_to_test[[cell_type]]
-        ) |>
-          mutate(group = cell_type),
+        {
+          # Subset copies the object; drop it and collect garbage before the
+          # next cell type so the heap is reused instead of growing per iteration.
+          obj <- subset(pg_data, cell_annotation == cell_type)
+          res <- aggregate_sample_proximity(obj, markers_to_test[[cell_type]]) |>
+            mutate(group = cell_type)
+          rm(obj)
+          gc()
+          res
+        },
         error = function(e) {
           message(paste("Proximity summary error for", cell_type, ":", e$message))
           NULL
