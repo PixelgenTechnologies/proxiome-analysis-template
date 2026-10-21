@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Limma pseudobulk statistical testing in `modules/05b_statistical_testing_pseudobulk.qmd`: sample-level mean CLR / mean `log2_ratio` with limma for abundance, clustering, and colocalization. Each modality has parallel `cell_level/` (Wilcoxon, module 05a) and `pseudobulk/` (limma, module 05b) folders under `results/05_statistical_testing/{abundance,clustering,colocalization}/`. Module 07 chooses inputs via `stats_method` (`"cell_level"` default or `"pseudobulk"`). Dependency added: `limma`.
-- The HTML smoke test renders the full template, then renders `05a` and `05b` with `--no-execute` and checks that both HTML files exist.
+- Optional limma pseudobulk module `05b` for abundance, clustering, and colocalization (mean CLR / mean `log2_ratio`), written under `pseudobulk/` next to the module `05a` Wilcoxon tables in `cell_level/`. Module 07 selects them with `stats_method`. Adds the `limma` dependency.
+- The HTML smoke test also renders `05a` and `05b` with `--no-execute` and checks that both HTML files exist.
 
 ## [0.6.4] 2026-09-18
 
