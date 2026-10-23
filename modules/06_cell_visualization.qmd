@@ -105,7 +105,7 @@ export_plot(
 )
 ```
 
-The same recipe can be opened as an interactive 3D view. `cell_plot_interactive()` keeps the colors and the layout from the chunk above. Drag to rotate and scroll to zoom. On a grid, the panels share one camera, so they turn together. The view can be embedded in an HTML report. This chunk is left unevaluated so rendering the report does not open a widget. Run the figure first, then run this chunk when you want the viewer. Each figure below ends with the same optional chunk.
+The same recipe can be opened as an interactive 3D view. `cell_plot_interactive()` keeps the colors and the layout from the chunk above. Drag to rotate and scroll to zoom. On a grid, the panels share one camera, so they turn together. The view can be embedded in an HTML report. This chunk is left unevaluated so rendering the report does not open a widget. Run the figure first, then run this chunk when you want the viewer. 
 
 ```{r}
 #| label: cell_viz_single_marker_counts_interactive
