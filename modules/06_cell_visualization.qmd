@@ -105,6 +105,16 @@ export_plot(
 )
 ```
 
+The same recipe can be opened as an interactive 3D view. `cell_plot_interactive()` keeps the colors and the layout from the chunk above. Drag to rotate and scroll to zoom. On a grid, the panels share one camera, so they turn together. The view can be embedded in an HTML report. This chunk is left unevaluated so rendering the report does not open a widget. Run the figure first, then run this chunk when you want the viewer. Each figure below ends with the same optional chunk.
+
+```{r}
+#| label: cell_viz_single_marker_counts_interactive
+#| eval: false
+
+p_counts |>
+  cell_plot_interactive()
+```
+
 ## 6.4. Single cell, one local proximity score
 
 The same cell, colored by the CD82 local proximity score. The count plot shows the molecules. This plot shows the neighborhood where those molecules cluster, including the nodes between them. The default `ComputeLPS()` call stores one self-clustering score per node per marker in the `lps` layer. Only CD82 is requested, because that is the only score this figure draws.
@@ -143,6 +153,14 @@ export_plot(
 )
 ```
 
+```{r}
+#| label: cell_viz_single_marker_lps_interactive
+#| eval: false
+
+p_lps |>
+  cell_plot_interactive()
+```
+
 ## 6.5. Single cell, multi-marker overlay
 
 Several markers on the same cell. `FetchLayoutData(add_marker = TRUE)` adds the protein identity of each node from the counts matrix. Nodes for `markers_to_viz` keep their name, and every other node is labeled `"Other"`. Identity comes from the counts, so local proximity scores are not computed.
@@ -178,6 +196,14 @@ export_plot(
   filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_multi_marker.png")),
   plot = autoplot(p_multi_marker)
 )
+```
+
+```{r}
+#| label: cell_viz_multi_marker_interactive
+#| eval: false
+
+p_multi_marker |>
+  cell_plot_interactive()
 ```
 
 ## 6.6. Single cell, local proximity panels
@@ -228,6 +254,14 @@ export_plot(
 )
 ```
 
+```{r}
+#| label: cell_viz_single_cell_lps_panels_interactive
+#| eval: false
+
+p_lps_panels |>
+  cell_plot_interactive()
+```
+
 ## 6.7. Multi-cell grid
 
 The same scores across the selected cells. Columns are cells, rows are score types, and one color limit keeps a strong score in one cell comparable to the others. This chunk loads every selected cell, because each column is a different component.
@@ -276,76 +310,15 @@ export_plot(
 )
 ```
 
-## 6.8. Interactive 3D plots
-
-`cell_plot_interactive()` draws a `cell_plot` recipe as an interactive 3D view that can be embedded in an HTML report. These chunks are left unevaluated so rendering the report does not open a widget. Run them yourself when you want the viewer. Each one loads its own graphs, so it does not depend on a figure above.
-
-The single-cell view colors nodes by marker identity. That uses the counts matrix, so `ComputeLPS()` is skipped.
-
 ```{r}
-#| label: cell_viz_interactive
+#| label: cell_viz_grid_interactive
 #| eval: false
 
-pg_data <- pg_data |>
-  RemoveCellGraphs() |>
-  LoadCellGraphs(cells = cells_of_interest[1]) |>
-  ComputeLayout(layout_method = "spectral")
-
-FetchLayoutData(
-  pg_data,
-  cells = cells_of_interest[1],
-  layout_method = "spectral_3d",
-  add_marker = TRUE,
-  layer = "counts"
-) |>
-  mutate(marker = if_else(marker %in% markers_to_viz, marker, "Other")) |>
-  cell_plot(color = marker, size = 1.2, alpha = 1) |>
-  cell_node_scale_color(colors = marker_colors) |>
+p_grid |>
   cell_plot_interactive()
 ```
 
-The same renderer accepts a grid. This one repeats the score grid: every selected cell, self-clustering for each marker, and the pair colocalization. Drag any panel to rotate all of them together.
-
-```{r}
-#| label: cell_viz_interactive_grid
-#| eval: false
-
-pg_data <- pg_data |>
-  RemoveCellGraphs() |>
-  LoadCellGraphs(cells = cells_of_interest) |>
-  ComputeLayout(layout_method = "spectral") |>
-  ComputeLPS(markers = markers_to_viz) |>
-  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc")
-
-layout_lps <- FetchLayoutData(
-  pg_data,
-  cells = cells_of_interest,
-  layout_method = "spectral_3d",
-  vars = markers_to_viz,
-  layer = "lps"
-)
-layout_coloc <- FetchLayoutData(
-  pg_data,
-  cells = cells_of_interest,
-  layout_method = "spectral_3d",
-  vars = "coloc"
-)
-layout_lps <- bind_cols(layout_lps, layout_coloc |> select(coloc))
-
-layout_lps |>
-  pivot_longer(
-    all_of(c(markers_to_viz, "coloc")),
-    names_to = "score_type",
-    values_to = "score"
-  ) |>
-  cell_plot(color = score, size = 0.6) |>
-  cell_grid(cols = component, rows = score_type) |>
-  cell_node_scale_color(colors = c("blue", "white", "red"), limits = c(-1, 1)) |>
-  cell_illuminate(light_direction = light_direction) |>
-  cell_plot_interactive()
-```
-
-## 6.9. Animations
+## 6.8. Animations
 
 `cell_coord_rotate()` describes the turn and `cell_plot_animate()` renders it. `lock_light = TRUE` keeps the highlight fixed to the viewer while the cell turns. These chunks are left unevaluated because writing the GIF is slow. Run them when you want the file.
 
