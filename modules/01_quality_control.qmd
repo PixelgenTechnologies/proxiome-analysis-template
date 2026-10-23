@@ -320,150 +320,29 @@ Setting correct thresholds is crucial for downstream analysis quality. Threshold
 ```{r}
 #| label: quality_control_select_cells
 
-# Combined molecule rank plots
-MoleculeRankPlot(pg_data, group_by = "sample_alias") +
-  geom_hline(
-    yintercept = n_umi_min_threshold,
-    linetype = "dashed",
-    color = "red"
-  ) +
-  geom_hline(
-    yintercept = n_umi_max_threshold,
-    linetype = "dashed",
-    color = "red"
-  )
+# Combined molecule rank plot with the size thresholds overlaid
+MoleculeRankPlot(
+  pg_data,
+  group_by = "sample_alias",
+  n_umi_min_threshold = n_umi_min_threshold,
+  n_umi_max_threshold = n_umi_max_threshold
+)
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_molecule_rank_plot_w_thresholds"),
   width = 10,
   height = 8
 )
 
-# Separate annotated molecule rank plot for each sample
-pg_data[[]] <- pg_data[[]] |>
-  group_by(sample_id) |>
-  mutate(
-    rank = rank(-n_umi, ties.method = "random")
-  ) |>
-  ungroup()
-
-umi_normal <- pg_data[[]] |>
-  mutate(
-    umi_normal = case_when(
-      n_umi > n_umi_min_threshold & n_umi < n_umi_max_threshold ~ TRUE,
-      n_umi < n_umi_min_threshold | n_umi > n_umi_max_threshold ~ FALSE
-    )
-  ) |>
-  select(sample_id, umi_normal)
-
-umi_normal_count <- umi_normal |>
-  filter(is.logical(umi_normal)) |>
-  group_by(sample_id) |>
-  summarise(normal_count = sum(umi_normal), .groups = "drop")
-
-umi_outliers <- pg_data[[]] |>
-  select(sample_id, n_umi) |>
-  mutate(
-    umi_low = n_umi < n_umi_min_threshold,
-    umi_high = n_umi > n_umi_max_threshold
-  ) |>
-  group_by(sample_id) |>
-  summarise(
-    low_count = sum(umi_low),
-    high_count = sum(umi_high),
-    .groups = "drop"
-  )
-
-hline_normal <- data.frame(
-  sample_id = unique(pg_data[[]]$sample_id),
-  cutoff = n_umi_min_threshold
+# One annotated molecule rank plot per sample, with per-sample counts of
+# cells below, within, and above the thresholds
+MoleculeRankPlot(
+  pg_data,
+  group_by = "sample_alias",
+  n_umi_min_threshold = n_umi_min_threshold,
+  n_umi_max_threshold = n_umi_max_threshold,
+  split = TRUE,
+  rug = TRUE
 )
-
-point_colors <- pg_data[[]] |>
-  rownames_to_column("component") |>
-  select(sample_id, n_umi, rank, component) |>
-  left_join(
-    umi_normal_count |> rownames_to_column("component"),
-    by = c("component", "sample_id")
-  ) |>
-  left_join(hline_normal, by = "sample_id") |>
-  mutate(
-    max_value = n_umi_max_threshold,
-    col = case_when(
-      isTRUE(umi_normal) ~ "#496389",
-      n_umi < cutoff & !isTRUE(umi_normal) ~ "#FFA292",
-      n_umi > max_value & !isTRUE(umi_normal) ~ "#FFA292",
-      TRUE ~ "#496389"
-    )
-  )
-
-pg_data[[]] |>
-  select(sample_id, rank, n_umi) |>
-  ggplot(aes(x = rank, y = n_umi)) +
-  geom_point(
-    data = point_colors,
-    aes(x = rank, y = n_umi),
-    color = point_colors$col,
-    size = 1,
-    alpha = 0.8
-  ) +
-  geom_hline(
-    data = hline_normal,
-    aes(yintercept = cutoff),
-    linetype = "dashed",
-    color = "red"
-  ) +
-  facet_wrap(
-    ~ factor(sample_id, levels = sort(unique(sample_id))),
-    nrow = 2
-  ) +
-  geom_text(
-    data = umi_normal_count,
-    aes(x = Inf, y = Inf, label = paste("Cells:", normal_count)),
-    hjust = 1.2,
-    vjust = 1.8,
-    size = 4,
-    color = "#496389",
-    position = position_nudge(y = 0.5)
-  ) +
-  geom_text(
-    data = umi_outliers,
-    aes(x = 10, y = Inf, label = paste("High: ", high_count)),
-    vjust = 1.8,
-    hjust = 0.8,
-    size = 4,
-    color = "#FFA292",
-    position = position_nudge(y = -0.5)
-  ) +
-  geom_text(
-    data = umi_outliers,
-    aes(x = 10, y = n_umi_min_threshold, label = paste("Low: ", low_count)),
-    size = 4,
-    vjust = 0.2,
-    hjust = 0.7,
-    color = "#FFA292",
-    position = position_nudge(y = -0.5)
-  ) +
-  geom_rug(
-    aes(x = rank),
-    linewidth = 1,
-    sides = "l",
-    alpha = 0.05
-  ) +
-  scale_x_log10() +
-  scale_y_log10() +
-  coord_equal(ratio = 1.5) +
-  theme_bw() +
-  labs(x = "Component Rank", y = "UMIs", color = "UMI Normal") +
-  theme(
-    aspect.ratio = 1,
-    legend.position = "top",
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.border = element_rect(
-      color = "black",
-      fill = NA,
-      linewidth = 0.5
-    )
-  )
 export_plot(
   filename = here::here("results/01_quality_control/molecule_rank_plots/quality_control_annotated_molecule_rank_plot"),
   width = 15,

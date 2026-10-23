@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Module `01` selects markers for PCA, UMAP, and clustering with `FindAbundantMarkers`. A marker is kept when its counts per million exceed 1.5 times the median isotype CPM in at least 5% of cells. There is no absolute CPM floor, so more markers pass than with the previous rule (95th percentile CPM above 2000). Isotype controls are excluded.
+- Module `01` selects clustering markers with `FindAbundantMarkers` (above 1.5× the median isotype CPM in at least 5% of cells; isotype controls excluded).
 - PXL loading requests detailed cell metadata so quality control still has graph columns such as `k_core_1`.
 - `pixelatorR` 0.23.0 or higher is required. The Docker base image is `pixelatorr:0.23.0`.
+- Module `01` molecule rank plots now use `MoleculeRankPlot` with the UMI thresholds, `split` and `rug` instead of the hand-built annotated plot.
 
 ## [0.6.4] 2026-09-18
 
