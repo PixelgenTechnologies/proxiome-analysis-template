@@ -1,11 +1,9 @@
 # 6. Cell visualization
 
-**Module 06 — Cell visualization.** 2D and 3D single-cell graph plots using
+**Module 06 — Cell visualization.** 
+In this module, we will visualize 2D and 3D single-cell graph plots using
 pixelatorR's `cell_plot` visualization framework. This shows *where* proteins sit on a
-single cell's surface graph (clustering, polarization and colocalization patterns
-that population-level scores in module `04` summarise but don't show directly). Run
-after module `02`. See the [cell visualization tutorial](https://software.pixelgen.com/pna-analysis/R/tutorials/cell_visualization/)
-for more detail.
+single cell's surface graph and can help visualize clustering, polarization and colocalization patterns. See the [cell visualization tutorial](https://software.pixelgen.com/pna-analysis/R/tutorials/cell_visualization/) for more detail.
 
 ```{r}
 #| label: module06b_setup
@@ -22,8 +20,10 @@ if (!exists("pg_data", inherits = TRUE)) {
 
 ## 6.1. Parameters
 
-> **Decision checkpoint** (set the cell type and markers to plot). 
-> In practice, cell visualization is an interactive process, where you select cells and markers of interest based on prior knowledge and/or analysis results and then plot them - often in multiple ways. The example presented here uses CD8 T cells and the CD82/CD81 pair, which often colocalize on the cell surface. 
+> **Decision checkpoint**
+> Set the cell type and markers to plot. In practice, cell visualization is an interactive process, where you select cells and markers of interest based on prior knowledge and/or analysis results and then plot them - often in multiple ways. 
+
+As an example, we will visualize CD8 T cells and in particular the markers CD82 and CD81. This is a pair of proteins which often colocalize on the cell surface. 
 
 ```{r}
 #| label: cell_viz_parameters
