@@ -66,36 +66,182 @@ if (length(cells_of_interest) == 0) {
 }
 ```
 
-## 6.3. Load graphs, layouts, and local proximity scores
+Each figure below is its own pipeline. `RemoveCellGraphs()` drops graphs left by another chunk, `LoadCellGraphs()` reads only the cells that figure draws, and `ComputeLayout(layout_method = "spectral")` stores coordinates under the name `spectral_3d`. `ComputeLPS()` runs only when the color is a local proximity score. A counts plot or a marker-identity plot stops after the layout. The cell selection above is the only step these figures share, so the chunks can be run in any order. Each chunk repeats the load so it can be run on its own.
 
-In this step we load the cell graphs into the Seurat object, compute the layouts using one of several supported algorithms, and compute the local proximity scores for the selected cells. For this last step, we use `ComputeLPS()` to write one score per node per marker. The default call stores self-clustering of each marker into the `lps` layer. The second call to `ComputeLPS()`, with `mode = "all"`, stores one colocalization score for the pair into the `coloc` layer; a single vector is saved as node metadata named `coloc`.
+## 6.3. Single cell, marker counts
+
+A 2D projection of one cell, colored by CD82 counts. This shows where the individual proteins sit. Depth and directional light make near and far nodes read as a surface without an interactive viewer. Counts live on the graph already, so this chunk does not compute local proximity scores.
 
 ```{r}
-#| label: cell_viz_layout
+#| label: cell_viz_single_marker_counts
 
-pg_data <- RemoveCellGraphs(pg_data)
+# Counts are already stored on the graph, so this figure does not score neighborhoods.
+# markers_to_viz[1] is CD82 in the parameter block; the plot reads that column by name.
 pg_data <- pg_data |>
-  LoadCellGraphs(cells = cells_of_interest) |>
-  ComputeLayout(layout_method = "spectral") |>
-  ComputeLPS(markers = markers_to_viz) |> # Compute local proximity scores for each marker
-  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc") # Compute local proximity score for the pair
-```
-
-## 6.4. Fetch layout data
-
-In this step we extract the layout data for the selected cells and associated metadata layers which we than can use to annotate and visualize the data. We create two data frames, one from the `counts` layer and one from the `lps` and `coloc` layers. The `counts` layer carries the node identity (`marker`) used for overlays. The `lps` layer carries per-marker local proximity scores. The `coloc` layer carries the local proximity score for the pair. We than transfer the `coloc` column to the `lps` layer to create a single data frame with all the scores. Both objects have the same node order, so binding the `coloc` column by position keeps each score on its node.
-
-```{r}
-#| label: cell_viz_layout_data
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest[1]) |>
+  ComputeLayout(layout_method = "spectral")
 
 layout_counts <- FetchLayoutData(
   pg_data,
-  cells = cells_of_interest,
+  cells = cells_of_interest[1],
   layout_method = "spectral_3d",
-  vars = markers_to_viz,
+  vars = markers_to_viz[1],
+  layer = "counts"
+)
+
+p_counts <- layout_counts |>
+  cell_plot(color = CD82, size = 0.7) |>
+  cell_node_depth(focal_distance = 1.8) |>
+  cell_illuminate(light_direction = light_direction) |>
+  cell_annotation(
+    title = paste(cell_type_of_interest, "—", cells_of_interest[1]),
+    legend_title = "CD82"
+  )
+
+export_plot(
+  filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_counts.png")),
+  plot = autoplot(p_counts)
+)
+```
+
+## 6.4. Single cell, one local proximity score
+
+The same cell, colored by the CD82 local proximity score. The count plot shows the molecules. This plot shows the neighborhood where those molecules cluster, including the nodes between them. The default `ComputeLPS()` call stores one self-clustering score per node per marker in the `lps` layer. Only CD82 is requested, because that is the only score this figure draws.
+
+```{r}
+#| label: cell_viz_single_marker_lps
+
+# One marker, self-clustering only. Colocalization is not drawn here.
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest[1]) |>
+  ComputeLayout(layout_method = "spectral") |>
+  ComputeLPS(markers = markers_to_viz[1])
+
+layout_lps <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest[1],
+  layout_method = "spectral_3d",
+  vars = markers_to_viz[1],
+  layer = "lps"
+)
+
+p_lps <- layout_lps |>
+  cell_plot(color = CD82, size = 0.7) |>
+  cell_node_scale_color() |>
+  cell_node_depth(focal_distance = 1.8) |>
+  cell_illuminate(light_direction = light_direction) |>
+  cell_annotation(
+    title = paste(cell_type_of_interest, "—", cells_of_interest[1]),
+    legend_title = "CD82 LPS"
+  )
+
+export_plot(
+  filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_lps.png")),
+  plot = autoplot(p_lps)
+)
+```
+
+## 6.5. Single cell, multi-marker overlay
+
+Several markers on the same cell. `FetchLayoutData(add_marker = TRUE)` adds the protein identity of each node from the counts matrix. Nodes for `markers_to_viz` keep their name, and every other node is labeled `"Other"`. Identity comes from the counts, so local proximity scores are not computed.
+
+```{r}
+#| label: cell_viz_multi_marker
+
+# Marker identity is enough. The overlay does not color by a score.
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest[1]) |>
+  ComputeLayout(layout_method = "spectral")
+
+layout_counts <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest[1],
+  layout_method = "spectral_3d",
   add_marker = TRUE,
   layer = "counts"
 )
+
+p_multi_marker <- layout_counts |>
+  mutate(
+    marker = if_else(marker %in% markers_to_viz, marker, "Other"),
+    highlight = as.numeric(marker != "Other")
+  ) |>
+  cell_plot(color = marker, size = highlight, alpha = highlight) |>
+  cell_node_scale_color(colors = marker_colors) |>
+  cell_node_scale_size(sizes = c(0.4, 3)) |>
+  cell_node_scale_alpha(alphas = c(0.5, 1))
+
+export_plot(
+  filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_multi_marker.png")),
+  plot = autoplot(p_multi_marker)
+)
+```
+
+## 6.6. Single cell, local proximity panels
+
+Local proximity scores for each marker and for the pair, on one cell. The first `ComputeLPS()` stores self-clustering of each marker in the `lps` layer. The second call, with `mode = "all"`, stores one colocalization score per node in the node metadata under `coloc`. The two fetches walk the nodes in the same order, so binding `coloc` by position keeps each score on its node.
+
+```{r}
+#| label: cell_viz_single_cell_lps_panels
+
+# Both score types are drawn: per-marker clustering and the pair colocalization.
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest[1]) |>
+  ComputeLayout(layout_method = "spectral") |>
+  ComputeLPS(markers = markers_to_viz) |>
+  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc")
+
+layout_lps <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest[1],
+  layout_method = "spectral_3d",
+  vars = markers_to_viz,
+  layer = "lps"
+)
+layout_coloc <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest[1],
+  layout_method = "spectral_3d",
+  vars = "coloc"
+)
+# Same node order in both tables, so coloc stays on the node it was computed for.
+layout_lps <- bind_cols(layout_lps, layout_coloc |> select(coloc))
+
+p_lps_panels <- layout_lps |>
+  pivot_longer(
+    all_of(c(markers_to_viz, "coloc")),
+    names_to = "score_type",
+    values_to = "score"
+  ) |>
+  cell_plot(color = score, size = 0.6) |>
+  cell_grid(cols = score_type) |>
+  cell_node_scale_color() |>
+  cell_illuminate(light_direction = light_direction)
+
+export_plot(
+  filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_lps_panels.png")),
+  plot = autoplot(p_lps_panels)
+)
+```
+
+## 6.7. Multi-cell grid
+
+The same scores across the selected cells. Columns are cells, rows are score types, and one color limit keeps a strong score in one cell comparable to the others. This chunk loads every selected cell, because each column is a different component.
+
+```{r}
+#| label: cell_viz_grid
+
+# The grid draws clustering and colocalization, so both score calls below are required.
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest) |>
+  ComputeLayout(layout_method = "spectral") |>
+  ComputeLPS(markers = markers_to_viz) |>
+  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc")
 
 layout_lps <- FetchLayoutData(
   pg_data,
@@ -111,93 +257,6 @@ layout_coloc <- FetchLayoutData(
   vars = "coloc"
 )
 layout_lps <- bind_cols(layout_lps, layout_coloc |> select(coloc))
-```
-
-## 6.5. Single cell, one marker
-
-A 2D projection of one cell. We can plot the counts layer to highlight the individual CD82 proteins on the cell surface and the LPS layer to highlight the CD82 clustering on the cell surface. Depth and directional light make near and far nodes create a more realistic 3D appearance without an interactive viewer.
-We also add a title and legend to the plots.
-
-```{r}
-#| label: cell_viz_single_marker
-
-# Plot the counts layer to highlight the CD82 protein on the cell surface
-p_counts <- layout_counts |>
-  filter(component == cells_of_interest[1]) |>
-  cell_plot(color = CD82, size = 0.7) |>
-  cell_node_depth(focal_distance = 1.8) |>
-  cell_illuminate(light_direction = light_direction) |>
-  cell_annotation(
-    title = paste(cell_type_of_interest, "—", cells_of_interest[1]),
-    legend_title = "CD82"
-  )
-
-export_plot(filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_counts.png")), plot = autoplot(p_counts))
-
-# Plot the LPS layer to highlight the CD82 clustering on the cell surface
-p_lps <- layout_lps |>
-  filter(component == cells_of_interest[1]) |>
-  cell_plot(color = CD82, size = 0.7) |>
-  cell_node_scale_color() |>
-  cell_node_depth(focal_distance = 1.8) |>
-  cell_illuminate(light_direction = light_direction) |>
-  cell_annotation(
-    title = paste(cell_type_of_interest, "—", cells_of_interest[1]),
-    legend_title = "CD82 LPS"
-  )
-  
-export_plot(filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_lps.png")), plot = autoplot(p_lps))
-```
-
-## 6.6. Single cell, multi-marker overlay
-
-We can also plot several markers on the same cell to visualize their spatial pattern on the same cell. Here we use the `counts` object to highlight the individual CD82 and CD81 proteins on the cell surface.
-
-```{r}
-#| label: cell_viz_multi_marker
-
-p_multi_marker <- layout_counts |>
-  filter(component == cells_of_interest[1]) |>
-  mutate(
-    marker = if_else(marker %in% markers_to_viz, marker, "Other"),
-    highlight = as.numeric(marker != "Other")
-  ) |>
-  cell_plot(color = marker, size = highlight, alpha = highlight) |>
-  cell_node_scale_color(colors = marker_colors) |>
-  cell_node_scale_size(sizes = c(0.4, 3)) |>
-  cell_node_scale_alpha(alphas = c(0.5, 1))
-
-export_plot(filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_multi_marker.png")), plot = autoplot(p_multi_marker))
-```
-
-## 6.7. Single cell, local proximity panels
-
-We can also plot the local proximity scores for the individual markers and the pair on the same cell.
-
-```{r}
-#| label: cell_viz_single_cell_lps_panels
-
-p_lps_panels <- layout_lps |>
-  filter(component == cells_of_interest[1]) |>
-  pivot_longer(
-    all_of(c(markers_to_viz, "coloc")),
-    names_to = "score_type",
-    values_to = "score"
-  ) |>
-  cell_plot(color = score, size = 0.6) |>
-  cell_grid(cols = score_type) |>
-  cell_node_scale_color() |>
-  cell_illuminate(light_direction = light_direction)
-
-export_plot(filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_lps_panels.png")), plot = autoplot(p_lps_panels))
-```
-
-## 6.8. Multi-cell grid plots
-
-Same scores across multiple cells. Columns are cells, rows are score types, and one color limit keeps a strong score in one cell comparable to the others.
-
-```{r}
-#| label: cell_viz_grid
 
 p_grid <- layout_lps |>
   pivot_longer(
@@ -211,45 +270,104 @@ p_grid <- layout_lps |>
   cell_node_scale_color(colors = c("blue", "white", "red"), limits = c(-1, 1)) |>
   cell_illuminate(light_direction = light_direction)
 
-export_plot(filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_grid.png")), plot = autoplot(p_grid))
+export_plot(
+  filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cells_of_interest[1], "_grid.png")),
+  plot = autoplot(p_grid)
+)
 ```
 
-## 6.9. Interactive 3D plots
+## 6.8. Interactive 3D plots
 
-It is possible to create interactive 3D plots of one or multiple cells by feeding a `cell_plot` recipe into `cell_plot_interactive()`. This function than creates a Plotly view, that for example can be embedded in an HTML report.
+`cell_plot_interactive()` draws a `cell_plot` recipe as an interactive 3D view that can be embedded in an HTML report. These chunks are left unevaluated so rendering the report does not open a widget. Run them yourself when you want the viewer. Each one loads its own graphs, so it does not depend on a figure above.
+
+The single-cell view colors nodes by marker identity. That uses the counts matrix, so `ComputeLPS()` is skipped.
 
 ```{r}
 #| label: cell_viz_interactive
 #| eval: false
 
-layout_counts |>
-  filter(component == cells_of_interest[1]) |>
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest[1]) |>
+  ComputeLayout(layout_method = "spectral")
+
+FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest[1],
+  layout_method = "spectral_3d",
+  add_marker = TRUE,
+  layer = "counts"
+) |>
   mutate(marker = if_else(marker %in% markers_to_viz, marker, "Other")) |>
   cell_plot(color = marker, size = 1.2, alpha = 1) |>
   cell_node_scale_color(colors = marker_colors) |>
   cell_plot_interactive()
 ```
 
-This also works for grids of cells.
+The same renderer accepts a grid. This one repeats the score grid: every selected cell, self-clustering for each marker, and the pair colocalization. Drag any panel to rotate all of them together.
 
 ```{r}
-#| label: cell_viz_rgl
+#| label: cell_viz_interactive_grid
 #| eval: false
 
-# Drag any panel to rotate all of them together.
-p_grid |> cell_plot_interactive()
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest) |>
+  ComputeLayout(layout_method = "spectral") |>
+  ComputeLPS(markers = markers_to_viz) |>
+  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc")
+
+layout_lps <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest,
+  layout_method = "spectral_3d",
+  vars = markers_to_viz,
+  layer = "lps"
+)
+layout_coloc <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest,
+  layout_method = "spectral_3d",
+  vars = "coloc"
+)
+layout_lps <- bind_cols(layout_lps, layout_coloc |> select(coloc))
+
+layout_lps |>
+  pivot_longer(
+    all_of(c(markers_to_viz, "coloc")),
+    names_to = "score_type",
+    values_to = "score"
+  ) |>
+  cell_plot(color = score, size = 0.6) |>
+  cell_grid(cols = component, rows = score_type) |>
+  cell_node_scale_color(colors = c("blue", "white", "red"), limits = c(-1, 1)) |>
+  cell_illuminate(light_direction = light_direction) |>
+  cell_plot_interactive()
 ```
 
-## 6.10. Animations
+## 6.9. Animations
 
-We can also create animations of the cell plots. Here, it can be usefule to set `lock_light = TRUE` to keep the highlight fixed to the viewer while the cell turns.
+`cell_coord_rotate()` describes the turn and `cell_plot_animate()` renders it. `lock_light = TRUE` keeps the highlight fixed to the viewer while the cell turns. These chunks are left unevaluated because writing the GIF is slow. Run them when you want the file.
+
+This animation colors one cell by the pair colocalization score. Self-clustering is not drawn, so only the `mode = "all"` call is needed. The result is node metadata named `coloc`, which `FetchLayoutData()` reads without a layer.
 
 ```{r}
 #| label: cell_viz_animate_single
 #| eval: false
 
-layout_lps |>
-  filter(component == cells_of_interest[1]) |>
+# The GIF colors coloc only, so skip the per-marker self-clustering call.
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest[1]) |>
+  ComputeLayout(layout_method = "spectral") |>
+  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc")
+
+FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest[1],
+  layout_method = "spectral_3d",
+  vars = "coloc"
+) |>
   cell_plot(color = coloc, size = 0.7) |>
   cell_node_scale_color() |>
   cell_illuminate(light_direction = light_direction, lock_light = TRUE) |>
@@ -263,13 +381,44 @@ layout_lps |>
   )
 ```
 
-And again, this also works for grids of cells. Here we visualize a short "boomerang" motion so each panel moves only a short distance around its own centroid instead of spinning through a full turn.
+A grid uses a short boomerang motion so each panel moves a short distance around its own centroid instead of spinning through a full turn. The panels are the same scores as the static grid, so both `ComputeLPS()` calls run again inside this chunk.
 
 ```{r}
 #| label: cell_viz_animate_grid
 #| eval: false
 
-p_grid |>
+pg_data <- pg_data |>
+  RemoveCellGraphs() |>
+  LoadCellGraphs(cells = cells_of_interest) |>
+  ComputeLayout(layout_method = "spectral") |>
+  ComputeLPS(markers = markers_to_viz) |>
+  ComputeLPS(markers = markers_to_viz, mode = "all", name = "coloc")
+
+layout_lps <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest,
+  layout_method = "spectral_3d",
+  vars = markers_to_viz,
+  layer = "lps"
+)
+layout_coloc <- FetchLayoutData(
+  pg_data,
+  cells = cells_of_interest,
+  layout_method = "spectral_3d",
+  vars = "coloc"
+)
+layout_lps <- bind_cols(layout_lps, layout_coloc |> select(coloc))
+
+layout_lps |>
+  pivot_longer(
+    all_of(c(markers_to_viz, "coloc")),
+    names_to = "score_type",
+    values_to = "score"
+  ) |>
+  cell_plot(color = score, size = 0.6) |>
+  cell_grid(cols = component, rows = score_type) |>
+  cell_node_scale_color(colors = c("blue", "white", "red"), limits = c(-1, 1)) |>
+  cell_illuminate(light_direction = light_direction) |>
   cell_coord_rotate(axis = "y", max_degree = 30) |>
   cell_plot_animate(
     file = file.path(out_dir, paste0(cell_type_of_interest, "_grid_rotation.gif")),
