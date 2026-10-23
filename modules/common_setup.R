@@ -105,9 +105,9 @@ suppressPackageStartupMessages({
   library(ggraph)
 })
 
-if (packageVersion("pixelatorR") < "0.18.3") {
+if (packageVersion("pixelatorR") < "0.23.0") {
   stop(
-    "Please update the pixelatorR package to version 0.18.3 or higher to run this analysis workflow."
+    "Please update the pixelatorR package to version 0.23.0 or higher to run this analysis workflow."
   )
 }
 

@@ -26,7 +26,7 @@ Each row in `metadata.csv` links one sample to one PXL file. Required columns: `
 print(metadata)
 ```
 
-This step loads each PXL file and merges them into one combined PNA object. Proximity scores are not loaded yet (`load_proximity_scores = FALSE`) to save memory.
+This step loads each PXL file and merges them into one combined PNA object. Proximity scores are not loaded yet (`load_proximity_scores = FALSE`) to save memory. Full cell metadata is loaded so quality control can use graph columns such as `k_core_1`.
 
 ```{r}
 #| label: load_data_merge
@@ -34,7 +34,11 @@ This step loads each PXL file and merges them into one combined PNA object. Prox
 pg_data <-
   metadata$file_path |>
   map_chr(resolve_data_file, data_dir = data_dir) |>
-  lapply(ReadPNA_Seurat, load_proximity_scores = FALSE)
+  lapply(
+    ReadPNA_Seurat,
+    load_proximity_scores = FALSE,
+    detailed_meta_data = TRUE
+  )
 
 pg_data <-
   merge(
@@ -420,85 +424,71 @@ message(
 ## 1.4. Select markers for dimensionality reduction (optional)
 
 > **Decision checkpoint** (marker set for PCA / UMAP / clustering)  
-> Set `marker_cpm_p95_threshold`, run the chunk, then **edit the `selected_markers` vector** (or assign `selected_markers <- rownames(pg_data)` to use all markers). This list is used in module `02` for PCA and clustering.
+> Set `isotype_markers` to the isotype controls on your panel. Lower `isotype_ratio` or `min_cell_fraction` to keep more markers. Leave `abundance_threshold` as `NULL` unless you also want an absolute minimum counts per million (CPM) threshold. After the chunk runs, edit `selected_markers`, or set `selected_markers <- rownames(pg_data)` to use every marker. Module `02` uses this list for PCA, UMAP, and clustering.
 
-This optional step allows users to filter markers based on expression levels, retaining only those markers that are likely to be positive in at least one cell population within the dataset. Marker selection is not a one-size-fits-all process; the optimal selection criteria depend on the specific dataset characteristics and experimental design.
+Markers that sit at background levels add noise to PCA, UMAP, and clustering. `FindAbundantMarkers()` keeps a marker when at least `min_cell_fraction` of cells have counts per million above `isotype_ratio` times the median isotype CPM. Isotype controls are always dropped. The defaults (`isotype_ratio = 1.5`, `min_cell_fraction = 0.05`, no absolute CPM cutoff) are permissive, so a marker that is abundant in a small population still passes.
 
-This section demonstrates one approach using counts per million (CPM) thresholds. For each marker, the 50th percentile (median) and 95th percentile of CPM values are calculated across all cells. Markers are then selected based on whether their 95th percentile exceeds a defined threshold. This threshold should be adjusted according to the background signal levels in the dataset and the expected presence of specific markers based on the experimental design.
-
-In the example provided here, the threshold is set to 2000 CPM at the 95th percentile. This effectively means that markers are retained if they are expressed at detectable levels in cell populations comprising at least 5% of the sample. Comparing the 95th percentile to the 50th percentile (median) provides insight into the variability of marker expression across cells, helping to distinguish markers with consistent expression from those with highly variable or rare expression patterns.
-
-**Customizing the marker list:** After running the code below, the selected markers will be printed. You can freely **add** or **remove** markers from the `selected_markers` vector to tailor the list to your dataset and experimental design. Alternatively, to skip selection entirely and use all available markers, you can replace `selected_markers` with `rownames(pg_data)`. A smaller, focused marker set often leads to cleaner dimensionality reduction and clustering results.
-
+**Customizing the marker list:** The kept markers are printed after the chunk. Add or remove names in `selected_markers` to match your experiment.
 
 ```{r}
 #| label: quality_control_select_markers
 
-marker_cpm_p95_threshold <- 2000
+isotype_markers <- c("mIgG1", "mIgG2a", "mIgG2b")
+isotype_ratio <- 1.5
+min_cell_fraction <- 0.05
+abundance_threshold <- NULL
 
-count_data <-
-  LayerData(pg_data, "counts")
-cpm_data <-
-  count_data |>
-  sweep(2, colSums(count_data), "/")
+marker_abundance <-
+  FindAbundantMarkers(
+    object = pg_data,
+    isotype_markers = isotype_markers,
+    isotype_ratio = isotype_ratio,
+    abundance_threshold = abundance_threshold,
+    min_cell_fraction = min_cell_fraction,
+    return_stats = TRUE
+  )
 
-cpm_data <- cpm_data * 1e6
-
-cpm_quantiles <-
-  cpm_data |>
-  apply(1, function(x) quantile(x, c(0.5, 0.95))) |>
-  t() |>
-  as_tibble(rownames = "marker") |>
-  mutate(kept = `95%` > marker_cpm_p95_threshold)
-
-cpm_quantiles |>
-  ggplot(aes(`50%`, `95%` / `50%`, color = kept)) +
-  geom_point(size = 0.1) +
-  geom_text(aes(label = marker), vjust = -0.5, size = 2) +
-  scale_x_log10(expand = expansion(0.2)) +
-  scale_y_log10() +
+marker_abundance |>
+  mutate(status = if_else(kept, "Kept", "Dropped")) |>
+  ggplot(aes(median_cpm, positive_fraction, color = status)) +
+  geom_point(size = 1) +
+  geom_hline(yintercept = min_cell_fraction, linetype = "dashed") +
+  geom_text(
+    data = ~ .x |> filter(status == "Dropped"),
+    aes(label = marker),
+    size = 2,
+    vjust = -0.6,
+    show.legend = FALSE
+  ) +
+  scale_x_log10() +
+  scale_y_continuous(limits = c(0, 1), expand = expansion(mult = c(0.02, 0.08))) +
+  scale_color_manual(values = c("Kept" = "#496389", "Dropped" = "#FFA292")) +
   theme_bw() +
   labs(
-    title = "Marker selection based on CPM",
-    x = "50th percentile of CPM (log10 scale)",
-    y = "95th / 50th percentile of CPM (log10 scale)"
+    title = "Marker selection by abundance",
+    x = "Median CPM",
+    y = "Fraction of cells above the cutoff",
+    color = NULL
   )
 export_plot(
-  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm"),
-  width = 12,
-  height = 4
-)
-
-
-cpm_quantiles |>
-  arrange(`95%`) |>
-  mutate(marker = factor(marker, levels = marker)) |>
-  ggplot(aes(x = marker, y = `95%`, fill = kept)) +
-  geom_col() +
-  scale_y_log10() +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 5)) +
-  labs(
-    title = "95th percentile of CPM per marker",
-    x = "Marker",
-    y = "95th percentile of CPM (log10 scale)"
-  )
-export_plot(
-  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection_cpm_barplot"),
-  width = 12,
-  height = 4
+  filename = here::here("results/01_quality_control/marker_selection_plots/quality_control_marker_selection"),
+  width = 10,
+  height = 5
 )
 
 selected_markers <-
-  cpm_quantiles |>
+  marker_abundance |>
   filter(kept) |>
   pull(marker)
 
-# Print the selected markers so they are visible in the IDE.
-# You can manually add or remove markers from this vector below as needed.
-# To use all available markers instead, comment out the selection above and set:
+# Add or remove markers in selected_markers below.
+# To skip the filter and use every marker:
 #   selected_markers <- rownames(pg_data)
-message("Selected markers for dimensionality reduction:")
+message(
+  "Selected ", length(selected_markers),
+  " markers for dimensionality reduction (",
+  sum(!marker_abundance$kept), " dropped, including isotype controls)."
+)
 print(selected_markers)
 ```
 
