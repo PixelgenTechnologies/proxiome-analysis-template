@@ -69,7 +69,7 @@ Each figure below is its own pipeline. `RemoveCellGraphs()` drops graphs left by
 
 ## 6.3. Single cell, marker counts
 
-A 2D projection of one cell, colored by CD82 counts. This shows where the individual proteins sit. Depth and directional light make near and far nodes read as a surface without an interactive viewer. Counts live on the graph already, so this chunk does not compute local proximity scores.
+A 2D projection of one cell, colored by CD82 counts. This shows where the individual proteins sit. Depth and directional light make near and far nodes read as a surface without an interactive viewer.
 
 ```{r}
 #| label: cell_viz_single_marker_counts
@@ -116,7 +116,7 @@ p_counts |>
 
 ## 6.4. Single cell, one local proximity score
 
-The same cell, colored by the CD82 local proximity score. The count plot shows the molecules. This plot shows the neighborhood where those molecules cluster, including the nodes between them. The default `ComputeLPS()` call stores one self-clustering score per node per marker in the `lps` layer. Only CD82 is requested, because that is the only score this figure draws.
+The same cell, but now colored by the CD82 local proximity score. The count plot shows the molecules. This plot shows the neighborhood where those molecules cluster. The default `ComputeLPS()` call stores self-clustering scores per node for all markers in the `lps` layer.
 
 ```{r}
 #| label: cell_viz_single_marker_lps
@@ -126,7 +126,7 @@ pg_data <- pg_data |>
   RemoveCellGraphs() |>
   LoadCellGraphs(cells = cell_of_interest) |>
   ComputeLayout(layout_method = "spectral") |>
-  ComputeLPS(markers = markers_to_viz[1])
+  ComputeLPS()
 
 layout_lps <- FetchLayoutData(
   pg_data,
