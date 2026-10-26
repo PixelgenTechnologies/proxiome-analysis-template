@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
+- Optional module `08` runs hdWGCNA co-proximity network analysis per cell type, with a differential module eigengene readout, module graphs and opt-in module preservation. It adds WGCNA and hdWGCNA v0.4.12 as dependencies.
 
 ### Fixed
 

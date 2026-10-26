@@ -112,6 +112,12 @@ When the smoke test runs, CI downloads donors 1 and 3 from the public [16 health
 2. Render the master QMD in the built image with `--embed-resources`.
 3. Upload the self-contained HTML as an Actions artifact named `proxiome-analysis-template-example`. On Release, attach `proxiome-analysis-template-example.html` to the GitHub Release (stable filename for `releases/latest/download/...`).
 
+**Module 08**
+
+- Module `08` runs in the smoke render with preservation off.
+- With one sample per condition, cell types under about 100 reference cells are skipped (see `sweep_summary.csv`).
+- Single-sample and pseudo-replication warnings are expected.
+
 **Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 
 1. Update each row’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/)).
