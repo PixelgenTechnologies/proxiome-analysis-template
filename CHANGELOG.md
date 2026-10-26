@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional limma pseudobulk module `05b` for abundance, clustering, and colocalization (mean CLR / mean `log2_ratio`), written under `pseudobulk/` next to the module `05a` Wilcoxon tables in `cell_level/`. Module 07 selects them with `stats_method`. Adds the `limma` dependency.
 - The HTML smoke test also renders `05a` and `05b` with `--no-execute` and checks that both HTML files exist.
 
+### Fixed
+
+- Module `05b` keeps limma contrasts whose reference and target each have ≥2 `sample_alias` values. A condition with fewer than two samples is omitted from that design, including when the shortfall is only inside one cell type. The fits are skipped only when the reference has fewer than two samples, or when no other condition has two samples.
+
 ## [0.6.4] 2026-09-18
 
 ### Added

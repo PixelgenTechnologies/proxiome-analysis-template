@@ -2,7 +2,7 @@
 
 **Module 05a — Statistical testing, cell level (optional).** Differential abundance, clustering, and colocalization tests. Each test is a cell-level Wilcoxon comparison (cells pooled by `condition`). Skip this module if you do not need formal comparisons. Run the first chunk below after module `02` has finished.
 
-With many cells these tests can overstate significance, because each cell is treated as an independent observation. When you have biological replicates (≥2 `sample_alias` values per `condition`), use `modules/05b_statistical_testing_pseudobulk.qmd` instead. That notebook aggregates to the sample and fits limma. Outputs from this notebook go under `{modality}/cell_level/`. Module 07 reads them when `stats_method` is `"cell_level"`.
+With many cells these tests can overstate significance, because each cell is treated as an independent observation. When the reference and at least one other condition each have ≥2 `sample_alias` values, use `modules/05b_statistical_testing_pseudobulk.qmd` instead. That notebook aggregates to the sample and fits limma, and it omits any condition that has fewer than two samples. Outputs from this notebook go under `{modality}/cell_level/`. Module 07 reads them when `stats_method` is `"cell_level"`.
 
 ```{r}
 #| label: module05a_setup

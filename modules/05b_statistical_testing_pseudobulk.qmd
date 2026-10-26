@@ -2,7 +2,7 @@
 
 **Module 05b — Statistical testing, pseudobulk (optional).** Differential abundance, clustering, and colocalization tests at the sample level. Each cell type is aggregated to one mean per `sample_alias`, then limma tests those sample means. Skip this module if you do not need formal comparisons, or if you do not have biological replicates. Run the first chunk below after module `02` has finished.
 
-This notebook is the replicate-aware alternative to `modules/05a_statistical_testing_cell_level.qmd`. Cell-level Wilcoxon tests treat every cell as independent, which overstates significance when many cells come from the same sample. Limma here uses the sample as the unit of replication. It needs **≥2 `sample_alias` values per `condition`**. If that is not true, the checks below warn and skip the fits so rendering still finishes. Outputs go under `{modality}/pseudobulk/`. Module 07 reads them when `stats_method` is `"pseudobulk"`.
+This notebook is the replicate-aware alternative to `modules/05a_statistical_testing_cell_level.qmd`. Cell-level Wilcoxon tests treat every cell as independent, which overstates significance when many cells come from the same sample. Limma here uses the sample as the unit of replication. A condition is included when it has **≥2 `sample_alias` values**. The reference and at least one other condition must meet that bar. Any other condition with fewer than two samples is omitted from the design, and every contrast whose reference and target each have two or more samples is still fit. When the reference itself has fewer than two samples, or no other condition has two samples, the checks below warn and skip the fits so rendering still finishes. Outputs go under `{modality}/pseudobulk/`. Module 07 reads them when `stats_method` is `"pseudobulk"`.
 
 ```{r}
 #| label: module05b_setup
@@ -24,7 +24,8 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 
 > **Decision checkpoint** (statistical contrasts)  
 > Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in this notebook use this baseline.  
-> Optionally set `pseudobulk_covariate_cols` to metadata columns (for example `c("donor", "batch")`) to include in the limma model. Leave `NULL` for a condition-only model. Do not add `condition` itself.
+> Optionally set `pseudobulk_covariate_cols` to metadata columns (for example `c("donor", "batch")`) to include in the limma model. Leave `NULL` for a condition-only model. Do not add `condition` itself.  
+> A condition with fewer than two `sample_alias` values is omitted from the model. Contrasts whose reference and target each have two or more samples are still fit.
 
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. Sample means in each other condition are compared with sample means in the reference.
 
@@ -123,14 +124,47 @@ Limma helper for this notebook only. Usually you will not need to modify it.
 #| label: module05b_limma_helpers
 #| include: false
 
+# How many sample_alias values each condition contributes.
+# Limma's residual degrees of freedom come from samples, so a condition
+# with a single sample cannot carry its own contrast.
+pseudobulk_sample_counts <- function(sample_alias, condition) {
+  tibble(
+    sample_alias = as.character(sample_alias),
+    condition = as.character(condition)
+  ) |>
+    distinct(.data$sample_alias, .data$condition) |>
+    count(.data$condition, name = "n_samples")
+}
+
+# Which conditions can enter one sample-level design.
+# A condition qualifies at n_samples >= 2. The design is usable when the
+# reference qualifies and at least one other condition does too.
+# `targets` lists those other qualifying conditions. Callers build the
+# model from `replicated` only, so an unreplicated condition stays out
+# of the fit.
+pseudobulk_design_status <- function(sample_counts, reference_condition) {
+  replicated <- sample_counts$condition[sample_counts$n_samples >= 2L]
+  targets <- setdiff(replicated, reference_condition)
+  list(
+    ok = reference_condition %in% replicated && length(targets) > 0L,
+    replicated = replicated,
+    targets = targets
+  )
+}
+
 # Sample-level means → limma vs reference_condition. Uses metadata and
 # pseudobulk_covariate_cols from the setup chunk. One column of expr_mat is
 # one sample, so the residual degrees of freedom come from samples, not cells.
+# Counts are taken on the table passed in (one cell type), after covariate
+# rows with missing values are removed.
 run_pseudobulk_limma <- function(agg, feature_col, value_col, values_fill = NULL) {
   covariate_cols <- setdiff(as.character(pseudobulk_covariate_cols), c("condition", "sample_alias"))
   sample_info <- agg |>
     distinct(.data$sample_alias, .data$condition) |>
-    mutate(sample_alias = as.character(.data$sample_alias))
+    mutate(
+      sample_alias = as.character(.data$sample_alias),
+      condition = as.character(.data$condition)
+    )
   if (length(covariate_cols) > 0) {
     sample_info <- sample_info |>
       left_join(
@@ -144,10 +178,29 @@ run_pseudobulk_limma <- function(agg, feature_col, value_col, values_fill = NULL
       ) |>
       drop_na(all_of(covariate_cols))
   }
+  # A missing covariate can take a condition from two samples to one.
+  # Recount after that drop, then omit every condition that has fewer
+  # than two samples in this aggregation.
+  design_status <- pseudobulk_design_status(
+    pseudobulk_sample_counts(sample_info$sample_alias, sample_info$condition),
+    reference_condition
+  )
+  empty_fit <- tibble(
+    feature = character(),
+    difference = numeric(),
+    p = numeric(),
+    target = character(),
+    reference = character(),
+    method = character()
+  )
+  if (!isTRUE(design_status$ok)) {
+    return(empty_fit)
+  }
   sample_info <- sample_info |>
+    filter(.data$condition %in% design_status$replicated) |>
     mutate(
       condition = droplevels(relevel(
-        factor(as.character(.data$condition)),
+        factor(.data$condition),
         ref = reference_condition
       ))
     ) |>
@@ -175,7 +228,7 @@ run_pseudobulk_limma <- function(agg, feature_col, value_col, values_fill = NULL
   design <- model.matrix(stats::as.formula(rhs), data = sample_info)
   fit <- eBayes(lmFit(expr_mat, design), trend = TRUE, robust = TRUE)
   map_dfr(
-    setdiff(levels(sample_info$condition), reference_condition),
+    design_status$targets,
     function(target) {
       topTable(fit, coef = paste0("condition", target), number = Inf, sort.by = "none") |>
         as_tibble(rownames = "feature") |>
@@ -192,38 +245,63 @@ run_pseudobulk_limma <- function(agg, feature_col, value_col, values_fill = NULL
 }
 ```
 
-Run pre-flight checks before any aggregation. Limma cannot estimate a condition effect from a single sample, so we stop the analysis (without aborting the render) when a condition has fewer than two `sample_alias` values.
+Run pre-flight checks before any aggregation. A contrast is fit when the reference and that target each have at least two `sample_alias` values. Conditions below that are omitted. The fits are skipped, without aborting the render, only when the reference has fewer than two samples or no other condition has two samples.
 
 ```{r}
 #| label: module05b_preflight
 
-# Limma needs ≥2 samples per condition. Aggregation itself does not filter,
-# but fitting on unreplicated conditions is not a valid sample-level test.
-pseudobulk_rep_counts <- pg_data[[]] |>
-  as.data.frame(stringsAsFactors = FALSE) |>
-  dplyr::distinct(.data$sample_alias, .data$condition) |>
-  dplyr::count(.data$condition, name = "n_samples")
-pseudobulk_replicates_ok <- nrow(pseudobulk_rep_counts) > 0 &&
-  all(pseudobulk_rep_counts$n_samples >= 2L)
-pseudobulk_ok <- isTRUE(pseudobulk_replicates_ok)
+# The gate is the same rule as run_pseudobulk_limma, applied to the whole
+# object: proceed when the reference and at least one other condition each
+# have ≥2 sample_alias values. Other conditions are reported and then left
+# out of the design inside each cell-type fit.
+meta_counts <- as.data.frame(pg_data[[]], stringsAsFactors = FALSE)
+pseudobulk_rep_counts <- pseudobulk_sample_counts(
+  meta_counts$sample_alias,
+  meta_counts$condition
+)
+pseudobulk_design <- pseudobulk_design_status(
+  pseudobulk_rep_counts,
+  reference_condition
+)
+pseudobulk_ok <- isTRUE(pseudobulk_design$ok)
+pseudobulk_replicated_conditions <- pseudobulk_design$replicated
+pseudobulk_targets <- pseudobulk_design$targets
 
-if (!isTRUE(pseudobulk_replicates_ok)) {
+if (!isTRUE(pseudobulk_ok)) {
   warning(
-    "Skipping limma pseudobulk: need ≥2 sample_alias per condition.\n",
+    "Skipping limma pseudobulk: the reference and at least one other condition need ≥2 sample_alias values.\n",
     paste(capture.output(print(pseudobulk_rep_counts)), collapse = "\n"),
+    call. = FALSE
+  )
+} else if (any(pseudobulk_rep_counts$n_samples < 2L)) {
+  omitted <- pseudobulk_rep_counts |>
+    filter(.data$n_samples < 2L)
+  warning(
+    "Omitting conditions with fewer than 2 sample_alias values. Contrasts among the remaining conditions are still fit.\n",
+    "Omitted:\n",
+    paste(capture.output(print(omitted)), collapse = "\n"),
+    "\nTested conditions: ",
+    paste(c(reference_condition, pseudobulk_targets), collapse = ", "),
     call. = FALSE
   )
 }
 
 if (isTRUE(pseudobulk_ok)) {
+  # A condition can clear the global check and still be thin inside one
+  # cell type. Those cell-type contrasts are omitted in run_pseudobulk_limma.
+  # Globally omitted conditions are already reported above.
   thin_cts <- as_tibble(pg_data[[]], rownames = "component") |>
     filter(.data$cell_annotation %in% names(markers_to_test)) |>
     distinct(.data$cell_annotation, .data$sample_alias, .data$condition) |>
+    mutate(condition = as.character(.data$condition)) |>
     count(.data$cell_annotation, .data$condition, name = "n_samples") |>
-    filter(n_samples < 2)
+    filter(
+      .data$n_samples < 2L,
+      .data$condition %in% pseudobulk_replicated_conditions
+    )
   if (nrow(thin_cts) > 0) {
     warning(
-      "These cell types have <2 samples in a condition; limma may skip them:\n",
+      "These cell types have fewer than 2 samples in a condition that is replicated overall. Contrasts that need that cell type and condition are omitted.\n",
       paste(capture.output(print(thin_cts)), collapse = "\n"),
       call. = FALSE
     )
@@ -707,7 +785,7 @@ export_diff_plots <- function(
 
 ## 5.1. Differential abundance analysis
 
-Limma is fit on `summary_abundance_data` (mean CLR per `sample_alias` × cell type × marker). The model is `~ condition`, plus any columns in `pseudobulk_covariate_cols`. The coefficient for each non-reference condition is the difference in mean CLR. Results are written as `differential_abundance_analysis.rds` under `abundance/pseudobulk/`. In module 07, set `stats_method` to `"pseudobulk"` to use these tables (the default `"cell_level"` reads module 05a).
+Limma is fit on `summary_abundance_data` (mean CLR per `sample_alias` × cell type × marker). The model is `~ condition`, plus any columns in `pseudobulk_covariate_cols`. Within each cell type, conditions with fewer than two samples are omitted. The coefficient for each remaining non-reference condition is the difference in mean CLR. Results are written as `differential_abundance_analysis.rds` under `abundance/pseudobulk/`. In module 07, set `stats_method` to `"pseudobulk"` to use these tables (the default `"cell_level"` reads module 05a).
 
 ```{r}
 #| label: module05b_abundance

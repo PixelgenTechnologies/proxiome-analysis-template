@@ -253,7 +253,7 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
-Module `05a` runs cell-level Wilcoxon tests and writes `cell_level/`. Module `05b` runs limma on sample-level aggregates (mean CLR / mean `log2_ratio`) and writes `pseudobulk/`. Limma needs **≥2 `sample_alias` values per `condition`**. Each modality folder (`abundance`, `clustering`, `colocalization`) holds csv/rds at the folder root and plots per contrast / cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment. Set `reference_condition` in whichever notebook you run.
+Module `05a` runs cell-level Wilcoxon tests and writes `cell_level/`. Module `05b` runs limma on sample-level aggregates (mean CLR / mean `log2_ratio`) and writes `pseudobulk/`. A condition enters the limma model when it has **≥2 `sample_alias` values**. The reference and at least one other condition must qualify; any remaining condition is omitted, and contrasts that meet the replicate requirement are still fit. Each modality folder (`abundance`, `clustering`, `colocalization`) holds csv/rds at the folder root and plots per contrast / cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment. Set `reference_condition` in whichever notebook you run.
 
 ### Iterate on downstream modules
 
@@ -280,7 +280,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
 | **01 — marker selection** | Review `selected_markers` after running the selection code |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
-| **05a / 05b — reference condition** (optional) | Set `reference_condition` to your control condition in the notebook you run (default example: `"donor1"`). Use 05b only when each condition has at least two samples |
+| **05a / 05b — reference condition** (optional) | Set `reference_condition` to your control condition in the notebook you run (default example: `"donor1"`). Use 05b when the reference and at least one other condition each have at least two samples. Conditions with fewer samples are omitted from the limma model |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
 > 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
