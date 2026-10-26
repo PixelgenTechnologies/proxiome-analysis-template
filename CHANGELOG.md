@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Module `06` now draws single-cell graphs with the `cell_plot()` recipe API (`FetchLayoutData()`, `ComputeLPS()`, `cell_grid()`, interactive views, and GIF animations) instead of `Plot2DGraphM()`, `Plot3DGraph()`, and `render_rotating_layout()`.
+- Docker base image updated from `pixelatorr:0.18.3` to `pixelatorr:0.24.0`. `modules/common_setup.R` requires pixelatorR >= 0.23.0 because module `06` calls `cell_plot_animate(boomerang = ...)`.
+
+### Fixed
+
+- Module `06` follows `markers_to_viz` for colors, legends, and local proximity scores. The plots previously hardcoded CD82, so editing the parameter did not change the figure and failed when that column was absent.
+- Local proximity color scales use a symmetric limit taken from the scores. The previous `limits = c(-1, 1)` painted every neighborhood outside that window the same color, and the single-marker score plot used a sequential palette on a signed log2 ratio.
+- Grid and side-by-side panels keep `markers_to_viz` order and the colocalization ranking. `cell_grid()` sorts character columns alphabetically, which reordered markers and component ids.
+- `export_plot()` filenames no longer end in `.png`. An extension overrides `export_plot.file_formats`, so the figures were saved as PNG only instead of PNG and PDF.
+- Example `data/metadata.csv` again matches the public donor 1 / donor 3 smoke-test files. The visualization branch had replaced it with local PNA064/PNA056 paths whose `condition` values are not `donor1`, so module `05` stopped on `reference_condition`.
+- Removed the `eval: false` header on module `06`. Quarto ignores YAML in an included file, and rendering the module on its own skipped every chunk. Interactive views and GIF chunks stay unevaluated.
+- Corrected the doubled `https://` in the local-proximity tutorial link.
+
 ## [0.6.4] 2026-09-18
 
 ### Added

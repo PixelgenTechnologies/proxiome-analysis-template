@@ -66,7 +66,9 @@ The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`
 
 The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
 
-**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.18.3`
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.24.0`
+
+The template requires pixelatorR >= 0.23.0 (`modules/common_setup.R`). Module 06 uses the `cell_plot()` API, including `cell_plot_animate(boomerang = ...)`, which was added in 0.23.0. The 0.24.0 image is the current release that satisfies that requirement.
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 
