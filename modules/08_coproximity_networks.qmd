@@ -713,3 +713,162 @@ if (nrow(dme_results) == 0) {
   dme_dotplot
 }
 ```
+
+## 8.5. Module preservation (opt-in)
+
+Module preservation asks whether the reference network's co-proximity modules hold together in each target condition. For each fitted cell type and target condition, hdWGCNA's permutation test compares the reference modules with the target condition's metacells of the same cell type and summarizes the evidence as Zsummary. A Zsummary below 2 means no evidence of preservation, and above 10 means strong preservation (Langfelder 2011).
+
+The section is skipped unless `run_preservation <- TRUE`. It is also skipped, with a warning, when `network_cells <- "all"`, because the target conditions then helped build the networks.
+
+> **Decision checkpoint** (module preservation)
+> Set `run_preservation <- TRUE` to run the test. It is a permutation test per cell type × target condition: expect about 3 min each at about 3k pairs, 50 metacells and 100 permutations, scaling with the square of the number of pairs. Lower `preservation_permutations` for a quick look; 100 is the recommended minimum.
+
+```{r}
+#| label: module08_preservation_settings
+
+run_preservation <- FALSE
+preservation_permutations <- 100
+```
+
+> **Note:** Modules of more than 1,000 marker pairs are subsampled to 1,000 pairs for the test (`maxModuleSize`), and their `module_size` in the table and plots is 1,000.
+
+> **Note:** The results are cached under `networks/{cell_type}_preservation.rds`. Changing `preservation_permutations` without `rebuild_networks <- TRUE` keeps the old results.
+
+```{r}
+#| label: module08_preservation
+
+preservation_cell_types <- names(coproximity_fits)
+if (!run_preservation) {
+  message(
+    "Module preservation skipped; set run_preservation <- TRUE to run it."
+  )
+  preservation_cell_types <- character()
+} else if (network_cells == "all") {
+  warning(
+    "Module preservation skipped: with network_cells = \"all\", the target ",
+    "conditions helped build the networks."
+  )
+  preservation_cell_types <- character()
+} else {
+  message(
+    "Module preservation runs a permutation test per cell type x target ",
+    "condition: about 3 min each at about 3k pairs, 50 metacells and 100 ",
+    "permutations, scaling with pairs^2."
+  )
+}
+
+preservation_results <- tibble()
+for (cell_type in preservation_cell_types) {
+  cache_path <- file.path(networks_dir, paste0(cell_type, "_preservation.rds"))
+
+  if (file.exists(cache_path) && !rebuild_networks) {
+    cell_type_preservation <- readRDS(cache_path)
+  } else {
+    cell_type_fit <- coproximity_fits[[cell_type]]
+    metacell_meta <- hdWGCNA::GetMetacellObject(cell_type_fit)[[]]
+    cell_type_preservation <- tibble()
+
+    for (target in target_conditions) {
+      if (!target %in% metacell_meta[[contrast_column]]) {
+        warning(
+          cell_type, " / ", target, ": target condition below ",
+          "metacell_min_cells; preservation skipped"
+        )
+        next
+      }
+      # The query is the target's metacells, read as in 8.1.
+      query_object <- hdWGCNA::SetDatExpr(
+        cell_type_fit,
+        group_name = target,
+        group.by = contrast_column,
+        assay = "proximity",
+        slot = "counts",
+        layer = "counts"
+      )
+      if (nrow(hdWGCNA::GetDatExpr(query_object)) < min_network_metacells) {
+        warning(
+          cell_type, " / ", target, ": fewer than ", min_network_metacells,
+          " metacells; preservation skipped"
+        )
+        next
+      }
+
+      query_object <- tryCatch(
+        hdWGCNA::ModulePreservation(
+          query_object,
+          seurat_ref = cell_type_fit,
+          name = target,
+          n_permutations = preservation_permutations,
+          parallel = FALSE,
+          seed = analysis_seed,
+          networkType = "signed",
+          corFnc = "bicor",
+          savePermutedStatistics = FALSE,
+          verbose = 0
+        ),
+        error = conditionMessage
+      )
+      if (is.character(query_object)) {
+        warning(
+          cell_type, " / ", target, ": preservation failed: ", query_object
+        )
+        next
+      }
+
+      preservation <- hdWGCNA::GetModulePreservation(query_object, target)
+      cell_type_preservation <- bind_rows(
+        cell_type_preservation,
+        tibble(
+          cell_type = cell_type,
+          target = target,
+          module = rownames(preservation$Z),
+          module_size = preservation$Z$moduleSize,
+          zsummary = preservation$Z$Zsummary.pres,
+          median_rank = preservation$obs[module, "medianRank.pres"]
+        ) |>
+          filter(!module %in% c("grey", "gold"))
+      )
+    }
+    saveRDS(cell_type_preservation, cache_path)
+  }
+
+  preservation_results <- bind_rows(
+    preservation_results,
+    cell_type_preservation
+  )
+  if (nrow(cell_type_preservation) == 0) next
+
+  preservation_plot <-
+    ggplot(cell_type_preservation, aes(module_size, zsummary)) +
+    geom_hline(yintercept = c(2, 10), linetype = "dashed", colour = "grey50") +
+    geom_point() +
+    geom_text(aes(label = module), vjust = -0.8, size = 3) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
+    facet_wrap(~target) +
+    theme_bw() +
+    labs(
+      title = paste(cell_type, "module preservation"),
+      x = "Module size (pairs)",
+      y = "Zsummary"
+    )
+  export_plot(
+    filename = here::here(
+      "results/08_coproximity_networks",
+      cell_type,
+      "preservation_zsummary"
+    ),
+    plot = preservation_plot,
+    width = 7,
+    height = 4
+  )
+}
+
+if (length(preservation_cell_types) > 0) {
+  write.csv(
+    preservation_results,
+    here::here("results/08_coproximity_networks/preservation_results.csv"),
+    row.names = FALSE
+  )
+  preservation_results
+}
+```
