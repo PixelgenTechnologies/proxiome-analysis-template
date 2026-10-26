@@ -33,16 +33,13 @@ if (!requireNamespace("hdWGCNA", quietly = TRUE)) {
   )
 }
 
-dir.create(
-  here::here("results", "08_coproximity_networks"),
-  recursive = TRUE,
-  showWarnings = FALSE
-)
+module08_dir <- here::here("results/08_coproximity_networks")
+dir.create(module08_dir, recursive = TRUE, showWarnings = FALSE)
 ```
 
 ## 8.0. Set parameters
 
-> **Decision checkpoint** (contrast and cell types)
+> **Decision checkpoint** (contrast and cell types)  
 > Set `reference_condition` to the same value as in module `05`. Narrow `coproximity_cell_types` to the cell types you care about, and choose which cells the networks are built on with `network_cells`.
 
 Every other level of `contrast_column` becomes a target condition and is compared to the reference condition.
@@ -122,7 +119,7 @@ For each cell type, the network is built in the steps of the hdWGCNA single-cell
 4. **Network.** A signed network is built from biweight midcorrelations (bicor), and its topological overlap is clustered into a dendrogram.
 5. **Modules.** The dendrogram is cut into co-proximity modules of at least `min_module_size` pairs, and similar modules are merged (`merge_cut_height`). Pairs that fit no module go to the grey module, which is left out of every readout. Modules are named M1, M2, ... per cell type, and shown as `cell type · M3` across cell types.
 
-> **Decision checkpoint** (network settings)
+> **Decision checkpoint** (network settings)  
 > Set the pair, metacell and module floors. Cell types that fall below a floor are skipped and listed with the reason in `sweep_summary.csv`. Leave `soft_power <- NULL` to pick the power per cell type, or set a number to use it for every cell type.
 
 ```{r}
@@ -149,14 +146,14 @@ merge_cut_height <- 0.2
 ```{r}
 #| label: module08_build_networks
 
-networks_dir <- here::here("results/08_coproximity_networks/networks")
+networks_dir <- file.path(module08_dir, "networks")
 dir.create(networks_dir, recursive = TRUE, showWarnings = FALSE)
 
 coproximity_fits <- list()
 sweep_summary <- tibble()
 
 for (cell_type in coproximity_cell_types) {
-  cell_type_dir <- here::here("results/08_coproximity_networks", cell_type)
+  cell_type_dir <- file.path(module08_dir, cell_type)
   cache_path <- file.path(networks_dir, paste0(cell_type, ".rds"))
 
   if (file.exists(cache_path) && !rebuild_networks) {
@@ -225,7 +222,7 @@ for (cell_type in coproximity_cell_types) {
     wgcna_name = make.names(cell_type)
   )
   # Metacells are built for every condition; 8.3 and 8.5 use the targets.
-  cell_type_object <- tryCatch(
+  metacell_result <- tryCatch(
     hdWGCNA::MetacellsByGroups(
       cell_type_object,
       group.by = c(contrast_column, "sample_alias"),
@@ -243,15 +240,20 @@ for (cell_type in coproximity_cell_types) {
     ),
     error = conditionMessage
   )
-  if (is.character(cell_type_object)) {
-    summary_row$status <- paste("metacells failed:", cell_type_object)
+  if (is.character(metacell_result)) {
+    summary_row$status <- paste("metacells failed:", metacell_result)
     warning(cell_type, ": ", summary_row$status, "; skipped")
     sweep_summary <- bind_rows(sweep_summary, summary_row)
     next
   }
+  cell_type_object <- metacell_result
 
+  # Under "all", a network group without metacells is left out of this cell
+  # type's network; the cell type is skipped only if no group has metacells.
   metacell_meta <- hdWGCNA::GetMetacellObject(cell_type_object)[[]]
-  if (!all(network_groups %in% metacell_meta[[contrast_column]])) {
+  cell_type_network_groups <-
+    intersect(network_groups, metacell_meta[[contrast_column]])
+  if (length(cell_type_network_groups) == 0) {
     summary_row$status <- "reference condition below metacell_min_cells"
     warning(cell_type, ": ", summary_row$status, "; skipped")
     sweep_summary <- bind_rows(sweep_summary, summary_row)
@@ -263,7 +265,7 @@ for (cell_type in coproximity_cell_types) {
   # and NormalizeMetacells is never called.
   cell_type_object <- hdWGCNA::SetDatExpr(
     cell_type_object,
-    group_name = network_groups,
+    group_name = cell_type_network_groups,
     group.by = contrast_column,
     assay = "proximity",
     slot = "counts",
@@ -273,7 +275,7 @@ for (cell_type in coproximity_cell_types) {
     nrow(hdWGCNA::GetDatExpr(cell_type_object))
   summary_row$n_network_samples <- n_distinct(
     metacell_meta$sample_alias[
-      metacell_meta[[contrast_column]] %in% network_groups
+      metacell_meta[[contrast_column]] %in% cell_type_network_groups
     ]
   )
   if (summary_row$n_network_metacells < min_network_metacells) {
@@ -291,62 +293,83 @@ for (cell_type in coproximity_cell_types) {
     )
   }
 
-  cell_type_object <- hdWGCNA::TestSoftPowers(
-    cell_type_object,
-    networkType = "signed",
-    corFnc = "bicor"
+  # The summary_row assignments inside tryCatch() land in the loop's scope.
+  network_result <- tryCatch(
+    {
+      cell_type_object <- hdWGCNA::TestSoftPowers(
+        cell_type_object,
+        networkType = "signed",
+        corFnc = "bicor"
+      )
+      power_table <- hdWGCNA::GetPowerTable(cell_type_object)
+      auto_powers <- power_table$Power[
+        power_table$Power > 3 & power_table$SFT.R.sq >= 0.8
+      ]
+      summary_row$power_fallback <-
+        is.null(soft_power) && length(auto_powers) == 0
+      summary_row$soft_power <- soft_power %||% min(auto_powers, Inf)
+      if (summary_row$power_fallback) {
+        # WGCNA FAQ powers for signed networks, by number of samples
+        # (metacells).
+        summary_row$soft_power <- case_when(
+          summary_row$n_network_metacells < 30 ~ 16,
+          summary_row$n_network_metacells < 40 ~ 14,
+          .default = 12
+        )
+        warning(
+          cell_type, ": no soft power reached scale-free R^2 >= 0.8; ",
+          "using fallback power ", summary_row$soft_power
+        )
+      }
+
+      cell_type_object <- hdWGCNA::ConstructNetwork(
+        cell_type_object,
+        soft_power = summary_row$soft_power,
+        networkType = "signed",
+        TOMType = "signed",
+        corType = "bicor",
+        minModuleSize = min_module_size,
+        mergeCutHeight = merge_cut_height,
+        tom_outdir = tempdir(),
+        tom_name = make.names(cell_type),
+        overwrite_tom = TRUE,
+        setDatExpr = FALSE,
+        verbose = 0
+      )
+
+      # Plain MEs on all of the cell type's cells; kME on the network cells.
+      cell_type_object |>
+        hdWGCNA::ModuleEigengenes(
+          group.by.vars = NULL,
+          assay = "proximity",
+          verbose = FALSE
+        ) |>
+        hdWGCNA::ModuleConnectivity(
+          group.by = contrast_column,
+          group_name = cell_type_network_groups,
+          harmonized = FALSE,
+          assay = "proximity",
+          layer = "data"
+        ) |>
+        hdWGCNA::ResetModuleNames(new_name = "M")
+    },
+    error = conditionMessage
   )
-  power_table <- hdWGCNA::GetPowerTable(cell_type_object)
-  auto_powers <-
-    power_table$Power[power_table$Power > 3 & power_table$SFT.R.sq >= 0.8]
-  summary_row$power_fallback <- is.null(soft_power) && length(auto_powers) == 0
-  summary_row$soft_power <- soft_power %||% min(auto_powers, Inf)
-  if (summary_row$power_fallback) {
-    # WGCNA FAQ powers for signed networks, by number of samples (metacells).
-    summary_row$soft_power <- case_when(
-      summary_row$n_network_metacells < 30 ~ 16,
-      summary_row$n_network_metacells < 40 ~ 14,
-      .default = 12
-    )
-    warning(
-      cell_type, ": no soft power reached scale-free R^2 >= 0.8; ",
-      "using fallback power ", summary_row$soft_power
-    )
+  if (is.character(network_result)) {
+    summary_row$status <- paste("network failed:", network_result)
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
   }
-
-  cell_type_object <- hdWGCNA::ConstructNetwork(
-    cell_type_object,
-    soft_power = summary_row$soft_power,
-    networkType = "signed",
-    TOMType = "signed",
-    corType = "bicor",
-    minModuleSize = min_module_size,
-    mergeCutHeight = merge_cut_height,
-    tom_outdir = tempdir(),
-    tom_name = make.names(cell_type),
-    overwrite_tom = TRUE,
-    setDatExpr = FALSE,
-    verbose = 0
-  )
-
-  # Plain MEs on all of the cell type's cells; kME on the network cells.
-  cell_type_object <-
-    cell_type_object |>
-    hdWGCNA::ModuleEigengenes(
-      group.by.vars = NULL,
-      assay = "proximity",
-      verbose = FALSE
-    ) |>
-    hdWGCNA::ModuleConnectivity(
-      group.by = contrast_column,
-      group_name = network_groups,
-      harmonized = FALSE,
-      assay = "proximity",
-      layer = "data"
-    ) |>
-    hdWGCNA::ResetModuleNames(new_name = "M")
+  cell_type_object <- network_result
   modules <- hdWGCNA::GetModules(cell_type_object)
   summary_row$n_modules <- n_distinct(modules$module[modules$module != "grey"])
+  if (summary_row$n_modules == 0) {
+    summary_row$status <- "no co-proximity modules"
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
+  }
 
   # DietSeurat keeps @misc (misc = TRUE), where hdWGCNA stores the fit. The
   # summary row is stored with it so a cached fit restores its row.
@@ -387,7 +410,7 @@ for (cell_type in coproximity_cell_types) {
 
 write.csv(
   sweep_summary,
-  here::here("results/08_coproximity_networks/sweep_summary.csv"),
+  file.path(module08_dir, "sweep_summary.csv"),
   row.names = FALSE
 )
 sweep_summary
@@ -413,7 +436,7 @@ if (length(coproximity_fits) == 0) {
 
 for (cell_type in names(coproximity_fits)) {
   cell_type_fit <- coproximity_fits[[cell_type]]
-  cell_type_dir <- here::here("results/08_coproximity_networks", cell_type)
+  cell_type_dir <- file.path(module08_dir, cell_type)
   cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
   proximity_matrix <- LayerData(cell_type_fit, layer = "data")
 
@@ -519,14 +542,23 @@ dme_results <- tibble(
   p_value = numeric()
 )
 
+# condition_palette is named by metadata$condition (common_setup.R); use it
+# only if it covers the contrast levels, else ggplot's default colours.
+violin_fill_scale <- if (
+  all(c(reference_condition, target_conditions) %in% names(condition_palette))
+) {
+  scale_fill_manual(values = condition_palette)
+}
+
 for (cell_type in names(coproximity_fits)) {
   cell_type_fit <- coproximity_fits[[cell_type]]
+  cell_type_dir <- file.path(module08_dir, cell_type)
   cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
 
   # Plain eigengenes, one row per cell and module, grey dropped.
   module_eigengenes <-
     hdWGCNA::GetMEs(cell_type_fit, harmonized = FALSE) |>
-    select(-grey) |>
+    select(-any_of("grey")) |>
     mutate(
       condition = cell_conditions,
       sample = cell_type_fit$sample_alias
@@ -550,16 +582,16 @@ for (cell_type in names(coproximity_fits)) {
     .by = c(module, condition, sample)
   )
   n_modules <- nlevels(module_eigengenes$module)
+  n_panel_columns <- min(4, n_modules)
+  n_panel_rows <- ceiling(n_modules / n_panel_columns)
   export_plot(
-    filename = here::here(
-      "results/08_coproximity_networks", cell_type, "me_violins"
-    ),
+    filename = file.path(cell_type_dir, "me_violins"),
     plot = module_eigengenes |>
       ggplot(aes(x = condition, y = eigengene, fill = condition)) +
       geom_violin(scale = "width") +
       geom_point(data = sample_medians, size = 2, show.legend = FALSE) +
-      facet_wrap(~module, scales = "free_y", ncol = min(4, n_modules)) +
-      scale_fill_manual(values = condition_palette) +
+      facet_wrap(~module, scales = "free_y", ncol = n_panel_columns) +
+      violin_fill_scale +
       theme_bw() +
       theme(panel.grid = element_blank()) +
       labs(
@@ -569,8 +601,8 @@ for (cell_type in names(coproximity_fits)) {
         y = "Module eigengene",
         fill = contrast_column
       ),
-    width = 3 * min(4, n_modules) + 1,
-    height = 3 * ceiling(n_modules / 4)
+    width = 3 * n_panel_columns + 1,
+    height = 3 * n_panel_rows
   )
 
   # At least 10 cells per condition, as pixelatorR's min_cells_per_group.
@@ -633,13 +665,10 @@ dme_results <-
   arrange(cell_type, target, str_rank(module, numeric = TRUE))
 write.csv(
   dme_results,
-  here::here("results/08_coproximity_networks/dme_results.csv"),
+  file.path(module08_dir, "dme_results.csv"),
   row.names = FALSE
 )
-saveRDS(
-  dme_results,
-  here::here("results/08_coproximity_networks/dme_results.rds")
-)
+saveRDS(dme_results, file.path(module08_dir, "dme_results.rds"))
 
 significant_dme <- filter(dme_results, p_adj < 0.05)
 if (nrow(significant_dme) == 0) {
@@ -649,7 +678,7 @@ if (nrow(significant_dme) == 0) {
 }
 ```
 
-The dotplot summarizes every tested `cell type · module` (rows) against each target condition (columns). Colour is `diff_median`, size is -log10 `p_adj`, and modules with `p_adj ≥ 0.05` are drawn hollow.
+The dotplot summarizes every fitted `cell type · module` (rows) against each target condition (columns). Colour is `diff_median`, size is -log10 `p_adj`, and modules with `p_adj ≥ 0.05` are drawn hollow. A comparison skipped by the 10-cell rule shows no point.
 
 ```{r}
 #| label: module08_dme_dotplot
@@ -657,11 +686,20 @@ The dotplot summarizes every tested `cell type · module` (rows) against each ta
 if (nrow(dme_results) == 0) {
   message("No module was tested; the DME dotplot is skipped.")
 } else {
+  # One row per fitted cell type · module (M1..Mn), tested or not.
+  dotplot_row_labels <-
+    sweep_summary |>
+    filter(status == "ok") |>
+    reframe(module = paste0("M", seq_len(n_modules)), .by = cell_type) |>
+    arrange(cell_type) |>
+    with(paste(cell_type, "·", module))
   dme_dotplot_data <-
     dme_results |>
     mutate(
-      row_label = paste(cell_type, "·", module),
-      row_label = factor(row_label, levels = rev(unique(row_label))),
+      row_label = factor(
+        paste(cell_type, "·", module),
+        levels = rev(dotplot_row_labels)
+      ),
       neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
       # Non-significant points get no fill, so they are drawn hollow.
       significant_diff_median = if_else(p_adj < 0.05, diff_median, NA_real_)
@@ -691,6 +729,7 @@ if (nrow(dme_results) == 0) {
       guide = "none"
     ) +
     scale_size(range = c(1, 5)) +
+    scale_y_discrete(drop = FALSE) +
     theme_bw() +
     theme(panel.grid = element_blank()) +
     labs(
@@ -705,7 +744,7 @@ if (nrow(dme_results) == 0) {
     )
 
   export_plot(
-    filename = here::here("results/08_coproximity_networks/dme_dotplot"),
+    filename = file.path(module08_dir, "dme_dotplot"),
     plot = dme_dotplot,
     width = 4 + n_distinct(dme_dotplot_data$target),
     height = 2 + 0.25 * nlevels(dme_dotplot_data$row_label)
@@ -734,7 +773,7 @@ if (length(coproximity_fits) == 0) {
 }
 
 for (cell_type in names(coproximity_fits)) {
-  cell_type_dir <- here::here("results/08_coproximity_networks", cell_type)
+  cell_type_dir <- file.path(module08_dir, cell_type)
   module_graphs_dir <- file.path(cell_type_dir, "module_graphs")
   dir.create(module_graphs_dir, recursive = TRUE, showWarnings = FALSE)
   # 8.2's membership table holds each pair's kME and per-condition means.
@@ -871,7 +910,7 @@ Module preservation asks whether the reference network's co-proximity modules ho
 
 The section is skipped unless `run_preservation <- TRUE`. It is also skipped, with a warning, when `network_cells <- "all"`, because the target conditions then helped build the networks.
 
-> **Decision checkpoint** (module preservation)
+> **Decision checkpoint** (module preservation)  
 > Set `run_preservation <- TRUE` to run the test. It is a permutation test per cell type × target condition: expect about 3 min each at about 3k pairs, 50 metacells and 100 permutations, scaling with the square of the number of pairs. Lower `preservation_permutations` for a quick look; 100 is the recommended minimum.
 
 ```{r}
@@ -889,7 +928,9 @@ preservation_permutations <- 100
 #| label: module08_preservation
 
 preservation_cell_types <- names(coproximity_fits)
-if (!run_preservation) {
+if (length(coproximity_fits) == 0) {
+  message("No cell type was fitted (see sweep_summary.csv); 8.5 is skipped.")
+} else if (!run_preservation) {
   message(
     "Module preservation skipped; set run_preservation <- TRUE to run it."
   )
@@ -911,6 +952,7 @@ if (!run_preservation) {
 preservation_results <- tibble()
 for (cell_type in preservation_cell_types) {
   cache_path <- file.path(networks_dir, paste0(cell_type, "_preservation.rds"))
+  cell_type_dir <- file.path(module08_dir, cell_type)
 
   if (file.exists(cache_path) && !rebuild_networks) {
     cell_type_preservation <- readRDS(cache_path)
@@ -918,6 +960,8 @@ for (cell_type in preservation_cell_types) {
     cell_type_fit <- coproximity_fits[[cell_type]]
     metacell_meta <- hdWGCNA::GetMetacellObject(cell_type_fit)[[]]
     cell_type_preservation <- tibble()
+    # An errored test is not cached, so the next render retries it.
+    preservation_failed <- FALSE
 
     for (target in target_conditions) {
       if (!target %in% metacell_meta[[contrast_column]]) {
@@ -944,7 +988,7 @@ for (cell_type in preservation_cell_types) {
         next
       }
 
-      query_object <- tryCatch(
+      preservation_result <- tryCatch(
         hdWGCNA::ModulePreservation(
           query_object,
           seurat_ref = cell_type_fit,
@@ -959,28 +1003,31 @@ for (cell_type in preservation_cell_types) {
         ),
         error = conditionMessage
       )
-      if (is.character(query_object)) {
+      if (is.character(preservation_result)) {
         warning(
-          cell_type, " / ", target, ": preservation failed: ", query_object
+          cell_type, " / ", target, ": preservation failed: ",
+          preservation_result
         )
+        preservation_failed <- TRUE
         next
       }
 
-      preservation <- hdWGCNA::GetModulePreservation(query_object, target)
+      preservation_stats <-
+        hdWGCNA::GetModulePreservation(preservation_result, target)
       cell_type_preservation <- bind_rows(
         cell_type_preservation,
         tibble(
           cell_type = cell_type,
           target = target,
-          module = rownames(preservation$Z),
-          module_size = preservation$Z$moduleSize,
-          zsummary = preservation$Z$Zsummary.pres,
-          median_rank = preservation$obs[module, "medianRank.pres"]
+          module = rownames(preservation_stats$Z),
+          module_size = preservation_stats$Z$moduleSize,
+          zsummary = preservation_stats$Z$Zsummary.pres,
+          median_rank = preservation_stats$obs[module, "medianRank.pres"]
         ) |>
           filter(!module %in% c("grey", "gold"))
       )
     }
-    saveRDS(cell_type_preservation, cache_path)
+    if (!preservation_failed) saveRDS(cell_type_preservation, cache_path)
   }
 
   preservation_results <- bind_rows(
@@ -1003,11 +1050,7 @@ for (cell_type in preservation_cell_types) {
       y = "Zsummary"
     )
   export_plot(
-    filename = here::here(
-      "results/08_coproximity_networks",
-      cell_type,
-      "preservation_zsummary"
-    ),
+    filename = file.path(cell_type_dir, "preservation_zsummary"),
     plot = preservation_plot,
     width = 7,
     height = 4
@@ -1017,7 +1060,7 @@ for (cell_type in preservation_cell_types) {
 if (length(preservation_cell_types) > 0) {
   write.csv(
     preservation_results,
-    here::here("results/08_coproximity_networks/preservation_results.csv"),
+    file.path(module08_dir, "preservation_results.csv"),
     row.names = FALSE
   )
   preservation_results
