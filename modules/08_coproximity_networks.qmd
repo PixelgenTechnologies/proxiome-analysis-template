@@ -1,0 +1,394 @@
+# 8. Co-proximity networks
+
+**Module 08 — Co-proximity networks (optional).** Run after module `02`; skip this module if you do not need network analysis. It applies hdWGCNA, translated from genes to marker pairs, to find co-proximity modules: sets of marker pairs whose proximity rises and falls together across the cells of one cell type. It then tests whether each co-proximity module shifts between conditions.
+
+> **Note:** Vocabulary used in this analysis module.
+> - A **co-proximity module** is a set of marker pairs found by the network. An **analysis module** is one of the numbered notebooks of this template, such as this one.
+> - The **module eigengene** (ME) is one score per cell: the first principal component of the module's marker pairs.
+> - **kME** is a marker pair's correlation with its module's eigengene.
+> - The **hub pair** is the marker pair with the highest kME in its module.
+
+> **Note:** The network sweep takes a few minutes. Module preservation (section 8.5) is opt-in and can take hours.
+
+```{r}
+#| label: module08_setup
+
+here::i_am("modules/08_coproximity_networks.qmd")
+
+source(here::here("modules", "common_setup.R"))
+
+if (!exists("pg_data", inherits = TRUE)) {
+  pg_data <- load_checkpoint("annotated_seurat_object.rds")
+}
+if (!exists("markers_to_test", inherits = TRUE)) {
+  markers_to_test <- load_checkpoint("markers_to_test.rds")
+}
+
+# hdWGCNA is called as hdWGCNA:: and never attached: library(hdWGCNA)
+# attaches matrixStats, which masks dplyr::count.
+if (!requireNamespace("hdWGCNA", quietly = TRUE)) {
+  stop(
+    "Module 08 needs the hdWGCNA package. Install it with ",
+    "pak::pak(\"smorabit/hdWGCNA@v0.4.12\")."
+  )
+}
+
+dir.create(
+  here::here("results", "08_coproximity_networks"),
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+```
+
+## 8.0. Set parameters
+
+> **Decision checkpoint** (contrast and cell types)
+> Set `reference_condition` to the same value as in module `05`. Narrow `coproximity_cell_types` to the cell types you care about, and choose which cells the networks are built on with `network_cells`.
+
+Every other level of `contrast_column` becomes a target condition and is compared to the reference condition.
+
+`network_cells` sets which cells each cell type's network is built on:
+
+- `"reference"` (default): only the reference condition's cells. Co-proximity modules that exist only in a target condition are invisible. Module `05`'s differential colocalization covers gained proximity.
+- `"all"`: the cells of every condition. The modules are then fit on the same cells the differential module eigengene test (8.3) compares, which is mildly circular, and the larger condition dominates the network. Module preservation (8.5) is skipped.
+
+Each cell type's fit is cached under `networks/`. Set `rebuild_networks <- TRUE` after changing any setting in 8.0, 8.1 or 8.5, or the old fits and preservation results are reused. There are no cache keys: the cache does not notice changed settings.
+
+`markers_to_test` comes from module `02`. To use other markers, override it before this section.
+
+This analysis module writes the following files:
+
+```
+results/08_coproximity_networks/
+├── sweep_summary.csv
+├── dme_results.csv
+├── dme_results.rds
+├── dme_dotplot.{png,pdf}
+├── preservation_results.csv               # opt-in
+├── networks/                              # cache; delete or set rebuild_networks to refresh
+│   ├── {cell_type}.rds
+│   └── {cell_type}_preservation.rds       # opt-in
+└── {cell_type}/                           # name used verbatim, as in module 05
+    ├── soft_powers.{png,pdf}
+    ├── dendrogram.{png,pdf}
+    ├── modules.csv
+    ├── hub_pairs.csv
+    ├── kme.{png,pdf}
+    ├── me_umap.{png,pdf}
+    ├── me_violins.{png,pdf}
+    ├── preservation_zsummary.{png,pdf}    # opt-in
+    └── module_graphs/
+        └── M1.{png,pdf}, M2.{png,pdf}, ...
+```
+
+The HTML report shows the sweep summary, the significant differential module eigengene rows, the dotplot and the preservation table. Per-cell-type figures are written to files only.
+
+```{r}
+#| label: module08_parameters
+
+contrast_column <- "condition"
+reference_condition <- "donor1" # keep consistent with module 05
+# Narrow to the cell types you care about.
+coproximity_cell_types <- sort(unique(pg_data$cell_annotation))
+network_cells <- "reference" # or "all"
+rebuild_networks <- FALSE
+
+contrast_values <- pg_data[[contrast_column, drop = TRUE]]
+if (!reference_condition %in% contrast_values) {
+  stop(
+    "reference_condition '", reference_condition, "' is not a value of ",
+    "pg_data$", contrast_column, "."
+  )
+}
+if (!network_cells %in% c("reference", "all")) {
+  stop("network_cells must be \"reference\" or \"all\".")
+}
+
+target_conditions <- setdiff(unique(contrast_values), reference_condition)
+network_groups <- if (network_cells == "reference") {
+  reference_condition
+} else {
+  unique(contrast_values)
+}
+```
+
+## 8.1. Build co-proximity networks
+
+For each cell type, the network is built in the steps of the hdWGCNA single-cell vignette, with marker pairs in the place of genes:
+
+1. **Marker pairs.** The proximity scores (`log2_ratio`) of the cell type become a pairs × cells matrix. Pairs whose two markers are both in `markers_to_test` and that are detected in at least `min_pair_detection` of the network cells are kept.
+2. **Metacells.** Neighbouring cells of the same condition and sample are averaged into metacells (`metacell_k` cells each) to reduce the sparsity of single-cell proximity scores.
+3. **Soft power.** Correlations between pairs are raised to a power so that the network approximates a scale-free topology. By default the lowest power above 3 that reaches a scale-free fit R² ≥ 0.8 is picked per cell type.
+4. **Network.** A signed network is built from biweight midcorrelations (bicor), and its topological overlap is clustered into a dendrogram.
+5. **Modules.** The dendrogram is cut into co-proximity modules of at least `min_module_size` pairs, and similar modules are merged (`merge_cut_height`). Pairs that fit no module go to the grey module, which is left out of every readout. Modules are named M1, M2, ... per cell type, and shown as `cell type · M3` across cell types.
+
+> **Decision checkpoint** (network settings)
+> Set the pair, metacell and module floors. Cell types that fall below a floor are skipped and listed with the reason in `sweep_summary.csv`. Leave `soft_power <- NULL` to pick the power per cell type, or set a number to use it for every cell type.
+
+```{r}
+#| label: module08_network_settings
+
+min_pair_detection <- 0.10
+min_network_pairs <- 100
+metacell_k <- 25
+metacell_min_cells <- 50
+min_network_metacells <- 20
+soft_power <- NULL # NULL = auto per cell type; a number applies to all
+min_module_size <- 30
+merge_cut_height <- 0.2
+```
+
+> **Note:** Proximity scores are zero-filled: a zero means both "pair not detected" and "no deviation from the expected proximity". The detection floor counts non-zero scores.
+
+> **Note:** Metacells average cells of similar abundance, not similar proximity, because the neighbours are found on the abundance-based `harmony` reduction. The vignette notes that a `metacell_k` of 20-75 usually works.
+
+> **Note:** A cell type needs roughly 100 reference cells, because one metacell comes from about 4 cells at the default settings. If a cell type falls short, merge small annotations or lower `metacell_k`, but not below about 15.
+
+> **Note:** hdWGCNA warns that fewer than 500 features were selected; this is expected for PNA, which has a few thousand marker pairs. bicor falls back to Pearson correlation for pairs with zero median absolute deviation.
+
+```{r}
+#| label: module08_build_networks
+
+networks_dir <- here::here("results/08_coproximity_networks/networks")
+dir.create(networks_dir, recursive = TRUE, showWarnings = FALSE)
+
+coproximity_fits <- list()
+sweep_summary <- tibble()
+
+for (cell_type in coproximity_cell_types) {
+  cell_type_dir <- here::here("results/08_coproximity_networks", cell_type)
+  cache_path <- file.path(networks_dir, paste0(cell_type, ".rds"))
+
+  if (file.exists(cache_path) && !rebuild_networks) {
+    coproximity_fits[[cell_type]] <- readRDS(cache_path)
+    sweep_summary <- bind_rows(
+      sweep_summary,
+      coproximity_fits[[cell_type]]@misc$coproximity_summary
+    )
+    next
+  }
+
+  summary_row <- tibble(
+    cell_type = cell_type,
+    n_cells_reference = sum(
+      pg_data$cell_annotation == cell_type &
+        contrast_values == reference_condition
+    ),
+    n_pairs = NA_integer_,
+    n_network_metacells = NA_integer_,
+    n_network_samples = NA_integer_,
+    soft_power = NA_real_,
+    power_fallback = NA,
+    n_modules = NA_integer_,
+    status = "ok"
+  )
+
+  if (is.null(markers_to_test[[cell_type]])) {
+    summary_row$status <- "not in markers_to_test"
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
+  }
+
+  # Pairs x cells, data layer only, zero-filled.
+  cell_type_object <-
+    subset(pg_data, cell_annotation == cell_type) |>
+    ProximityScoresToAssay(
+      assay = "PNA",
+      new_assay = "proximity",
+      values_from = "log2_ratio",
+      lazy = TRUE
+    )
+  DefaultAssay(cell_type_object) <- "proximity"
+
+  proximity_matrix <- LayerData(cell_type_object, layer = "data")
+  pair_markers <- str_split_fixed(rownames(proximity_matrix), ":", 2)
+  is_network_cell <-
+    cell_type_object[[contrast_column, drop = TRUE]] %in% network_groups
+  pair_detection <- rowMeans(proximity_matrix[, is_network_cell] != 0)
+  network_pairs <- rownames(proximity_matrix)[
+    pair_markers[, 1] %in% markers_to_test[[cell_type]] &
+      pair_markers[, 2] %in% markers_to_test[[cell_type]] &
+      pair_detection >= min_pair_detection
+  ]
+  summary_row$n_pairs <- length(network_pairs)
+  if (length(network_pairs) < min_network_pairs) {
+    summary_row$status <- paste("fewer than", min_network_pairs, "pairs")
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
+  }
+
+  cell_type_object <- hdWGCNA::SetupForWGCNA(
+    cell_type_object,
+    features = network_pairs,
+    wgcna_name = make.names(cell_type)
+  )
+  # Metacells are built for every condition; 8.3 and 8.5 use the targets.
+  cell_type_object <- tryCatch(
+    hdWGCNA::MetacellsByGroups(
+      cell_type_object,
+      group.by = c(contrast_column, "sample_alias"),
+      ident.group = contrast_column,
+      reduction = "harmony",
+      dims = 1:20,
+      k = metacell_k,
+      max_shared = round(0.6 * metacell_k),
+      min_cells = metacell_min_cells,
+      assay = "proximity",
+      slot = "data",
+      layer = "data",
+      mode = "average",
+      verbose = FALSE
+    ),
+    error = conditionMessage
+  )
+  if (is.character(cell_type_object)) {
+    summary_row$status <- paste("metacells failed:", cell_type_object)
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
+  }
+
+  metacell_meta <- hdWGCNA::GetMetacellObject(cell_type_object)[[]]
+  if (!all(network_groups %in% metacell_meta[[contrast_column]])) {
+    summary_row$status <- "reference condition below metacell_min_cells"
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
+  }
+
+  # mode = "average" puts the averaged log2_ratio in the metacell counts
+  # layer. It is already on the log2_ratio scale, so it is read from counts
+  # and NormalizeMetacells is never called.
+  cell_type_object <- hdWGCNA::SetDatExpr(
+    cell_type_object,
+    group_name = network_groups,
+    group.by = contrast_column,
+    assay = "proximity",
+    slot = "counts",
+    layer = "counts"
+  )
+  summary_row$n_network_metacells <-
+    nrow(hdWGCNA::GetDatExpr(cell_type_object))
+  summary_row$n_network_samples <- n_distinct(
+    metacell_meta$sample_alias[
+      metacell_meta[[contrast_column]] %in% network_groups
+    ]
+  )
+  if (summary_row$n_network_metacells < min_network_metacells) {
+    summary_row$status <- paste(
+      "fewer than", min_network_metacells, "network metacells"
+    )
+    warning(cell_type, ": ", summary_row$status, "; skipped")
+    sweep_summary <- bind_rows(sweep_summary, summary_row)
+    next
+  }
+  if (summary_row$n_network_samples == 1) {
+    warning(
+      cell_type, ": network metacells come from a single sample; ",
+      "modules may be sample-specific"
+    )
+  }
+
+  cell_type_object <- hdWGCNA::TestSoftPowers(
+    cell_type_object,
+    networkType = "signed",
+    corFnc = "bicor"
+  )
+  power_table <- hdWGCNA::GetPowerTable(cell_type_object)
+  auto_powers <-
+    power_table$Power[power_table$Power > 3 & power_table$SFT.R.sq >= 0.8]
+  summary_row$power_fallback <- is.null(soft_power) && length(auto_powers) == 0
+  summary_row$soft_power <- soft_power %||% min(auto_powers, Inf)
+  if (summary_row$power_fallback) {
+    # WGCNA FAQ powers for signed networks, by number of samples (metacells).
+    summary_row$soft_power <- case_when(
+      summary_row$n_network_metacells < 30 ~ 16,
+      summary_row$n_network_metacells < 40 ~ 14,
+      .default = 12
+    )
+    warning(
+      cell_type, ": no soft power reached scale-free R^2 >= 0.8; ",
+      "using fallback power ", summary_row$soft_power
+    )
+  }
+
+  cell_type_object <- hdWGCNA::ConstructNetwork(
+    cell_type_object,
+    soft_power = summary_row$soft_power,
+    networkType = "signed",
+    TOMType = "signed",
+    corType = "bicor",
+    minModuleSize = min_module_size,
+    mergeCutHeight = merge_cut_height,
+    tom_outdir = tempdir(),
+    tom_name = make.names(cell_type),
+    overwrite_tom = TRUE,
+    setDatExpr = FALSE,
+    verbose = 0
+  )
+
+  # Plain MEs on all of the cell type's cells; kME on the network cells.
+  cell_type_object <-
+    cell_type_object |>
+    hdWGCNA::ModuleEigengenes(
+      group.by.vars = NULL,
+      assay = "proximity",
+      verbose = FALSE
+    ) |>
+    hdWGCNA::ModuleConnectivity(
+      group.by = contrast_column,
+      group_name = network_groups,
+      harmonized = FALSE,
+      assay = "proximity",
+      layer = "data"
+    ) |>
+    hdWGCNA::ResetModuleNames(new_name = "M")
+  modules <- hdWGCNA::GetModules(cell_type_object)
+  summary_row$n_modules <- n_distinct(modules$module[modules$module != "grey"])
+
+  # DietSeurat keeps @misc (misc = TRUE), where hdWGCNA stores the fit. The
+  # summary row is stored with it so a cached fit restores its row.
+  cell_type_object <- DietSeurat(
+    cell_type_object,
+    assays = "proximity",
+    dimreducs = c("harmony", "harmony_umap")
+  )
+  cell_type_object@misc$coproximity_summary <- summary_row
+  saveRDS(cell_type_object, cache_path)
+  coproximity_fits[[cell_type]] <- cell_type_object
+  sweep_summary <- bind_rows(sweep_summary, summary_row)
+
+  dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
+  export_plot(
+    filename = file.path(cell_type_dir, "soft_powers"),
+    plot = patchwork::wrap_plots(
+      hdWGCNA::PlotSoftPowers(cell_type_object),
+      ncol = 2
+    ),
+    width = 10,
+    height = 7
+  )
+  # PlotDendrogram draws with base graphics, so it is saved per device.
+  png(
+    file.path(cell_type_dir, "dendrogram.png"),
+    width = 8,
+    height = 4,
+    units = "in",
+    res = 300
+  )
+  hdWGCNA::PlotDendrogram(cell_type_object, main = cell_type)
+  dev.off()
+  pdf(file.path(cell_type_dir, "dendrogram.pdf"), width = 8, height = 4)
+  hdWGCNA::PlotDendrogram(cell_type_object, main = cell_type)
+  dev.off()
+}
+
+write.csv(
+  sweep_summary,
+  here::here("results/08_coproximity_networks/sweep_summary.csv"),
+  row.names = FALSE
+)
+sweep_summary
+```
