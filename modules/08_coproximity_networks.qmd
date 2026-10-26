@@ -392,3 +392,324 @@ write.csv(
 )
 sweep_summary
 ```
+
+## 8.2. Module composition
+
+Each co-proximity module is described by its marker pairs and their kME, the correlation of a pair's proximity score with the module eigengene. A pair with a high kME follows the module closely, and the pairs with the highest kME are the module's hub pairs: they are the best single summary of what the module captures. kME is computed on the network cells, so it describes the reference network (or the pooled network under `network_cells <- "all"`).
+
+For each fitted cell type, this section writes:
+
+- `modules.csv`: one row per marker pair in a co-proximity module, with its module, its kME in that module and its mean `log2_ratio` per condition (over single cells, zeros included).
+- `hub_pairs.csv`: the 10 pairs with the highest kME per module.
+- `kme`: each module's pairs ranked by kME, with the hub pairs named.
+- `me_umap`: the module eigengene of each cell on the `harmony_umap` embedding, one panel per module.
+
+```{r}
+#| label: module08_module_composition
+
+if (length(coproximity_fits) == 0) {
+  message("No cell type was fitted (see sweep_summary.csv); 8.2 is skipped.")
+}
+
+for (cell_type in names(coproximity_fits)) {
+  cell_type_fit <- coproximity_fits[[cell_type]]
+  cell_type_dir <- here::here("results/08_coproximity_networks", cell_type)
+  cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
+  proximity_matrix <- LayerData(cell_type_fit, layer = "data")
+
+  # Keep each pair's kME in its own module only; grey is dropped.
+  module_membership <-
+    hdWGCNA::GetModules(cell_type_fit) |>
+    filter(module != "grey") |>
+    mutate(module = as.character(module)) |>
+    pivot_longer(
+      starts_with("kME_"),
+      names_to = "kme_module",
+      names_prefix = "kME_",
+      values_to = "kME"
+    ) |>
+    filter(kme_module == module) |>
+    separate_wider_delim(
+      gene_name,
+      delim = ":",
+      names = c("marker_1", "marker_2"),
+      cols_remove = FALSE
+    )
+  for (condition in c(reference_condition, target_conditions)) {
+    module_membership[[paste0("mean_log2_ratio_", condition)]] <- rowMeans(
+      proximity_matrix[
+        module_membership$gene_name,
+        cell_conditions == condition,
+        drop = FALSE
+      ]
+    )
+  }
+  module_membership <-
+    module_membership |>
+    select(marker_1, marker_2, module, kME, starts_with("mean_log2_ratio_")) |>
+    arrange(module, desc(kME))
+  write.csv(
+    module_membership,
+    file.path(cell_type_dir, "modules.csv"),
+    row.names = FALSE
+  )
+  # 10 hub pairs per module, as in the hdWGCNA vignette.
+  hub_pairs <-
+    module_membership |>
+    slice_max(kME, n = 10, by = module, with_ties = FALSE)
+  write.csv(
+    hub_pairs,
+    file.path(cell_type_dir, "hub_pairs.csv"),
+    row.names = FALSE
+  )
+
+  n_modules <- n_distinct(module_membership$module)
+  n_panel_columns <- min(4, n_modules)
+  n_panel_rows <- ceiling(n_modules / n_panel_columns)
+  export_plot(
+    filename = file.path(cell_type_dir, "kme"),
+    plot = hdWGCNA::PlotKMEs(cell_type_fit, ncol = n_panel_columns),
+    width = 4 * n_panel_columns,
+    height = 3 * n_panel_rows
+  )
+  # features = "MEs": the plain eigengenes, as everywhere in this module.
+  me_umap_plots <- hdWGCNA::ModuleFeaturePlot(
+    cell_type_fit,
+    reduction = "harmony_umap",
+    features = "MEs"
+  )
+  export_plot(
+    filename = file.path(cell_type_dir, "me_umap"),
+    plot = patchwork::wrap_plots(me_umap_plots, ncol = n_panel_columns),
+    width = 3 * n_panel_columns,
+    height = 3 * n_panel_rows
+  )
+}
+```
+
+## 8.3. Differential module eigengenes
+
+A differential module eigengene (DME) test asks whether a co-proximity module as a whole shifts between conditions. For each fitted cell type, co-proximity module and target condition, the module eigengenes of the target cells are compared to those of the reference cells with a Wilcoxon rank-sum test. The effect size is `diff_median`, the median eigengene of the target cells minus that of the reference cells. A positive `diff_median` means the module's marker pairs are, together, more colocalized in the target condition, and a negative one means less, for pairs with a positive kME.
+
+A comparison is skipped when either condition has fewer than 10 cells of the cell type. P-values are adjusted with Benjamini-Hochberg (FDR) across all cell types, target conditions and modules, as in module `05`. Rows with `p_adj < 0.05` are printed below; all rows are written to `dme_results.csv` and `dme_results.rds`.
+
+> **Note:** Cells are treated as independent observations, although cells of one sample are not (pseudo-replication). The p-values therefore overstate the confidence, and with thousands of cells even small shifts become significant. Read `diff_median` and check that the shift is consistent across samples in the `me_violins` plots, where each point is the median of one sample.
+
+> **Note:** With one sample per condition, condition cannot be separated from sample: a significant module may reflect a difference between the two samples rather than between the conditions. The test still runs, and a warning is emitted.
+
+> **Note:** Under `network_cells <- "all"`, the co-proximity modules were fit on the same cells the test compares, so the test is mildly circular (see 8.0).
+
+```{r}
+#| label: module08_differential_module_eigengenes
+
+if (length(coproximity_fits) == 0) {
+  message("No cell type was fitted (see sweep_summary.csv); 8.3 is skipped.")
+}
+
+dme_results <- tibble(
+  cell_type = character(),
+  module = character(),
+  target = character(),
+  reference = character(),
+  n_cells_reference = integer(),
+  n_cells_target = integer(),
+  median_reference = numeric(),
+  median_target = numeric(),
+  diff_median = numeric(),
+  p_value = numeric()
+)
+
+for (cell_type in names(coproximity_fits)) {
+  cell_type_fit <- coproximity_fits[[cell_type]]
+  cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
+
+  # Plain eigengenes, one row per cell and module, grey dropped.
+  module_eigengenes <-
+    hdWGCNA::GetMEs(cell_type_fit, harmonized = FALSE) |>
+    select(-grey) |>
+    mutate(
+      condition = cell_conditions,
+      sample = cell_type_fit$sample_alias
+    ) |>
+    pivot_longer(
+      -c(condition, sample),
+      names_to = "module",
+      values_to = "eigengene"
+    ) |>
+    mutate(
+      condition = factor(
+        condition,
+        levels = c(reference_condition, target_conditions)
+      ),
+      module = factor(module, levels = str_sort(unique(module), numeric = TRUE))
+    )
+
+  sample_medians <- summarise(
+    module_eigengenes,
+    eigengene = median(eigengene),
+    .by = c(module, condition, sample)
+  )
+  n_modules <- nlevels(module_eigengenes$module)
+  export_plot(
+    filename = here::here(
+      "results/08_coproximity_networks", cell_type, "me_violins"
+    ),
+    plot = module_eigengenes |>
+      ggplot(aes(x = condition, y = eigengene, fill = condition)) +
+      geom_violin(scale = "width") +
+      geom_point(data = sample_medians, size = 2, show.legend = FALSE) +
+      facet_wrap(~module, scales = "free_y", ncol = min(4, n_modules)) +
+      scale_fill_manual(values = condition_palette) +
+      theme_bw() +
+      theme(panel.grid = element_blank()) +
+      labs(
+        title = paste("Module eigengenes:", cell_type),
+        subtitle = "Points: per-sample medians",
+        x = NULL,
+        y = "Module eigengene",
+        fill = contrast_column
+      ),
+    width = 3 * min(4, n_modules) + 1,
+    height = 3 * ceiling(n_modules / 4)
+  )
+
+  # At least 10 cells per condition, as pixelatorR's min_cells_per_group.
+  cell_counts <- table(
+    factor(cell_conditions, levels = c(reference_condition, target_conditions))
+  )
+  comparable_targets <- target_conditions[
+    cell_counts[target_conditions] >= 10 &
+      cell_counts[[reference_condition]] >= 10
+  ]
+  if (length(comparable_targets) == 0) {
+    message(
+      cell_type, ": no target condition with at least 10 cells next to ",
+      "at least 10 reference cells; DME skipped"
+    )
+    next
+  }
+
+  samples_per_condition <- tapply(
+    cell_type_fit$sample_alias,
+    cell_conditions,
+    n_distinct
+  )[c(reference_condition, comparable_targets)]
+  if (any(samples_per_condition == 1)) {
+    warning(
+      cell_type, ": a compared condition has a single sample, so condition ",
+      "cannot be separated from sample"
+    )
+  }
+
+  # FindDMEs is not used: it clips negative eigengenes to 0 before testing,
+  # which discards the lower half of a signed proximity eigengene.
+  for (target in comparable_targets) {
+    target_results <-
+      module_eigengenes |>
+      summarise(
+        n_cells_reference = sum(condition == reference_condition),
+        n_cells_target = sum(condition == target),
+        median_reference = median(eigengene[condition == reference_condition]),
+        median_target = median(eigengene[condition == target]),
+        p_value = wilcox.test(
+          eigengene[condition == target],
+          eigengene[condition == reference_condition]
+        )$p.value,
+        .by = module
+      ) |>
+      mutate(
+        cell_type = cell_type,
+        target = target,
+        reference = reference_condition,
+        diff_median = median_target - median_reference
+      )
+    dme_results <- bind_rows(dme_results, target_results)
+  }
+}
+
+dme_results <-
+  dme_results |>
+  mutate(p_adj = p.adjust(p_value, method = "BH")) |>
+  arrange(cell_type, target, str_rank(module, numeric = TRUE))
+write.csv(
+  dme_results,
+  here::here("results/08_coproximity_networks/dme_results.csv"),
+  row.names = FALSE
+)
+saveRDS(
+  dme_results,
+  here::here("results/08_coproximity_networks/dme_results.rds")
+)
+
+significant_dme <- filter(dme_results, p_adj < 0.05)
+if (nrow(significant_dme) == 0) {
+  message("No significant modules (p_adj < 0.05).")
+} else {
+  print(significant_dme, n = Inf, width = Inf)
+}
+```
+
+The dotplot summarizes every tested `cell type · module` (rows) against each target condition (columns). Colour is `diff_median`, size is -log10 `p_adj`, and modules with `p_adj ≥ 0.05` are drawn hollow.
+
+```{r}
+#| label: module08_dme_dotplot
+
+if (nrow(dme_results) == 0) {
+  message("No module was tested; the DME dotplot is skipped.")
+} else {
+  dme_dotplot_data <-
+    dme_results |>
+    mutate(
+      row_label = paste(cell_type, "·", module),
+      row_label = factor(row_label, levels = rev(unique(row_label))),
+      neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
+      # Non-significant points get no fill, so they are drawn hollow.
+      significant_diff_median = if_else(p_adj < 0.05, diff_median, NA_real_)
+    )
+  diff_median_limits <- c(-1, 1) * max(abs(dme_dotplot_data$diff_median))
+
+  dme_dotplot <-
+    dme_dotplot_data |>
+    ggplot(aes(x = target, y = row_label)) +
+    geom_point(
+      aes(
+        size = neg_log10_p_adj,
+        colour = diff_median,
+        fill = significant_diff_median
+      ),
+      shape = 21,
+      stroke = 1
+    ) +
+    scale_colour_gradientn(
+      colours = gradient_palette,
+      limits = diff_median_limits
+    ) +
+    scale_fill_gradientn(
+      colours = gradient_palette,
+      limits = diff_median_limits,
+      na.value = "transparent",
+      guide = "none"
+    ) +
+    scale_size(range = c(1, 5)) +
+    theme_bw() +
+    theme(panel.grid = element_blank()) +
+    labs(
+      title = "Differential module eigengenes",
+      subtitle = paste(
+        "vs", reference_condition, "| filled: p_adj < 0.05, hollow: n.s."
+      ),
+      x = "Target condition",
+      y = NULL,
+      colour = "Difference\nin medians",
+      size = "-log10(p_adj)"
+    )
+
+  export_plot(
+    filename = here::here("results/08_coproximity_networks/dme_dotplot"),
+    plot = dme_dotplot,
+    width = 4 + n_distinct(dme_dotplot_data$target),
+    height = 2 + 0.25 * nlevels(dme_dotplot_data$row_label)
+  )
+  dme_dotplot
+}
+```
