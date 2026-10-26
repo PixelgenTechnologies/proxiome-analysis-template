@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] 2026-10-26
+
+### Added
+
+- Optional module `08` runs hdWGCNA co-proximity network analysis per cell type, with a differential module eigengene readout, module graphs and opt-in module preservation. It adds WGCNA and hdWGCNA v0.4.12 as dependencies.
+
 ## [0.7.0] 2026-10-23
 
 ### Changed
