@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module `04` per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
 ### Changed
 
-- Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`07`, keeping computation and plotting in subsequent labeled chunks.
+- Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
 
 ## [0.7.0] 2026-10-23
 
