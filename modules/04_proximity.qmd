@@ -544,11 +544,5 @@ export_plot(
 )
 ```
 
-```{r}
-#| label: module04_complete
-
-message("Completed module 04 proximity analysis.")
-```
-
 
 

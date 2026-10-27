@@ -781,9 +781,3 @@ for (target_condition in target_conditions) {
   }
 }
 ```
-
-```{r}
-#| label: module05_complete
-
-message("Completed module 05 statistical testing.")
-```

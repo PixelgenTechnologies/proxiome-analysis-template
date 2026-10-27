@@ -199,12 +199,3 @@ plot_data |>
   })
 ```
 
-```{r}
-#| label: module03_complete
-
-message(
-  "Completed module 03 abundance distribution plots for ",
-  length(markers_for_abundance_plots), " markers."
-)
-```
-

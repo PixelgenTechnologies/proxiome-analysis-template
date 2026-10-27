@@ -570,9 +570,3 @@ if (nrow(term_marker_hits) == 0) {
   }
 }
 ```
-
-```{r}
-#| label: module07_complete
-
-message("Completed module 07 data interpretation.")
-```

@@ -838,34 +838,13 @@ This gating approach is particularly useful for validating annotations, identify
 Below is an example of how to use the gating strategy to annotate CD4 T cell subtypes.
 
 ```{r}
-#| label: data_processing_gating_parameters
+#| label: data_processing_gating_strategy
 
 # Define CD4 subtypes using memory/naive markers
 # Naive CD4 T: CD45RA+ (high), CD45RO- (low), typically CCR7+ and CD62L+
 # Memory CD4 T: CD45RA- (low), CD45RO+ (high)
 # Note: Thresholds should be adjusted based on your data distribution
 cd4_subtype_markers <- c("CD45RA", "CD45RO")
-
-# Define gates for CD4 subtypes
-# Naive CD4 T cells: High CD45RA, Low CD45RO
-naive_cd4_gate <- data.frame(
-  xmin = 2.0, # CD45RA threshold (adjust based on data)
-  xmax = 6.5,
-  ymin = 0,
-  ymax = 1.5 # CD45RO threshold (adjust based on data)
-)
-
-# Define gate for Memory CD4 T cells: Low CD45RA, High CD45RO
-memory_cd4_gate <- data.frame(
-  xmin = 0,
-  xmax = 2.5, # CD45RA threshold (adjust based on data)
-  ymin = 2.0, # CD45RO threshold (adjust based on data)
-  ymax = 5
-)
-```
-
-```{r}
-#| label: data_processing_gating_strategy
 
 # subset to CD4 T cells: only these will be used for the gating strategy
 pg_data_cd4_t <- subset(pg_data, subset = l1_annotation_summary == "CD4 T")
@@ -875,8 +854,8 @@ pg_data_cd4_t <- subset(pg_data, subset = l1_annotation_summary == "CD4 T")
 # CD4 T cell subtypes: Naive (CD45RA+ CD45RO-) vs Memory (CD45RA- CD45RO+)
 DensityScatterPlot(
   pg_data_cd4_t,
-  marker1 = cd4_subtype_markers[1],
-  marker2 = cd4_subtype_markers[2]
+  marker1 = "CD45RA",
+  marker2 = "CD45RO"
 ) +
   labs(
     title = "CD4 T Cell Subtypes: Naive vs Memory",
@@ -888,12 +867,20 @@ export_plot(
   height = 6
 )
 
+# Define gates for CD4 subtypes
+# Naive CD4 T cells: High CD45RA, Low CD45RO
+naive_cd4_gate <- data.frame(
+  xmin = 2.0, # CD45RA threshold (adjust based on data)
+  xmax = 6.5,
+  ymin = 0,
+  ymax = 1.5 # CD45RO threshold (adjust based on data)
+)
 # Create plot with gates
 p1 <-
   DensityScatterPlot(
     pg_data_cd4_t,
-    marker1 = cd4_subtype_markers[1],
-    marker2 = cd4_subtype_markers[2],
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
     plot_gate = naive_cd4_gate
   ) +
   labs(
@@ -903,11 +890,19 @@ p1 <-
 
 p1
 
+# Define gate for Memory CD4 T cells: Low CD45RA, High CD45RO
+memory_cd4_gate <- data.frame(
+  xmin = 0,
+  xmax = 2.5, # CD45RA threshold (adjust based on data)
+  ymin = 2.0, # CD45RO threshold (adjust based on data)
+  ymax = 5
+)
+
 p2 <-
   DensityScatterPlot(
     pg_data_cd4_t,
-    marker1 = cd4_subtype_markers[1],
-    marker2 = cd4_subtype_markers[2],
+    marker1 = "CD45RA",
+    marker2 = "CD45RO",
     plot_gate = memory_cd4_gate
   ) +
   labs(
@@ -925,7 +920,7 @@ export_plot(
 )
 
 # Classify CD4 cells into subtypes
-cd4_cell_data <- FetchData(pg_data_cd4_t, vars = unique(c(cd4_subtype_markers, "CD4", "CD3e")))
+cd4_cell_data <- FetchData(pg_data_cd4_t, vars = c("CD45RA", "CD45RO", "CD4", "CD3e"))
 
 # Define subtypes based on marker expression thresholds
 # Adjust thresholds based on your data distribution
@@ -934,8 +929,8 @@ cd4_subtype_classification <-
   cd4_cell_data |>
   mutate(
     cd4_subtype = case_when(
-      .data[[cd4_subtype_markers[1]]] > naive_cd4_gate$xmin & .data[[cd4_subtype_markers[1]]] < naive_cd4_gate$xmax & .data[[cd4_subtype_markers[2]]] > naive_cd4_gate$ymin & .data[[cd4_subtype_markers[2]]] < naive_cd4_gate$ymax ~ "Naive CD4 T",
-      .data[[cd4_subtype_markers[1]]] > memory_cd4_gate$xmin & .data[[cd4_subtype_markers[1]]] < memory_cd4_gate$xmax & .data[[cd4_subtype_markers[2]]] > memory_cd4_gate$ymin & .data[[cd4_subtype_markers[2]]] < memory_cd4_gate$ymax ~ "Memory CD4 T",
+      CD45RA > naive_cd4_gate$xmin & CD45RA < naive_cd4_gate$xmax & CD45RO > naive_cd4_gate$ymin & CD45RO < naive_cd4_gate$ymax ~ "Naive CD4 T",
+      CD45RA > memory_cd4_gate$xmin & CD45RA < memory_cd4_gate$xmax & CD45RO > memory_cd4_gate$ymin & CD45RO < memory_cd4_gate$ymax ~ "Memory CD4 T",
       TRUE ~ "CD4 T (other)"
     )
   )
