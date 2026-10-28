@@ -760,10 +760,11 @@ A module graph is this analysis module's own figure, not an hdWGCNA plot. It dra
 How to read it:
 
 - **Pairs drawn.** Only the module's 50 pairs with the highest kME are drawn, and of those only the largest connected component, which is the module's core. The caption gives the module's size and how many of the 50 pairs fall outside the drawn component.
-- **Self-pairs.** A marker paired with itself (A:A) is not drawn as a loop. Its node is highlighted instead.
+- **Self-pairs.** A marker paired with itself (A:A) is not drawn as a loop. Instead, each marker's label is filled by its self-pair's mean `log2_ratio` in the target condition minus that in the reference condition, on the same colour scale as the edges: red means the marker clusters more in the target condition, blue less. It is computed for every drawn marker from the cell type's cells, whether or not its self-pair belongs to the co-proximity module. A grey label means the self-pair is never detected.
+- **Label size** shows a marker's degree, the number of drawn pairs it is part of, so the module's most connected markers stand out.
 - **Edge width and opacity** show the pair's kME: thick, opaque edges are the pairs that follow the module most closely.
-- **Edge colour** is the mean `log2_ratio` of the pair in the target condition minus that in the reference condition, over single cells. The mean is used, not the median, because the zero-filled median is 0 for any pair detected in fewer than half of the cells. Red means more colocalized in the target condition, blue less. The scale is centred at 0 and shared by all panels.
-- **Panels.** There is one panel per target condition, all with the same layout, and each panel's title gives that target's differential module eigengene result (`diff_median`, `p_adj`, from 8.3). A target condition without a DME test (fewer than 10 cells) gets no panel. If no target condition is left, one panel with grey edges is drawn, titled "no target cells".
+- **Edge colour** is the mean `log2_ratio` of the pair in the target condition minus that in the reference condition, over single cells, with cells where the pair is not detected counted as 0. The mean is used, not the median, because most pairs are undetected in many cells: their median is then 0 and hides a change in how many cells colocalize the pair, which is often what moves a sparse co-proximity module. Module `05`'s differential colocalization reports the median difference (`diff_median`) with a test per pair, so its number for the same pair differs; use module `05` for per-pair significance. Red means more colocalized in the target condition, blue less. The scale is centred at 0 and shared by all panels and by the labels.
+- **Panels.** There is one panel per target condition, all with the same layout, and each panel's title gives that target's differential module eigengene result (`diff_median`, `p_adj`, from 8.3). A target condition without a DME test (fewer than 10 cells) gets no panel. If no target condition is left, one panel with grey edges and grey labels is drawn, titled "no target cells".
 
 ```{r}
 #| label: module08_module_graphs
@@ -782,6 +783,39 @@ for (cell_type in names(coproximity_fits)) {
     show_col_types = FALSE
   )
 
+  # Self-pair means over all of the cell type's cells, zero-filled as in 8.2,
+  # for every marker: a drawn marker's self-pair need not be in the module.
+  cell_type_fit <- coproximity_fits[[cell_type]]
+  cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
+  proximity_matrix <- LayerData(cell_type_fit, layer = "data")
+  pair_markers <- str_split_fixed(rownames(proximity_matrix), ":", 2)
+  self_pairs <-
+    rownames(proximity_matrix)[pair_markers[, 1] == pair_markers[, 2]]
+  reference_self_means <- rowMeans(
+    proximity_matrix[
+      self_pairs,
+      cell_conditions == reference_condition,
+      drop = FALSE
+    ]
+  )
+  self_pair_differences <-
+    target_conditions |>
+    map(\(target_condition) {
+      target_self_means <- rowMeans(
+        proximity_matrix[
+          self_pairs,
+          cell_conditions == target_condition,
+          drop = FALSE
+        ]
+      )
+      tibble(
+        target = target_condition,
+        name = str_remove(self_pairs, ":.*"),
+        self_pair_difference = target_self_means - reference_self_means
+      )
+    }) |>
+    bind_rows()
+
   for (module_name in unique(module_membership$module)) {
     module_pairs <- filter(module_membership, module == module_name)
     # 50 pairs keep large modules readable; see the prose above.
@@ -795,7 +829,7 @@ for (cell_type in names(coproximity_fits)) {
       filter(component == 1) |>
       pull(name)
     core_pairs <- filter(top_pairs, marker_1 %in% core_markers)
-    self_pair_markers <- with(core_pairs, marker_1[marker_1 == marker_2])
+    core_edges <- filter(core_pairs, marker_1 != marker_2)
 
     # One copy of each edge per target condition with a DME test (8.3), so
     # targets with fewer than 10 cells get no panel.
@@ -804,8 +838,7 @@ for (cell_type in names(coproximity_fits)) {
       filter(cell_type == .env$cell_type, module == module_name) |>
       select(target, diff_median, p_adj)
     graph_edges <-
-      core_pairs |>
-      filter(marker_1 != marker_2) |>
+      core_edges |>
       pivot_longer(
         starts_with("mean_log2_ratio_"),
         names_to = "target",
@@ -826,78 +859,116 @@ for (cell_type in names(coproximity_fits)) {
       )
     if (nrow(module_dme) == 0) {
       graph_edges <-
-        core_pairs |>
-        filter(marker_1 != marker_2) |>
-        mutate(mean_log2_ratio_difference = NA_real_, panel = "no target cells")
+        core_edges |>
+        mutate(
+          target = NA_character_,
+          mean_log2_ratio_difference = NA_real_,
+          panel = "no target cells"
+        )
     }
+
+    # One row per marker and panel; markers keep core_markers' order, which
+    # the shared layout below relies on.
+    marker_degrees <- count(
+      tibble(name = c(core_edges$marker_1, core_edges$marker_2)),
+      name,
+      name = "degree"
+    )
+    graph_nodes <-
+      distinct(graph_edges, target, panel) |>
+      cross_join(tibble(name = core_markers)) |>
+      left_join(self_pair_differences, by = c("target", "name")) |>
+      left_join(marker_degrees, by = "name")
+
+    # Edges and labels share one scale, so the figure has one colour legend.
     difference_limit <- max(
       abs(graph_edges$mean_log2_ratio_difference),
+      abs(graph_nodes$self_pair_difference),
       0,
       na.rm = TRUE
     )
-
-    module_graph <-
+    # kk layout computed once, so every panel places the markers alike.
+    graph_layout <-
       tidygraph::tbl_graph(
-        nodes = tibble(
-          name = core_markers,
-          self_pair = if_else(core_markers %in% self_pair_markers, "yes", "no")
-        ),
-        edges = rename(graph_edges, from = marker_1, to = marker_2),
+        nodes = tibble(name = core_markers),
+        edges = select(core_edges, from = marker_1, to = marker_2),
         directed = FALSE
       ) |>
-      ggraph(layout = "kk") +
-      geom_edge_link(
-        aes(
-          colour = mean_log2_ratio_difference,
-          width = kME,
-          alpha = kME
-        )
-      ) +
-      geom_node_label(aes(label = name, fill = self_pair), size = 2.5) +
-      scale_edge_colour_gradientn(
-        colours = gradient_palette,
-        limits = c(-1, 1) * difference_limit,
-        na.value = "grey60",
-        guide = if (nrow(module_dme) == 0) "none" else "edge_colourbar"
-      ) +
-      scale_edge_width(range = c(0.3, 2.5)) +
-      scale_edge_alpha(range = c(0.3, 1)) +
-      scale_fill_manual(
-        values = c(
-          no = "white",
-          yes = unname(
-            pixelatorR::PixelgenAccentColors(level = 5, hue = "yellows")
+      create_layout(layout = "kk")
+
+    # One ggraph per panel: facet_edges() cannot vary label fill by panel.
+    panel_plots <- map(unique(graph_edges$panel), \(panel_name) {
+      tidygraph::tbl_graph(
+        nodes = filter(graph_nodes, panel == panel_name),
+        edges = graph_edges |>
+          filter(panel == panel_name) |>
+          rename(from = marker_1, to = marker_2),
+        directed = FALSE
+      ) |>
+        ggraph(layout = "manual", x = graph_layout$x, y = graph_layout$y) +
+        geom_edge_link(
+          aes(
+            colour = mean_log2_ratio_difference,
+            width = kME,
+            alpha = kME
           )
+        ) +
+        geom_node_label(
+          aes(label = name, fill = self_pair_difference, size = degree)
+        ) +
+        scale_edge_colour_gradientn(
+          colours = gradient_palette,
+          limits = c(-1, 1) * difference_limit,
+          na.value = "grey60",
+          guide = if (nrow(module_dme) == 0) "none" else "edge_colourbar"
+        ) +
+        scale_fill_gradientn(
+          colours = gradient_palette,
+          limits = c(-1, 1) * difference_limit,
+          na.value = "grey88",
+          guide = "none"
+        ) +
+        scale_edge_width(range = c(0.3, 2.5)) +
+        scale_edge_alpha(range = c(0.3, 1)) +
+        scale_size(range = c(2.5, 4), limits = range(graph_nodes$degree)) +
+        scale_x_continuous(expand = c(0.15, 0.15)) +
+        scale_y_continuous(expand = c(0.15, 0.15)) +
+        theme(
+          aspect.ratio = 1,
+          panel.background = element_rect(fill = "white", colour = "black"),
+          axis.text = element_blank(),
+          axis.ticks = element_blank()
+        ) +
+        labs(
+          title = panel_name,
+          x = NULL,
+          y = NULL,
+          edge_colour = paste0(
+            "Mean log2_ratio\ntarget - ", reference_condition,
+            "\n(pairs and\nself-pairs)"
+          ),
+          edge_width = "kME",
+          edge_alpha = "kME",
+          size = "Degree"
         )
-      ) +
-      scale_x_continuous(expand = c(0.15, 0.15)) +
-      scale_y_continuous(expand = c(0.15, 0.15)) +
-      facet_edges(~panel) +
-      theme(
-        aspect.ratio = 1,
-        panel.background = element_rect(fill = "white", colour = "black"),
-        axis.text = element_blank(),
-        axis.ticks = element_blank()
-      ) +
-      labs(
+    })
+
+    module_graph <-
+      patchwork::wrap_plots(panel_plots, nrow = 1) +
+      patchwork::plot_layout(guides = "collect") +
+      patchwork::plot_annotation(
         title = paste(cell_type, "·", module_name),
         caption = paste0(
           "top ", nrow(top_pairs), " of ", nrow(module_pairs), " pairs; ",
           nrow(top_pairs) - nrow(core_pairs),
           " outside the largest component"
-        ),
-        x = NULL,
-        y = NULL,
-        edge_colour = paste0("Mean log2_ratio\ntarget - ", reference_condition),
-        edge_width = "kME",
-        edge_alpha = "kME",
-        fill = "Self-pair\nin module"
+        )
       )
 
     export_plot(
       filename = file.path(module_graphs_dir, module_name),
       plot = module_graph,
-      width = 2 + 5 * n_distinct(graph_edges$panel),
+      width = 2 + 5 * length(panel_plots),
       height = 6
     )
   }
