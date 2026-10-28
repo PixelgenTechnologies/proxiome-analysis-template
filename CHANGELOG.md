@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
 
+### Fixed
+
+- Module `04` per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
+
 ## [0.7.0] 2026-10-23
 
 ### Changed
