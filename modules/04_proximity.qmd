@@ -50,12 +50,15 @@ max_heatmap_markers <- 60
 
 expressed_markers <- unique(unlist(markers_to_test))
 
-# Optionally limit markers shown in the heatmap to the top most abundant
+# Optionally limit markers shown in the heatmap to the top most abundant.
+# rowMeans() keeps expressed_markers order, so sort by abundance before head().
 plot_markers <-
-  head(rowMeans(
+  rowMeans(
     GetAssayData(pg_data, layer = "data")[expressed_markers, , drop = FALSE],
     na.rm = TRUE
-  ), max_heatmap_markers) |>
+  ) |>
+  sort(decreasing = TRUE) |>
+  head(max_heatmap_markers) |>
   names()
 
 proximity_data <- ProximityScores(pg_data,
