@@ -1,8 +1,8 @@
-# 5. Statistical testing (cell level)
+# 5a. Statistical testing on the cell level
 
-**Module 05a — Statistical testing, cell level (optional).** Differential abundance, clustering, and colocalization tests. Each test is a cell-level Wilcoxon comparison (cells pooled by `condition`). Skip this module if you do not need formal comparisons. Run the first chunk below after module `02` has finished.
+**Module 05a — Statistical testing on the cell level.** Differential abundance, clustering, and colocalization tests. Each test is a cell-level Wilcoxon comparison (cells are pooled by `condition`). Skip this module if you do not need formal comparisons or if you only want to use biological replicates.
 
-With many cells these tests can overstate significance, because each cell is treated as an independent observation. When you have biological replicates (≥2 `sample_alias` values per `condition`), use `modules/05b_statistical_testing_pseudobulk.qmd` instead. That notebook aggregates to the sample and fits limma. Outputs from this notebook go under `{modality}/cell_level/`. Module 07 reads them when `stats_method` is `"cell_level"`.
+With many cells these cell-level tests can overstate significance, because each cell is treated as an independent observation. When you have biological replicates (≥2 `sample_alias` values per `condition`), it can be a good idea to use `modules/05b_statistical_testing_pseudobulk.qmd` instead to increase reproducibility. The outputs from this notebook go under `{modality}/cell_level/`. 
 
 ```{r}
 #| label: module05a_setup
@@ -25,9 +25,7 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 > **Decision checkpoint** (statistical contrasts)  
 > Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in this notebook use this baseline.
 
-By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state.
-
-Sections 5.1–5.3 use **cell-level** Wilcoxon tests (cells pooled by `condition`).
+By default, in this analysis we compare all conditions to a reference condition, which is typically a "resting", "untreated", or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state.
 
 ```{r}
 #| label: module05a_set_reference
@@ -39,17 +37,15 @@ reference_condition <- "resting"
 if (!reference_condition %in% pg_data$condition) stop("The reference condition is not present in the Seurat object")
 ```
 
-Helpers used by the analysis and plotting chunks below, grouped by role. Usually you will not need to modify these.
-
 ### Helper Functions
 
-Helpers for creating the correct input and output tables for the analysis and plotting functions.
+We define some helper functions used by the analysis and plotting chunks below. Usually you will not need to modify these.
 
 ```{r}
 #| label: module05a_result_helpers
 #| include: false
 
-# Add columns to dataframes used by the volcano and heatmap functions
+# Standardize the dataframes used by the volcano and heatmap functions
 prepare_diff_plot_data <- function(df, effect_col, feature_col = NULL) {
   out <- df |>
     mutate(
@@ -120,7 +116,7 @@ Per-sample means for the volcano side heatmaps. The Wilcoxon tests below still u
 
 #### Abundance
 
-Mean CLR per sample × cell type × marker. The differential test in §5.1 does not use this table. §5.1.1 uses it so the heatmap next to each volcano shows the same markers on a per-sample scale.
+In this section we calculate the mean CLR per sample × cell type × marker. The differential test in §5.1 does not use this table, only the heatmap next to each volcano shows the markers on a per-sample scale.
 
 ```{r}
 #| label: module05a_aggregate_abundance
@@ -158,7 +154,7 @@ save_diff_results(
 
 #### Proximity
 
-Build the per-sample proximity table once here, the same way as abundance above, so the clustering and colocalization plots (§§5.2.1, 5.3.1) show the same numbers. `FilterProximityScores()` drops pairs below an isotype-derived background, then `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type.
+Similarly, build the per-sample proximity table once here, the same way as abundance above, so the clustering and colocalization plots (§§5.2.1, 5.3.1) show the same per-sample numbers in the heatmaps accompanying the volcano plots. We use the standard `FilterProximityScores()` function to drop marker pairs below an isotype-derived background, then `SummarizeProximityScores()` to take the mean `log2_ratio` per `sample_alias` × cell type.
 
 ```{r}
 #| label: module05a_proximity_helpers
