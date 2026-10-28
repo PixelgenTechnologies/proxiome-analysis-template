@@ -913,8 +913,24 @@ for (cell_type in names(coproximity_fits)) {
             alpha = kME
           )
         ) +
+        # Labels are repelled so they never overlap; a small point marks
+        # each marker's layout position, which edges and segments point to.
+        geom_node_point(size = 0.8, colour = "grey30") +
         geom_node_label(
-          aes(label = name, fill = self_pair_difference, size = degree)
+          aes(label = name, fill = self_pair_difference, size = degree),
+          repel = TRUE,
+          max.overlaps = Inf,
+          box.padding = 0.4,
+          point.padding = 0.15,
+          force = 8,
+          force_pull = 0.5,
+          # Iterations, not time, bound the search, so placement is
+          # reproducible on slow (emulated) machines.
+          max.time = 120,
+          max.iter = 2e5,
+          min.segment.length = 0.2,
+          segment.colour = "grey50",
+          seed = analysis_seed
         ) +
         scale_edge_colour_gradientn(
           colours = gradient_palette,
@@ -930,9 +946,17 @@ for (cell_type in names(coproximity_fits)) {
         ) +
         scale_edge_width(range = c(0.3, 2.5)) +
         scale_edge_alpha(range = c(0.3, 1)) +
-        scale_size(range = c(2.5, 4), limits = range(graph_nodes$degree)) +
-        scale_x_continuous(expand = c(0.15, 0.15)) +
-        scale_y_continuous(expand = c(0.15, 0.15)) +
+        # At most about 4 integer breaks, so the legend fits the figure.
+        scale_size(
+          range = c(2.5, 4),
+          limits = range(graph_nodes$degree),
+          breaks = \(limits) {
+            breaks <- unique(floor(pretty(limits, n = 3)))
+            breaks[breaks >= limits[1] & breaks <= limits[2]]
+          }
+        ) +
+        scale_x_continuous(expand = c(0.2, 0.2)) +
+        scale_y_continuous(expand = c(0.2, 0.2)) +
         theme(
           aspect.ratio = 1,
           panel.background = element_rect(fill = "white", colour = "black"),
@@ -962,7 +986,8 @@ for (cell_type in names(coproximity_fits)) {
           "top ", nrow(top_pairs), " of ", nrow(module_pairs), " pairs; ",
           nrow(top_pairs) - nrow(core_pairs),
           " outside the largest component"
-        )
+        ),
+        theme = theme(plot.caption = element_text(hjust = 0))
       )
 
     export_plot(
