@@ -33,7 +33,7 @@ By default, in this analysis we compare all conditions to a reference condition,
 # Baseline / control condition. Must match a value in metadata$condition.
 # All tests compare each other condition against this one (target − reference).
 # Output folders are named {target}_vs_{reference}.
-reference_condition <- "resting"
+reference_condition <- "donor1"
 if (!reference_condition %in% pg_data$condition) stop("The reference condition is not present in the Seurat object")
 ```
 
