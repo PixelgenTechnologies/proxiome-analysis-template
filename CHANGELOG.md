@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
+- Module `05` now defines `contrast_column`, `reference_condition` (defaulting to the first level in `metadata[[contrast_column]]` instead of hard-coding `"donor1"`), and all plot cutoffs in `statistical_testing_parameters`, followed by `statistical_testing_validate_reference` which checks the reference condition and prints the planned comparisons.
 
 ## [0.7.0] 2026-10-23
 

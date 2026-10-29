@@ -18,23 +18,78 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 }
 ```
 
-## 5.0. Set reference sample
+## 5.0. Set parameters and reference condition
 
-> **Decision checkpoint** (statistical contrasts)  
-> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in module `05` use this baseline.
+> **Decision checkpoint** (statistical contrasts and plot cutoffs)  
+> Confirm `contrast_column` and `reference_condition` (defaults to the first level in `metadata[[contrast_column]]`), and adjust the significance and effect-size cutoffs used for summary plots. All `{target}_vs_{reference}` outputs in module `05` use this baseline. Result tables (`.rds` and `.csv`) are saved in full regardless of plot cutoffs.
 
-By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state. 
+By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state.
 
 ```{r}
-#| label: statistical_testing_set_reference
+#| label: statistical_testing_parameters
 
-reference_condition <- "donor1"
+# Column in metadata / Seurat metadata defining the groups to compare
+contrast_column <- "condition"
+
+# Reference group used as the baseline for all {target}_vs_{reference} comparisons.
+# Defaults to the first level in metadata; confirm or replace this for your study.
+reference_condition <- metadata[[contrast_column]][1]
+
+# Differential abundance plot cutoffs
+daa_plot_p_adj_threshold <- 0.05
+daa_heatmap_effect_threshold <- 0.5
+daa_volcano_top_n <- 5
+
+# Differential clustering plot cutoffs
+dclust_plot_p_adj_threshold <- 0.05
+dclust_heatmap_effect_threshold <- 0.5
+dclust_volcano_top_n <- 5
+
+# Differential colocalization plot cutoffs
+dcoloc_plot_p_adj_threshold <- 0.001
+show_only_sign <- TRUE # Show only significant pairs (up to dcoloc_max_pairs)
+dcoloc_max_pairs <- 500
+dcoloc_top_markers <- 20
 ```
 
 ```{r}
 #| label: statistical_testing_validate_reference
 
-if (!reference_condition %in% metadata$condition) stop("The reference condition is not present in the sample metadata")
+if (!contrast_column %in% colnames(metadata)) {
+  stop(
+    "Contrast column '", contrast_column, "' is not present in metadata. ",
+    "Available columns: ", paste(colnames(metadata), collapse = ", ")
+  )
+}
+
+available_conditions <- unique(as.character(metadata[[contrast_column]]))
+
+if (
+  length(reference_condition) != 1L ||
+    is.na(reference_condition) ||
+    !reference_condition %in% available_conditions
+) {
+  stop(
+    "The reference condition '", reference_condition, "' is not present in metadata$",
+    contrast_column, ". Available values: ",
+    paste(available_conditions, collapse = ", ")
+  )
+}
+
+target_conditions_preview <- setdiff(available_conditions, reference_condition)
+if (length(target_conditions_preview) == 0L) {
+  stop(
+    "No target conditions found in metadata$", contrast_column,
+    " after excluding reference_condition ('", reference_condition, "')."
+  )
+}
+
+message(
+  "Contrast column: ", contrast_column, "\n",
+  "Reference condition: ", reference_condition, "\n",
+  "Comparisons to run: ",
+  paste(paste0(target_conditions_preview, "_vs_", reference_condition), collapse = ", ")
+)
 ```
 
 
@@ -57,7 +112,7 @@ differential_abundance_analysis <-
     tryCatch(
       {
         daa_res <- RunDAA(subset(pg_data, cell_annotation == x),
-          contrast_column = "condition",
+          contrast_column = contrast_column,
           reference = reference_condition,
           features = markers_to_test[[x]]
         )
@@ -88,16 +143,7 @@ Here we create two types of summarizing plots for the differential abundance ana
 
 1. **Volcano plot**: Shows the relationship between effect size (log fold change) and statistical significance (-log10 adjusted p-value) for each marker, faceted by cell type. This helps identify markers that are both significantly different and have large effect sizes.
 
-2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially abundant in which cell types.
-
-```{r}
-#| label: statistical_testing_differential_abundance_plot_parameters
-
-# Significance and effect-size cutoffs used for volcano labels and heatmap filtering
-daa_plot_p_adj_threshold <- 0.05
-daa_heatmap_effect_threshold <- 0.5
-daa_volcano_top_n <- 5
-```
+2. **Heatmap**: Displays significant markers (`p_adj < daa_plot_p_adj_threshold` and `|effect_size| > daa_heatmap_effect_threshold`) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially abundant in which cell types.
 
 ```{r}
 #| label: statistical_testing_differential_abundance_plots
@@ -315,7 +361,11 @@ for (target_condition in target_conditions) {
       height = max(4, ncol(significant_markers) * 0.2 + 1.5)
     )
   } else {
-    warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
+    warning(paste(
+      "No significant markers found for heatmap visualization (p_adj <",
+      daa_plot_p_adj_threshold, "and |effect_size| >", daa_heatmap_effect_threshold,
+      ") for", target_condition, "vs", reference_condition
+    ))
   }
 }
 ```
@@ -339,7 +389,7 @@ differential_clustering_analysis <-
         markers_vec <- as.character(markers_to_test[[x]])
         proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
           lazy = TRUE,
-          meta_data_columns = c("sample_alias", "condition")
+          meta_data_columns = unique(c("sample_alias", contrast_column))
         ) |>
           filter(marker_1 == marker_2) |>
           filter(marker_1 %in% markers_vec) |>
@@ -347,7 +397,7 @@ differential_clustering_analysis <-
           collect()
 
         res <- DifferentialProximityAnalysis(proximity_data,
-          contrast_column = "condition",
+          contrast_column = contrast_column,
           reference = reference_condition,
           proximity_metric = "log2_ratio",
           min_n_obs = 5
@@ -380,16 +430,7 @@ Here we create two types of summarizing plots for the differential clustering an
 
 1. **Volcano plot**: Shows the relationship between effect size (log fold change) and statistical significance (-log10 adjusted p-value) for each marker, faceted by cell type. This helps identify markers that are both significantly different and have large effect sizes.
 
-2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially clustered in which cell types.
-
-```{r}
-#| label: statistical_testing_differential_clustering_plot_parameters
-
-# Significance and effect-size cutoffs used for volcano labels and heatmap filtering
-dclust_plot_p_adj_threshold <- 0.05
-dclust_heatmap_effect_threshold <- 0.5
-dclust_volcano_top_n <- 5
-```
+2. **Heatmap**: Displays significant markers (`p_adj < dclust_plot_p_adj_threshold` and `|effect_size| > dclust_heatmap_effect_threshold`) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially clustered in which cell types.
 
 ```{r}
 #| label: statistical_testing_differential_clustering_plots
@@ -606,7 +647,11 @@ for (target_condition in target_conditions) {
       height = max(4, ncol(significant_markers) * 0.2 + 1.5)
     )
   } else {
-    warning(paste("No significant markers found for heatmap visualization (p_adj < 0.05) for", target_condition, "vs", reference_condition))
+    warning(paste(
+      "No significant markers found for heatmap visualization (p_adj <",
+      dclust_plot_p_adj_threshold, "and |effect_size| >", dclust_heatmap_effect_threshold,
+      ") for", target_condition, "vs", reference_condition
+    ))
   }
 }
 ```
@@ -630,14 +675,14 @@ differential_colocalization_analysis <-
         markers_vec <- as.character(markers_to_test[[x]])
         proximity_data <- ProximityScores(subset(pg_data, cell_annotation == x),
           lazy = TRUE,
-          meta_data_columns = c("sample_alias", "condition")
+          meta_data_columns = unique(c("sample_alias", contrast_column))
         ) |>
           filter(marker_1 %in% markers_vec) |>
           filter(marker_2 %in% markers_vec) |>
           collect()
 
         res <- DifferentialProximityAnalysis(proximity_data,
-          contrast_column = "condition",
+          contrast_column = contrast_column,
           reference = reference_condition,
           proximity_metric = "log2_ratio",
           min_n_obs = 5
@@ -667,17 +712,7 @@ write.csv(differential_colocalization_analysis, here::here("results/05_statistic
 
 Here we create summarizing plots for the differential colocalization analysis results:
 
-1. **Colocalization Heatmap**: Displays the difference in medians for marker pairs, with dot size representing statistical significance (-log10 adjusted p-value). This provides an overview of which marker pairs are differentially colocalized for each cell type and condition comparison.
-
-```{r}
-#| label: statistical_testing_differential_colocalization_plot_parameters
-
-# Cutoffs for differential colocalization heatmaps
-dcoloc_plot_p_adj_threshold <- 0.001
-show_only_sign <- TRUE # Show only significant results (up to dcoloc_max_pairs)
-dcoloc_max_pairs <- 500
-dcoloc_top_markers <- 20
-```
+1. **Colocalization Heatmap**: Displays the difference in medians for marker pairs, with dot size representing statistical significance (-log10 adjusted p-value). This provides an overview of which marker pairs are differentially colocalized for each cell type and condition comparison, filtered using `dcoloc_plot_p_adj_threshold`, `show_only_sign`, and `dcoloc_max_pairs` (or `dcoloc_top_markers` when `show_only_sign` is `FALSE`).
 
 ```{r}
 #| label: statistical_testing_differential_colocalization_plot
@@ -709,14 +744,15 @@ for (target_condition in target_conditions) {
     # Filter data for this target and cell type
     plot_data <-
       differential_colocalization_analysis |>
-      filter(group == cell_type & target == target_condition)
-
-    plot_data <-
-      plot_data |>
-      filter(p_adj < dcoloc_plot_p_adj_threshold) |>
+      filter(group == cell_type & target == target_condition) |>
       arrange(desc(abs(diff_median)))
 
-    if (!show_only_sign) {
+    if (show_only_sign) {
+      plot_data <-
+        plot_data |>
+        filter(p_adj < dcoloc_plot_p_adj_threshold) |>
+        head(dcoloc_max_pairs)
+    } else {
       plot_markers <-
         plot_data |>
         select(marker_1, marker_2) |>
@@ -730,10 +766,6 @@ for (target_condition in target_conditions) {
           marker_1 %in% plot_markers,
           marker_2 %in% plot_markers
         )
-    } else {
-      plot_data <-
-        plot_data |>
-        head(dcoloc_max_pairs)
     }
 
     # Skip if insufficient data for this combination
