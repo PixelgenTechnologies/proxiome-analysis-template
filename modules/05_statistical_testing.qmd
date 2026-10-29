@@ -29,6 +29,10 @@ By default, in this analysis we compare all conditions to a reference condition,
 #| label: statistical_testing_set_reference
 
 reference_condition <- "donor1"
+```
+
+```{r}
+#| label: statistical_testing_validate_reference
 
 if (!reference_condition %in% metadata$condition) stop("The reference condition is not present in the sample metadata")
 ```
@@ -87,6 +91,15 @@ Here we create two types of summarizing plots for the differential abundance ana
 2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially abundant in which cell types.
 
 ```{r}
+#| label: statistical_testing_differential_abundance_plot_parameters
+
+# Significance and effect-size cutoffs used for volcano labels and heatmap filtering
+daa_plot_p_adj_threshold <- 0.05
+daa_heatmap_effect_threshold <- 0.5
+daa_volcano_top_n <- 5
+```
+
+```{r}
 #| label: statistical_testing_differential_abundance_plots
 
 # Determine the effect size column name
@@ -111,7 +124,7 @@ if ("target" %in% colnames(differential_abundance_analysis)) {
 plot_data_base <- differential_abundance_analysis |>
   mutate(
     neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
-    significant = p_adj < 0.05,
+    significant = p_adj < daa_plot_p_adj_threshold,
     effect_size = !!sym(effect_size_col),
     marker = !!sym(feature_col)
   )
@@ -137,10 +150,10 @@ for (target_condition in target_conditions) {
 
   # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
   # This plot helps identify markers that are both significantly different and have large effect sizes
-  # Identify top 5 most extreme effect sizes per cell type for labeling
+  # Identify top N most extreme effect sizes per cell type for labeling
   top_markers_faceted <- plot_data |>
     group_by(group) |>
-    slice_max(order_by = abs(effect_size), n = 5) |>
+    slice_max(order_by = abs(effect_size), n = daa_volcano_top_n) |>
     ungroup()
 
   volcano_plot_differential_abundance <-
@@ -204,9 +217,9 @@ for (target_condition in target_conditions) {
       filter(group == cell_type)
 
     # Create non-faceted volcano plot for this cell type
-    # Identify top 5 most extreme effect sizes for labeling
+    # Identify top N most extreme effect sizes for labeling
     top_markers_cell_type <- cell_type_plot_data |>
-      slice_max(order_by = abs(effect_size), n = 5)
+      slice_max(order_by = abs(effect_size), n = daa_volcano_top_n)
 
     volcano_plot_cell_type <-
       cell_type_plot_data |>
@@ -263,7 +276,7 @@ for (target_condition in target_conditions) {
   significant_markers <-
     plot_data |>
     group_by(marker) |>
-    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
+    filter(any(significant) & any(abs(effect_size) > daa_heatmap_effect_threshold)) |>
     select(marker, group, effect_size) |>
     # Pivot to wide format for heatmap
     pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
@@ -370,6 +383,15 @@ Here we create two types of summarizing plots for the differential clustering an
 2. **Heatmap**: Displays significant markers (adjusted p-value < 0.05) across all cell types, with colors representing the effect size. This provides an overview of which markers are differentially clustered in which cell types.
 
 ```{r}
+#| label: statistical_testing_differential_clustering_plot_parameters
+
+# Significance and effect-size cutoffs used for volcano labels and heatmap filtering
+dclust_plot_p_adj_threshold <- 0.05
+dclust_heatmap_effect_threshold <- 0.5
+dclust_volcano_top_n <- 5
+```
+
+```{r}
 #| label: statistical_testing_differential_clustering_plots
 
 # Determine the effect size column name
@@ -393,7 +415,7 @@ if ("target" %in% colnames(differential_clustering_analysis)) {
 plot_data_base <- differential_clustering_analysis |>
   mutate(
     neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
-    significant = p_adj < 0.05,
+    significant = p_adj < dclust_plot_p_adj_threshold,
     effect_size = !!sym(effect_size_col),
     marker = !!sym(feature_col)
   )
@@ -419,10 +441,10 @@ for (target_condition in target_conditions) {
 
   # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
   # This plot helps identify markers that are both significantly different and have large effect sizes
-  # Identify top 5 most extreme effect sizes per cell type for labeling
+  # Identify top N most extreme effect sizes per cell type for labeling
   top_markers_faceted <- plot_data |>
     group_by(group) |>
-    slice_max(order_by = abs(effect_size), n = 5) |>
+    slice_max(order_by = abs(effect_size), n = dclust_volcano_top_n) |>
     ungroup()
 
   volcano_plot_differential_clustering <-
@@ -486,9 +508,9 @@ for (target_condition in target_conditions) {
       filter(group == cell_type)
 
     # Create non-faceted volcano plot for this cell type
-    # Identify top 5 most extreme effect sizes for labeling
+    # Identify top N most extreme effect sizes for labeling
     top_markers_cell_type <- cell_type_plot_data |>
-      slice_max(order_by = abs(effect_size), n = 5)
+      slice_max(order_by = abs(effect_size), n = dclust_volcano_top_n)
 
     volcano_plot_cell_type <-
       cell_type_plot_data |>
@@ -545,7 +567,7 @@ for (target_condition in target_conditions) {
   significant_markers <-
     plot_data |>
     group_by(marker) |>
-    filter(any(significant) & any(abs(effect_size) > 0.5)) |>
+    filter(any(significant) & any(abs(effect_size) > dclust_heatmap_effect_threshold)) |>
     select(marker, group, effect_size) |>
     # Pivot to wide format for heatmap
     pivot_wider(names_from = group, values_from = effect_size, values_fill = 0) |>
@@ -648,6 +670,16 @@ Here we create summarizing plots for the differential colocalization analysis re
 1. **Colocalization Heatmap**: Displays the difference in medians for marker pairs, with dot size representing statistical significance (-log10 adjusted p-value). This provides an overview of which marker pairs are differentially colocalized for each cell type and condition comparison.
 
 ```{r}
+#| label: statistical_testing_differential_colocalization_plot_parameters
+
+# Cutoffs for differential colocalization heatmaps
+dcoloc_plot_p_adj_threshold <- 0.001
+show_only_sign <- TRUE # Show only significant results (up to dcoloc_max_pairs)
+dcoloc_max_pairs <- 500
+dcoloc_top_markers <- 20
+```
+
+```{r}
 #| label: statistical_testing_differential_colocalization_plot
 
 # Determine target conditions - check if dataframe has target/contrast columns
@@ -663,8 +695,6 @@ if ("target" %in% colnames(differential_colocalization_analysis)) {
 unique_cell_types <- unique(differential_colocalization_analysis$group)
 unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
 
-show_only_sign <- TRUE # Show only significant results (p_adj < 0.001)
-
 # Loop through each target condition and cell type combination
 for (target_condition in target_conditions) {
   # Create directory name based on target and reference
@@ -677,14 +707,13 @@ for (target_condition in target_conditions) {
     dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
 
     # Filter data for this target and cell type
-    # Set diff_median to 0 for non-significant results (p_adj >= 0.001) to focus on highly significant changes
     plot_data <-
       differential_colocalization_analysis |>
       filter(group == cell_type & target == target_condition)
 
     plot_data <-
       plot_data |>
-      filter(p_adj < 0.001) |>
+      filter(p_adj < dcoloc_plot_p_adj_threshold) |>
       arrange(desc(abs(diff_median)))
 
     if (!show_only_sign) {
@@ -693,7 +722,7 @@ for (target_condition in target_conditions) {
         select(marker_1, marker_2) |>
         unlist() |>
         unique() |>
-        head(20)
+        head(dcoloc_top_markers)
 
       plot_data <-
         plot_data |>
@@ -704,7 +733,7 @@ for (target_condition in target_conditions) {
     } else {
       plot_data <-
         plot_data |>
-        head(500)
+        head(dcoloc_max_pairs)
     }
 
     # Skip if insufficient data for this combination

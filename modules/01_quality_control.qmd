@@ -431,12 +431,20 @@ Markers that sit at background levels add noise to PCA, UMAP, and clustering. `F
 **Customizing the marker list:** The kept markers are printed after the chunk. Add or remove names in `selected_markers` to match your experiment.
 
 ```{r}
-#| label: quality_control_select_markers
+#| label: quality_control_marker_selection_parameters
 
 isotype_markers <- c("mIgG1", "mIgG2a", "mIgG2b")
 isotype_ratio <- 1.5
 min_cell_fraction <- 0.05
 abundance_threshold <- NULL
+
+# Optional override: set to a character vector of marker names to use instead
+# of the automatic filter (or set to rownames(pg_data) to keep all markers).
+custom_selected_markers <- NULL
+```
+
+```{r}
+#| label: quality_control_select_markers
 
 marker_abundance <-
   FindAbundantMarkers(
@@ -477,17 +485,18 @@ export_plot(
 )
 
 selected_markers <-
-  marker_abundance |>
-  filter(kept) |>
-  pull(marker)
+  if (!is.null(custom_selected_markers)) {
+    custom_selected_markers
+  } else {
+    marker_abundance |>
+      filter(kept) |>
+      pull(marker)
+  }
 
-# Add or remove markers in selected_markers below.
-# To skip the filter and use every marker:
-#   selected_markers <- rownames(pg_data)
 message(
   "Selected ", length(selected_markers),
   " markers for dimensionality reduction (",
-  sum(!marker_abundance$kept), " dropped, including isotype controls)."
+  sum(!marker_abundance$kept), " dropped by abundance filter, including isotype controls)."
 )
 print(selected_markers)
 ```

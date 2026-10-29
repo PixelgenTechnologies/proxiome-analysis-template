@@ -32,6 +32,8 @@ These visualizations are valuable for quality control, marker validation, and ex
 **Note**: By default, only a selected subset of markers is plotted to keep runtime manageable. Adjust `markers_for_abundance_plots` to the markers relevant to your project.
 
 ```{r}
+#| label: abundance_plot_parameters
+
 # Markers to generate abundance distribution plots for. Replace with the markers
 # relevant to your project, e.g.: c("CD3e", "CD4", "CD8", "CD19", "CD56").
 # By default the first 10 markers are used as a placeholder only.
@@ -41,6 +43,10 @@ markers_for_abundance_plots <- rownames(pg_data)[seq_len(min(10, nrow(pg_data)))
 # Column used to facet the "per cell type" plots. Set to "condition" (default) to
 # facet by experimental condition, or "sample_alias" to facet by individual sample.
 abundance_plots_grouping_column <- "condition"
+```
+
+```{r}
+#| label: abundance_distribution_plots
 
 all_markers <- rownames(pg_data)
 

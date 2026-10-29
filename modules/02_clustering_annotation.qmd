@@ -47,14 +47,20 @@ If marker selection was performed in the Quality Control section, those selected
 Following PCA, Uniform Manifold Approximation and Projection (UMAP) is applied to visualize the data in a two-dimensional space. UMAP is a non-linear dimensionality reduction technique that preserves both local neighborhood structure and global relationships in the data. This makes it particularly well-suited for visualizing complex single-cell PNA datasets, where it can reveal cell type clusters and relationships that may not be apparent in higher-dimensional space. The number of neighbors is set to 30 by default, but can be adjusted as needed.
 
 ```{r}
-#| label: data_processing_dimensionality_reduction
+#| label: data_processing_dimensionality_reduction_parameters
 
 npcs <- 20
+umap_dims <- 1:20
 n_neighbors <- 30
+```
+
+```{r}
+#| label: data_processing_dimensionality_reduction
+
 pg_data <-
   pg_data |>
   RunPCA(npcs = npcs, features = selected_markers, seed.use = analysis_seed) |>
-  RunUMAP(reduction = "pca", dims = 1:20, n.neighbors = n_neighbors, seed.use = analysis_seed)
+  RunUMAP(reduction = "pca", dims = umap_dims, n.neighbors = n_neighbors, seed.use = analysis_seed)
 
 pca_red <-
   Reductions(pg_data, "pca")
@@ -131,16 +137,24 @@ The Harmony algorithm is used here to harmonize the data based on sample ID, tho
 The harmonization process generates a new dimensional reduction called "harmony", which is used for UMAP visualization and clustering. Importantly, the original data remains unchanged, so harmonization is used primarily to identify common cell identities across samples rather than to modify the underlying expression data.
 
 ```{r}
+#| label: data_processing_data_harmonization_parameters
+
+harmony_group_by_vars <- "sample_alias"
+harmony_dims <- 1:20
+```
+
+```{r}
 #| label: data_processing_data_harmonization
+
 pg_data <-
   pg_data |>
   RunHarmony(
-    group.by.vars = "sample_alias",
+    group.by.vars = harmony_group_by_vars,
     plot_convergence = FALSE
   ) |>
   RunUMAP(
     reduction = "harmony",
-    dims = 1:20,
+    dims = harmony_dims,
     reduction.name = "harmony_umap",
     n.neighbors = n_neighbors,
     seed.use = analysis_seed
@@ -195,12 +209,20 @@ Leiden clustering is performed on a k-nearest neighbor graph constructed from th
 The resolution parameter is a critical hyperparameter that controls the granularity of the clustering. Higher resolution values result in more fine-grained clusters (more clusters with fewer cells each), while lower values produce broader clusters (fewer clusters with more cells each). The optimal resolution depends on the dataset characteristics, experimental design, and the level of cellular heterogeneity expected. Users should test multiple resolution values (e.g., 0.3, 0.5, 0.7, 1.0) and visually inspect the resulting clusters on UMAP plots to determine which resolution best captures the expected cell type diversity without over-clustering or under-clustering the data. The resolution is set to 0.5 by default, but can be adjusted as needed.
 
 ```{r}
+#| label: data_processing_clustering_parameters
+
+clustering_reduction <- "harmony"
+clustering_dims <- 1:10
+clustering_resolution <- 0.5
+```
+
+```{r}
 #| label: data_processing_clustering
 
 pg_data <-
   pg_data |>
-  FindNeighbors(reduction = "harmony", dims = 1:10) |>
-  FindClusters(random.seed = analysis_seed, resolution = 0.5)
+  FindNeighbors(reduction = clustering_reduction, dims = clustering_dims) |>
+  FindClusters(random.seed = analysis_seed, resolution = clustering_resolution)
 
 cell_metadata <-
   FetchData(pg_data, c("sample_alias", "condition", "seurat_clusters")) |>
@@ -247,10 +269,14 @@ This section visualizes the distribution of markers of interest on the harmonize
 > Set `markers_of_interest` in the next chunk to the markers you want on UMAP for annotation (independent from the abundance heatmap section unless you choose to align them).
 
 ```{r}
-#| label: data_processing_marker_distribution_on_umap
+#| label: data_processing_umap_markers_parameters
 
 markers_of_interest <-
   c("CD3e", "CD4", "CD8", "CD19", "CD56", "CD14", "CD16", "HLA-DR", "CD11c", "CD123")
+```
+
+```{r}
+#| label: data_processing_marker_distribution_on_umap
 
 for (marker in markers_of_interest) {
   feature_plot <- FeaturePlot(pg_data, features = marker, reduction = "harmony_umap") &
@@ -472,6 +498,14 @@ The analysis generates two key visualizations to aid interpretation:
 By examining these differential abundance patterns in conjunction with known cell type marker expression profiles, users can systematically identify cell types. The process involves: (1) identifying clusters with characteristic marker combinations, (2) comparing these patterns to established cell type markers, (3) confirming or adjusting automated annotations based on the observed expression patterns, and (4) identifying cell populations that may not be well-represented in the reference dataset. This evidence-based approach complements automated annotation and significantly improves confidence in cell type assignments.
 
 ```{r}
+#| label: data_processing_manual_annotation_parameters
+
+cluster_marker_p_adj_threshold <- 0.05
+cluster_marker_diff_threshold <- 1
+cluster_volcano_top_n <- 5
+```
+
+```{r}
 #| label: data_processing_manual_annotation
 
 diff_abundant_markers_cluster <-
@@ -489,10 +523,22 @@ diff_abundant_markers_cluster <-
   as_tibble() |>
   rename(marker = gene)
 
+# Write differential abundance markers per cluster to csv
+dir.create(
+  here::here("results/02_clustering_annotation/annotation_plots/cluster_specific_markers"),
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+write_csv(diff_abundant_markers_cluster, here::here("results/02_clustering_annotation/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster.csv"))
+```
+
+```{r}
+#| label: data_processing_manual_annotation_plots
+
 # Heatmap of differential abundance markers per cluster
 diff_abundant_markers_cluster |>
   group_by(marker) |>
-  filter(any(p_val_adj < 0.05 & difference > 1)) |>
+  filter(any(p_val_adj < cluster_marker_p_adj_threshold & difference > cluster_marker_diff_threshold)) |>
   select(marker, difference, cluster) |>
   pivot_wider(names_from = cluster, values_from = difference, values_fill = 0) |>
   column_to_rownames("marker") |>
@@ -522,7 +568,7 @@ diff_abundant_markers_cluster |>
   geom_text(
     data = ~ .x |>
       group_by(cluster) |>
-      top_n(5, abs(difference)),
+      top_n(cluster_volcano_top_n, abs(difference)),
     aes(label = marker),
     vjust = -0.5,
     size = 2
@@ -549,9 +595,6 @@ export_plot(
   width = 8,
   height = 6
 )
-
-# Write differential abundance markers per cluster to csv
-write_csv(diff_abundant_markers_cluster, here::here("results/02_clustering_annotation/annotation_plots/cluster_specific_markers/data_processing_differential_abundance_markers_per_cluster.csv"))
 ```
 
 ### 2.6.3. Marker abundance visualization
@@ -562,10 +605,14 @@ Here we visualize the abundance of **selected markers** across the harmonized UM
 > Edit `markers_of_interest` in the next chunk (can match the FeaturePlot markers above or a tighter set for heatmaps).
 
 ```{r}
-#| label: data_processing_marker_abundance_visualization
+#| label: data_processing_abundance_markers_parameters
 
 # Change markers_of_interest to the markers of interest for your dataset
 markers_of_interest <- c("CD3e", "CD4", "CD8", "CD19", "CD14", "CD16", "CD56")
+```
+
+```{r}
+#| label: data_processing_marker_abundance_visualization
 
 plot_data <-
   FetchData(
@@ -658,7 +705,7 @@ Clusters are mapped to cell types using a named vector. Multiple clusters can sh
 The example annotations provided here are placeholders. You should review the available evidence and adapt them to your dataset before proceeding. Alternatively, if you wish to use the automatic annotations without modification, you can skip this step and e.g. use the `l1_annotation_summary` column for downstream analyses instead of `manual_cell_annotation`.
 
 ```{r}
-#| label: data_processing_set_manual_annotation
+#| label: data_processing_cluster_vs_l1_heatmap
 
 # Inspect the automatic annotation results to inform manual annotation
 # The `l1_annotation` and `l2_annotation` columns contain the automatic annotation per each individual cell,
@@ -691,6 +738,10 @@ ComplexHeatmap::pheatmap(
   cellheight = 8,
   heatmap_legend_param = list(title = "% of cells")
 )
+```
+
+```{r}
+#| label: data_processing_set_manual_annotation
 
 # Specify cell annotation labels for each cluster
 # (These are example annotations and should be changed according to your dataset)
@@ -711,6 +762,10 @@ cluster_cell_annotation <-
     "12" = "B",
     "13" = "DC"
   )
+```
+
+```{r}
+#| label: data_processing_apply_manual_annotation
 
 # Add annotation to Seurat object
 pg_data[[]] <-
@@ -910,13 +965,21 @@ After performing both automatic and manual annotation (either through cluster-ba
 In this tutorial, we will proceed using the automatic annotation because it does not require additional user input and therefore keeps the workflow fully reproducible within the notebook. In practice, however, it is generally recommended to rely on manual annotation, as it allows for incorporation of biological knowledge and experiment context when assigning cell types. 
 
 ```{r}
+#| label: annotation_choose_annotation_parameters
+
+# Column from pg_data[[]] used as the final cell_annotation.
+# Exchange "l1_annotation_summary" with "manual_cell_annotation" (or "cd4_subtype")
+# to use your manual or gated annotations downstream.
+selected_annotation_column <- "l1_annotation_summary"
+```
+
+```{r}
 #| label: annotation_choose_annotation
 
 pg_data[[]] <-
   pg_data[[]] |>
   mutate(
-    # To use the manual annotation instead, exchange `l1_annotation_summary` with `manual_cell_annotation` in the line below
-    cell_annotation = l1_annotation_summary
+    cell_annotation = .data[[selected_annotation_column]]
   )
 
 
@@ -1002,13 +1065,18 @@ To identify such markers, we employ Partial Least Squares (PLS) regression, whic
 We utilize the `isotype_pls` helper function to perform the PLS regression. The function takes as input the isotype markers, a model matrix to account for sample-level covariates, and options to specify the data layer and whether to remove covariate effects. The output includes both the background scores for each cell and the loadings for each marker.
 
 ```{r}
-#| label: statistical_testing_marker_selection
+#| label: statistical_testing_marker_selection_parameters
 
-cell_annotation_column <-
-  "cell_annotation"
-isotype_markers <-
-  c("mIgG1", "mIgG2a", "mIgG2b")
+cell_annotation_column <- "cell_annotation"
+isotype_markers <- c("mIgG1", "mIgG2a", "mIgG2b")
 minimum_cell_count <- 5 # Minimum number of cells per sample to include in statistical testing
+low_sd_multiplier <- 3
+high_sd_multiplier <- 10
+bg_loading_threshold <- 0.05
+```
+
+```{r}
+#| label: statistical_testing_marker_selection
 
 cell_data <-
   FetchData(
@@ -1194,9 +1262,9 @@ abundance_data_per_celltype <-
     )
   ) |>
   mutate(
-    is_low = mean_abundance < mean_isotype + 3 * sd_isotype,
-    is_high = mean_abundance > mean_isotype + 10 * sd_isotype,
-    is_noisy = bg_loading > 0.05,
+    is_low = mean_abundance < mean_isotype + low_sd_multiplier * sd_isotype,
+    is_high = mean_abundance > mean_isotype + high_sd_multiplier * sd_isotype,
+    is_noisy = bg_loading > bg_loading_threshold,
     passed_filter = case_when(
       is_low ~ "Not passed",
       is_high ~ "Passed",

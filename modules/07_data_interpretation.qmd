@@ -194,9 +194,17 @@ For each protein set (cell type × contrast × direction), UniProt IDs are teste
 Plots: a term overview bar chart, then a term × marker map where each point marks membership, colored by condition effect size and sized by significance.
 
 ```{r}
-#| label: module07_enrichment
+#| label: module07_enrichment_parameters
 
 top_n_terms <- 10
+enrichment_pvalue_cutoff <- 0.05
+enrichment_qvalue_cutoff <- 0.2
+enrichment_min_gs_size <- 2
+enrichment_max_gs_size <- 500
+```
+
+```{r}
+#| label: module07_enrichment
 
 safe_plot_stem <- function(...) {
   gsub("[^A-Za-z0-9._-]+", "_", paste(..., sep = "__"))
@@ -225,7 +233,7 @@ term2name <-
   rename(term = go_id, name = Term)
 
 enrich_one_set <- function(ids) {
-  if (length(ids) < 2) {
+  if (length(ids) < enrichment_min_gs_size) {
     return(NULL)
   }
   res <- tryCatch(
@@ -234,10 +242,10 @@ enrich_one_set <- function(ids) {
       universe = panel_uniprot_universe,
       TERM2GENE = go_ann,
       TERM2NAME = term2name,
-      pvalueCutoff = 0.05,
-      qvalueCutoff = 0.2,
-      minGSSize = 2,
-      maxGSSize = 500
+      pvalueCutoff = enrichment_pvalue_cutoff,
+      qvalueCutoff = enrichment_qvalue_cutoff,
+      minGSSize = enrichment_min_gs_size,
+      maxGSSize = enrichment_max_gs_size
     ),
     error = function(e) NULL
   )
@@ -249,7 +257,7 @@ enrich_one_set <- function(ids) {
 
 enrichment_results <-
   protein_sets |>
-  filter(n_uniprot >= 2) |>
+  filter(n_uniprot >= enrichment_min_gs_size) |>
   mutate(enrich = map(uniprot_ids, enrich_one_set)) |>
   filter(!map_lgl(enrich, is.null)) |>
   select(source, group, target, direction, enrich) |>
