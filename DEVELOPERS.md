@@ -116,7 +116,7 @@ When the smoke test runs, CI downloads donors 1 and 3 from the public [16 health
 
 1. Update each row’s `url`, `path`, and `md5` in `dataset.tsv` (MD5s are listed on the [dataset page](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/)).
 2. Update `file_path` (and aliases if needed) in `data/metadata.csv`.
-3. Keep `condition` values in sync with module `05` `reference_condition` (example uses `donor1` / `donor3` because both samples are resting).
+3. Ensure `condition` values in `data/metadata.csv` work with module `05` `reference_condition` (which defaults to `metadata[[contrast_column]][1]`; example uses `donor1` / `donor3` because both samples are resting).
 
 ---
 
