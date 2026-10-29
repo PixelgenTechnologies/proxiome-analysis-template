@@ -9,8 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional limma pseudobulk module `05b` for abundance, clustering, and colocalization (mean CLR / mean `log2_ratio`), written under `pseudobulk/` next to the module `05a` Wilcoxon tables in `cell_level/`. Module 07 selects them with `stats_method`. Adds the `limma` dependency.
-- The HTML smoke test also renders `05a` and `05b` with `--no-execute` and checks that both HTML files exist.
+- Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
+- Module `05_statistical_testing.md` now split in two modules; cell-level testing in `05a_statistical_testing_cell_level.qmd` and pseudobulking in `05b_statistical_testing_pseudobulk.qmd`.
+
+### Fixed
+
+- Module `04` per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
+
+## [0.7.0] 2026-10-23
+
+### Changed
+
+- Module `01` selects clustering markers with `FindAbundantMarkers` (above 1.5× the median isotype CPM in at least 5% of cells; isotype controls excluded).
+- PXL loading requests detailed cell metadata so quality control still has graph columns such as `k_core_1`.
+- `pixelatorR` 0.23.0 or higher is required. The Docker base image is `pixelatorr:0.23.0`.
+- Module `01` molecule rank plots now use `MoleculeRankPlot` with the UMI thresholds, `split` and `rug` instead of the hand-built annotated plot.
 
 ## [0.6.4] 2026-09-18
 
