@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
+- Module `05_statistical_testing.md` now split in two modules; cell-level testing in `05a_statistical_testing_cell_level.qmd` and pseudobulking in `05b_statistical_testing_pseudobulk.qmd`.
 
 ### Fixed
 
