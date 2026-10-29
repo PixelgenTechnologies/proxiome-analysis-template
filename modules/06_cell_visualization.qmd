@@ -39,18 +39,11 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 ## 6.2. Select cells
 
-<<<<<<< HEAD
 How you pick a cell to visualize depends mainly on what you want to highlight in the visualization. It could be the spatial pattern on a typical cell, a polarized marker, a colocalization pattern, or a cell–cell conjugate. Often, it is therefore useful to filter or order the cells based on the colocalization score or a certain number of join counts, so that only cells with a certain level of colocalization and abundance would be included in the visualization.
-=======
-How you pick cells depends on what you want to show — the shape of typical cells, a
-polarized marker, a colocalization pattern, or a cell–cell conjugate. Below we just
-take a few cells of one type; change the selection to suit your question.
->>>>>>> c8eae53 (Reverted changes in cell visualization module)
 
 ```{r}
 #| label: cell_viz_select_cells
 
-<<<<<<< HEAD
 # Here we select the cell with the highest colocalization score and a certain number of join counts.
 sel_cells <- pg_data |>
   subset(cell_annotation == cell_type_of_interest) |>
@@ -68,15 +61,6 @@ sel_cells <- pg_data |>
 cell_of_interest <- sel_cells$component
 if (length(cell_of_interest) != 1) {
   stop("No '", cell_type_of_interest, "' cells pass the selection filter.")
-=======
-cells_of_interest <-
-  WhichCells(pg_data, expression = cell_annotation == cell_type_of_interest) |>
-  head(n_cells)
-
-if (length(cells_of_interest) == 0) {
-  stop("No cells found for '", cell_type_of_interest,
-       "'. Check the values in `cell_annotation`.")
->>>>>>> c8eae53 (Reverted changes in cell visualization module)
 }
 ```
 
@@ -98,7 +82,6 @@ A 2D projection of one cell, with the nodes colored by the presence of a specifi
 ```{r}
 #| label: cell_viz_single_marker_presence
 
-<<<<<<< HEAD
 # Remove any existing graphs and load the cell of interest. Compute 3D coordinates according to the spectral layout method.
 pg_data <- pg_data |>
   RemoveCellGraphs() |>
@@ -107,22 +90,6 @@ pg_data <- pg_data |>
 
 # Fetch the coordinates and count data for the cell of interest.
 layout_counts <- FetchLayoutData(
-=======
-pg_data <- LoadCellGraphs(pg_data, cells = cells_of_interest,
-                          add_layouts = TRUE, verbose = FALSE)
-pg_data <- ComputeLayout(pg_data, layout_method = "cpmds")  # for the 3D view
-```
-
-## 6.4. 2D graph (markers × cells)
-
-`Plot2DGraphM` draws one row per marker and one column per cell, coloured by marker
-abundance. Colocalizing markers light up the same regions across cells.
-
-```{r}
-#| label: cell_viz_2d
-
-p_2d <- Plot2DGraphM(
->>>>>>> c8eae53 (Reverted changes in cell visualization module)
   pg_data,
   cells = cell_of_interest,
   layout_method = "spectral_3d",
@@ -147,7 +114,6 @@ export_plot(
 )
 ```
 
-<<<<<<< HEAD
 The same plot recipe can be opened as an interactive 3D view. `cell_plot_interactive()` keeps the colors and the layout from the chunk above. Drag to rotate and scroll to zoom. 
 
 ```{r}
@@ -157,12 +123,6 @@ The same plot recipe can be opened as an interactive 3D view. `cell_plot_interac
 p_counts |>
   cell_plot_interactive()
 ```
-=======
-## 6.5. Interactive 3D graph (one cell)
-
-`Plot3DGraph` renders an interactive 3D view of one cell for one marker. Change
-`cell_id` and `marker` to explore others.
->>>>>>> c8eae53 (Reverted changes in cell visualization module)
 
 ## 6.5. Single cell - coloured by local proximity score
 
@@ -181,7 +141,6 @@ pg_data <- pg_data |>
 # Fetch the coordinates and local proximity scores for the cell and marker of interest.
 layout_lps <- FetchLayoutData(
   pg_data,
-<<<<<<< HEAD
   cells = cell_of_interest,
   layout_method = "spectral_3d",
   vars = "CD82",
@@ -202,11 +161,6 @@ print(p_lps)
 export_plot(
   filename = file.path(out_dir, paste0(cell_type_of_interest, "_", cell_of_interest, "_lps")),
   plot = autoplot(p_lps)
-=======
-  cell_id       = cells_of_interest[1],
-  marker        = markers_to_viz[1],
-  layout_method = "cpmds_3d"
->>>>>>> c8eae53 (Reverted changes in cell visualization module)
 )
 ```
 
@@ -216,7 +170,6 @@ Again, the same plot recipe can be opened as an interactive 3D view.
 #| label: cell_viz_single_marker_lps_interactive
 #| eval: false
 
-<<<<<<< HEAD
 p_lps |>
   cell_plot_interactive()
 ```
@@ -483,24 +436,3 @@ layout_lps |>
     boomerang = TRUE
   )
 ```
-=======
-cg <- CellGraphs(pg_data)[[cells_of_interest[1]]]
-
-plot_data <-
-  cg@layout$cpmds_3d |>
-  mutate(node_val = cg@counts[, markers_to_viz[1]])
-
-render_rotating_layout(
-  plot_data,
-  file = here::here("results/06_cell_visualization",
-                    paste0(cell_type_of_interest, "_3d_rotation.gif")),
-  colors           = c("gray90", "orangered"),
-  pt_size          = 0.5,
-  frames           = 20,
-  max_degree       = 20,
-  boomerang        = TRUE,
-  use_illumination = TRUE,
-  show_first_frame = FALSE
-)
-```
->>>>>>> c8eae53 (Reverted changes in cell visualization module)
