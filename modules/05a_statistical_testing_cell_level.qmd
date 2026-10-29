@@ -68,36 +68,6 @@ save_diff_results <- function(df, modality, level, basename) {
   invisible(out_dir)
 }
 
-# Create an empty table that module 07 expects when no results are available; depending on the modality, the table will have different columns.
-empty_diff_results <- function(kind = c("abundance", "proximity")) {
-  kind <- match.arg(kind)
-  shared <- tibble(
-    p = numeric(),
-    target = character(),
-    reference = character(),
-    method = character(),
-    group = character(),
-    p_adj = numeric()
-  )
-  if (identical(kind, "abundance")) {
-    bind_cols(tibble(marker = character(), difference = numeric()), shared)
-  } else {
-    bind_cols(
-      tibble(marker_1 = character(), marker_2 = character(), diff_median = numeric()),
-      shared
-    )
-  }
-}
-
-# Ensure this empty dataframe has the expected columns; this is a safety check to ensure that the empty table has the correct columns for the given modality
-ensure_diff_result_schema <- function(df, kind, label = "differential results") {
-  if (is.data.frame(df) && ncol(df) > 0L) {
-    return(df)
-  }
-  message("No ", label, "; writing an empty table with the expected columns.")
-  empty_diff_results(kind)
-}
-
 # Helper function for BH p-value adjustment within cell type × contrast (not across the whole table)
 adjust_global_fdr <- function(df) {
   if (!is.data.frame(df) || nrow(df) == 0L || !"p" %in% names(df)) {
@@ -607,10 +577,6 @@ differential_abundance_analysis <-
     )
   }) |>
   bind_rows() |>
-  ensure_diff_result_schema(
-    "abundance",
-    label = "cell-level abundance results"
-  ) |>
   adjust_global_fdr()
 
 save_diff_results(
@@ -692,10 +658,6 @@ differential_clustering_analysis <-
     )
   }) |>
   bind_rows() |>
-  ensure_diff_result_schema(
-    "proximity",
-    label = "cell-level clustering results"
-  ) |>
   adjust_global_fdr()
 
 save_diff_results(
@@ -781,10 +743,6 @@ differential_colocalization_analysis <-
     )
   }) |>
   bind_rows() |>
-  ensure_diff_result_schema(
-    "proximity",
-    label = "cell-level colocalization results"
-  ) |>
   adjust_global_fdr()
 
 # Clean up memory
