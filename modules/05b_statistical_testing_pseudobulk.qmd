@@ -132,10 +132,9 @@ summary_abundance_data <-
   }) |>
   bind_rows()
 
-# abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "pseudobulk")
-# dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
-# write_rds(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.rds"))
-# write_csv(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.csv"))
+abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "pseudobulk")
+dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
+write_rds(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.rds"))
 ```
 
 #### Proximity Summary
@@ -169,10 +168,9 @@ summary_proximity_data <- names(markers_to_test) |>
   }) |>
   bind_rows()
 
-#proximity_dir <- here::here("results", "05_statistical_testing", "proximity", "pseudobulk")
-#dir.create(proximity_dir, recursive = TRUE, showWarnings = FALSE)
-#write_rds(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.rds"))
-#write_csv(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.csv"))
+proximity_dir <- here::here("results", "05_statistical_testing", "proximity", "pseudobulk")
+dir.create(proximity_dir, recursive = TRUE, showWarnings = FALSE)
+write_rds(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.rds"))
 ```
 
 ## 5.1. Differential abundance analysis
@@ -188,10 +186,10 @@ n_per_condition <- pg_data[[]] |>
   distinct(.data$sample_alias, .data[[contrast_column]]) |>
   count(.data[[contrast_column]]) |>
   pull(n)
+
 if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
   warning("Skipping pseudobulk abundance: need ≥2 sample_alias per condition.", call. = FALSE)
 } else {
-  # Covariates besides the contrast column itself and sample_alias.
   covariate_cols <- setdiff(as.character(pseudobulk_covariate_cols), c(contrast_column, "sample_alias"))
 
   differential_abundance_analysis_pseudobulk <-
@@ -201,8 +199,6 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
         {
           agg <- summary_abundance_data |> filter(group == cell_type)
 
-          # One row per sample. Sourced from pg_data (not agg), so this also
-          # works below for proximity tables that drop the contrast column.
           sample_info <- pg_data[[]] |>
             as_tibble() |>
             transmute(
@@ -334,7 +330,7 @@ if (
       clr_mat,
       color = PixelgenGradient(100, "BluesCherry"),
       name = "CLR z-score",
-      main = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+      main = cell_type
     ) |>
       as.ggplot()
     export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
@@ -526,7 +522,7 @@ if (
       prox_mat,
       color = PixelgenGradient(100, "BluesCherry"),
       name = "log2_ratio z-score",
-      main = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+      main = cell_type
     ) |>
       as.ggplot()
     export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
@@ -718,7 +714,7 @@ if (
       prox_mat,
       color = PixelgenGradient(100, "BluesCherry"),
       name = "log2_ratio z-score",
-      main = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+      main = cell_type
     ) |>
       as.ggplot()
     export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)

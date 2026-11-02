@@ -261,7 +261,7 @@ walk(unique(plot_data$group), function(cell_type) {
     clr_mat,
     color = PixelgenGradient(100, "BluesCherry"),
     name = "CLR z-score",
-    main = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+    main = cell_type
   ) |>
     as.ggplot()
   export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
@@ -399,7 +399,7 @@ walk(unique(plot_data$group), function(cell_type) {
     prox_mat,
     color = PixelgenGradient(100, "BluesCherry"),
     name = "log2_ratio z-score",
-    main = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+    main = cell_type
   ) |>
     as.ggplot()
   export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
@@ -537,7 +537,7 @@ walk(unique(plot_data$group), function(cell_type) {
     prox_mat,
     color = PixelgenGradient(100, "BluesCherry"),
     name = "log2_ratio z-score",
-    main = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+    main = cell_type
   ) |>
     as.ggplot()
   export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
