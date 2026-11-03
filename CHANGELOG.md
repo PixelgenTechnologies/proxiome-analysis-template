@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reordered the analysis modules so statistical testing runs before abundance and proximity: `01_quality_control` → `02_clustering_annotation` → `03_statistical_testing` → `04_abundance` → `05_proximity` (previously `03_abundance` → `04_proximity` → `05_statistical_testing`).
+- Modules `04` (abundance) and `05` (proximity) still plot every selected marker regardless of significance, but now warn, per cell type and comparison, when none of the plotted markers were found significant in module `03`'s results (if that module has already been run), instead of silently producing an uninformative plot.
 - Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
 
 ### Added

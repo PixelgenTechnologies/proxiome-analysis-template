@@ -93,6 +93,105 @@ load_checkpoint <- function(name, required = TRUE) {
   readRDS(path)
 }
 
+#' Load a module `03` statistical testing results table, if it exists
+#'
+#' Module `03` (statistical testing) now runs before modules `04` (abundance)
+#' and `05` (proximity), so both can optionally check their plotted markers
+#' against module `03` results. Module `03` remains independent otherwise
+#' (its outputs are plain `.rds` files under `results/03_statistical_testing/`,
+#' not a `results/checkpoint_data/` checkpoint), so this returns `NULL`
+#' instead of erroring when module `03` has not been run yet.
+#'
+#' @param relative_path Path to the `.rds` file, relative to the project root
+#'   (e.g. `"results/03_statistical_testing/abundance/differential_abundance_analysis.rds"`).
+#' @return The deserialized object, or `NULL` if the file does not exist.
+#' @noRd
+load_statistical_testing_results <- function(relative_path) {
+  path <- here::here(relative_path)
+  if (!file.exists(path)) {
+    return(NULL)
+  }
+  return(readRDS(path))
+}
+
+#' Warn when none of the plotted markers were significant in module `03`
+#'
+#' Modules `04` (abundance) and `05` (proximity) plot every marker the user
+#' selected, regardless of whether module `03` (statistical testing) found it
+#' significant - no outputs are suppressed. This helper adds a safety net on
+#' top of that: for each cell type / comparison combination in a module `03`
+#' results table, it checks whether at least one of the currently selected
+#' markers was significant, and raises a `warning()` for every combination
+#' where none were. This flags likely-uninformative plots instead of letting
+#' them pass silently.
+#'
+#' @param stats_results A module `03` results tibble (e.g.
+#'   `differential_abundance_analysis`), with a `group` column (cell type),
+#'   optionally a `target` column (comparison), a `p_adj` column, and one or
+#'   more marker identifier columns. `NULL` (module `03` not yet run) is
+#'   allowed and simply skips the check.
+#' @param marker_cols Character vector naming the marker identifier column(s)
+#'   in `stats_results`, e.g. `"marker"` or `c("marker_1", "marker_2")`.
+#' @param selected_markers Character vector of markers that will actually be
+#'   plotted in the current section.
+#' @param p_adj_threshold Significance cutoff applied to `p_adj`. Default `0.05`.
+#' @param analysis_label Short, human-readable label for the statistical test
+#'   used in the warning message, e.g. `"differential abundance"`.
+#' @return Invisibly, a tibble with one row per flagged cell type / comparison
+#'   combination (empty if none were flagged).
+#' @noRd
+warn_if_no_significant_markers <- function(stats_results,
+                                            marker_cols,
+                                            selected_markers,
+                                            p_adj_threshold = 0.05,
+                                            analysis_label = "statistical testing") {
+  if (is.null(stats_results) || nrow(stats_results) == 0 || length(selected_markers) == 0) {
+    return(invisible(tibble()))
+  }
+
+  grouping_cols <- intersect(c("group", "target"), colnames(stats_results))
+  if (length(grouping_cols) == 0) {
+    return(invisible(tibble()))
+  }
+
+  marker_selected <- Reduce(
+    `|`,
+    lapply(marker_cols, function(col) stats_results[[col]] %in% selected_markers)
+  )
+
+  flagged <-
+    stats_results |>
+    mutate(marker_selected = marker_selected) |>
+    group_by(across(all_of(grouping_cols))) |>
+    summarise(
+      any_significant = any(marker_selected & p_adj < p_adj_threshold, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    filter(!any_significant) |>
+    select(-any_significant)
+
+  if (nrow(flagged) > 0) {
+    pwalk(flagged, function(...) {
+      combo <- list(...)
+      combo_label <- paste(
+        paste(names(combo), unlist(combo), sep = " = "),
+        collapse = ", "
+      )
+      warning(
+        glue::glue(
+          "None of the markers selected for plotting reached significance ",
+          "(p_adj < {p_adj_threshold}) in the module `03` {analysis_label} results ",
+          "for {combo_label}. The plot below is still generated from all selected ",
+          "markers, but it may not show any significant findings."
+        ),
+        call. = FALSE
+      )
+    })
+  }
+
+  return(invisible(flagged))
+}
+
 suppressPackageStartupMessages({
   library(tidyverse)
   library(Seurat)
