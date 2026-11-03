@@ -1,12 +1,12 @@
-# 5. Statistical testing
+# 3. Statistical testing
 
-**Module 05 — Statistical testing (optional).** Differential abundance, clustering, and colocalization tests. Skip this module if you do not need formal comparisons. Run the first chunk below after module `02` has finished.
+**Module 03 — Statistical testing.** Differential abundance, clustering, and colocalization tests. Running this before modules `04` (abundance) and `05` (proximity) means those modules can flag, per cell type and comparison, when none of the markers they plot were found significant here. Run the first chunk below after module `02` has finished.
 
 ```{r}
-#| label: module05_setup
+#| label: module03_setup
 
 library(here)
-here::i_am("modules/05_statistical_testing.qmd")
+here::i_am("modules/03_statistical_testing.qmd")
 
 source(here::here("modules", "common_setup.R"))
 
@@ -18,10 +18,10 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 }
 ```
 
-## 5.0. Set reference sample
+## 3.0. Set reference sample
 
 > **Decision checkpoint** (statistical contrasts)  
-> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in module `05` use this baseline.
+> Set `reference_condition` to one of the values in `metadata$condition`. All `{target}_vs_{reference}` outputs in module `03` use this baseline.
 
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. This allows us to identify markers that are differentially abundant or spatially clustered or colocalized in stimulated or treated conditions compared to the baseline state. 
 
@@ -38,7 +38,7 @@ if (!reference_condition %in% metadata$condition) stop("The reference condition 
 ```
 
 
-## 5.1. Differential abundance analysis
+## 3.1. Differential abundance analysis
 
 Differential abundance analysis identifies markers that exhibit statistically significant differences in expression levels between experimental conditions. This analysis is essential for understanding how experimental treatments, disease states, or other conditions affect protein expression patterns within specific cell types.
 
@@ -73,16 +73,16 @@ differential_abundance_analysis <-
   bind_rows() |>
   mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
-dir.create(here::here("results/05_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here::here("results/03_statistical_testing/abundance"), recursive = TRUE, showWarnings = FALSE)
 
 # Save the differential abundance analysis results to a file
-saveRDS(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.rds"))
+saveRDS(differential_abundance_analysis, here::here("results/03_statistical_testing/abundance/differential_abundance_analysis.rds"))
 
 # Save the differential abundance analysis results to a csv file
-write.csv(differential_abundance_analysis, here::here("results/05_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
+write.csv(differential_abundance_analysis, here::here("results/03_statistical_testing/abundance/differential_abundance_analysis.csv"), row.names = FALSE)
 ```    
 
-### 5.1.1. Summarizing plots
+### 3.1.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential abundance analysis results:
 
@@ -146,7 +146,7 @@ for (target_condition in target_conditions) {
 
   # Create directory name based on target and reference
   comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-  base_output_dir <- here::here("results/05_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
+  base_output_dir <- here::here("results/03_statistical_testing/abundance/differential_abundance_plots", comparison_dir)
 
   # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
   # This plot helps identify markers that are both significantly different and have large effect sizes
@@ -320,7 +320,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.2. Differential Clustering Analysis
+## 3.2. Differential Clustering Analysis
 
 Differential clustering analysis identifies markers that exhibit statistically significant differences in spatial clustering patterns between experimental conditions. In this context, "clustering" refers to the spatial aggregation of a marker with itself—that is, the extent to which a marker tends to form clusters or aggregates within cells rather than being uniformly distributed.
 
@@ -364,17 +364,17 @@ differential_clustering_analysis <-
   bind_rows() |>
   mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
-dir.create(here::here("results/05_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here::here("results/03_statistical_testing/clustering"), recursive = TRUE, showWarnings = FALSE)
 
 # Save the differential abundance analysis results to a file
-saveRDS(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.rds"))
+saveRDS(differential_clustering_analysis, here::here("results/03_statistical_testing/clustering/differential_clustering_analysis.rds"))
 
 # Save the differential abundance analysis results to a csv file
-write.csv(differential_clustering_analysis, here::here("results/05_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
+write.csv(differential_clustering_analysis, here::here("results/03_statistical_testing/clustering/differential_clustering_analysis.csv"), row.names = FALSE)
 ```
 
 
-### 5.2.1. Summarizing plots
+### 3.2.1. Summarizing plots
 
 Here we create two types of summarizing plots for the differential clustering analysis results:
 
@@ -437,7 +437,7 @@ for (target_condition in target_conditions) {
 
   # Create directory name based on target and reference
   comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-  base_output_dir <- here::here("results/05_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
+  base_output_dir <- here::here("results/03_statistical_testing/clustering/differential_clustering_plots", comparison_dir)
 
   # Plot 1: Volcano plot showing effect size vs significance, faceted by cell type
   # This plot helps identify markers that are both significantly different and have large effect sizes
@@ -611,7 +611,7 @@ for (target_condition in target_conditions) {
 }
 ```
 
-## 5.3. Differential Colocalization Analysis
+## 3.3. Differential Colocalization Analysis
 
 Differential colocalization analysis identifies markers that exhibit statistically significant differences in spatial proximity patterns between experimental conditions. The analysis is performed separately for each cell type, comparing colocalization patterns between target and reference conditions. A statistical test is used to assess whether the distribution of colocalization scores (log2 ratio of observed versus expected proximity) differs significantly between conditions. Multiple testing correction is applied using FDR to control for the number of statistical tests performed across markers and cell types.
 
@@ -654,16 +654,16 @@ differential_colocalization_analysis <-
   bind_rows() |>
   mutate(p_adj = p.adjust(p, method = "fdr")) # recalculate the adjusted p values after multiple testing correction for all comparisons, not only per cell type
 
-dir.create(here::here("results/05_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here::here("results/03_statistical_testing/colocalization"), recursive = TRUE, showWarnings = FALSE)
 
 # Save the differential abundance analysis results to a file
-saveRDS(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"))
+saveRDS(differential_colocalization_analysis, here::here("results/03_statistical_testing/colocalization/differential_colocalization_analysis.rds"))
 
 # Save the differential abundance analysis results to a csv file
-write.csv(differential_colocalization_analysis, here::here("results/05_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
+write.csv(differential_colocalization_analysis, here::here("results/03_statistical_testing/colocalization/differential_colocalization_analysis.csv"), row.names = FALSE)
 ```
 
-### 5.3.1. Summarizing plots
+### 3.3.1. Summarizing plots
 
 Here we create summarizing plots for the differential colocalization analysis results:
 
@@ -699,7 +699,7 @@ unique_cell_types <- unique_cell_types[!is.na(unique_cell_types)]
 for (target_condition in target_conditions) {
   # Create directory name based on target and reference
   comparison_dir <- paste0(target_condition, "_vs_", reference_condition)
-  base_output_dir <- here::here("results/05_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
+  base_output_dir <- here::here("results/03_statistical_testing/colocalization/differential_colocalization_plots", comparison_dir)
 
   for (cell_type in unique_cell_types) {
     # Create directory for this cell type

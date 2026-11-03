@@ -1056,7 +1056,7 @@ export_plot(
 ### 2.6.8. Marker selection per cell type
 
 > **Decision checkpoint** (which markers enter differential testing)  
-> The PLS and filter logic below defines `markers_to_test` for modules `04`–`05`. Adjust `isotype_markers` if your panel differs (defaults are mouse isotypes; use your human isotype controls for human panels). Review the scatter plot and heatmaps before trusting exclusions.
+> The PLS and filter logic below defines `markers_to_test` for modules `03` and `05`. Adjust `isotype_markers` if your panel differs (defaults are mouse isotypes; use your human isotype controls for human panels). Review the scatter plot and heatmaps before trusting exclusions.
 
 When later performing statistical tests, we want to guide our attention to markers that are more likely to be truly positive signals rather than markers than show background signal. For a given cell type, e.g. CD4 T cells, we can assume that most B cell markers should not be present. Therefore, we want to identify markers that are mostly associated with background signal across each cell type, so that we can disregard them in downstream analyses. 
 

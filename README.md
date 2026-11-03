@@ -8,7 +8,7 @@
 [![Quarto](https://img.shields.io/badge/Quarto-Document-purple)](https://quarto.org/)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-green.svg)](LICENSE.md)
 
-*Analyze PNA data from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline with quality control, clustering, annotation, and publication-ready visualizations.*
+*Analyze PNA data from the [nf-core/pixelator](https://nf-co.re/pixelator) pipeline with quality control, clustering, annotation, statistical testing, and publication-ready visualizations.*
 
 [**Get Started →**](#quick-start) · [Tutorials](https://software.pixelgen.com/pna-analysis/introduction/) · [pixelatorR](https://github.com/PixelgenTechnologies/pixelatorR)
 
@@ -189,9 +189,9 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   ├── common_setup.R                ← Shared setup (sourced automatically)
 │   ├── 01_quality_control.qmd        ← Start here (load data + QC)
 │   ├── 02_clustering_annotation.qmd
-│   ├── 03_abundance.qmd
-│   ├── 04_proximity.qmd
-│   ├── 05_statistical_testing.qmd    ← Optional
+│   ├── 03_statistical_testing.qmd
+│   ├── 04_abundance.qmd
+│   ├── 05_proximity.qmd
 │   ├── 06_cell_visualization.qmd     ← Optional
 │   └── 07_data_interpretation.qmd    ← Optional
 ├── results/                          ← Created automatically when running the PAT
@@ -215,7 +215,7 @@ The `metadata.csv` file describes **your** samples and links them to the corresp
 
 **Example file:**
 
-The release zip ships `data/metadata.csv` with only the header row. Add one row per sample. In this repository, `data/metadata.csv` is filled for donors 1 and 3 from the public [Resting PBMCs from 16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (both samples are resting; `condition` is set to donor identity so module `05` can contrast them):
+The release zip ships `data/metadata.csv` with only the header row. Add one row per sample. In this repository, `data/metadata.csv` is filled for donors 1 and 3 from the public [Resting PBMCs from 16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (both samples are resting; `condition` is set to donor identity so module `03` can contrast them):
 
 ```csv
 sample_id,sample_alias,condition,file_path,donor,age,sex
@@ -247,8 +247,8 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 
 1. **Open** `proxiome_analysis_template.Rproj`
 2. **Open** `modules/01_quality_control.qmd` in RStudio
-3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, and `04`
-4. **Optional:** Open `modules/05_statistical_testing.qmd` for differential testing, `modules/06_cell_visualization.qmd` for single-cell graph plots, and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after module `05`)
+3. **Run chunks** top to bottom through module `01`, then continue with `02`, `03`, `04`, and `05`
+4. **Optional:** Open `modules/06_cell_visualization.qmd` for single-cell graph plots and `modules/07_data_interpretation.qmd` for enrichment / interpretation (after module `03`)
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
@@ -261,7 +261,7 @@ After module `02` finishes, you can open `03`, `04`, `05`, or `06` in a **new R 
 | `pg_data_merged.rds` | module `01` (filtered cells) | module `02` |
 | `selected_markers.rds` | module `01` | module `02` |
 | `annotated_seurat_object.rds` | module `02` | modules `03`–`06` |
-| `markers_to_test.rds` | module `02` | modules `04`–`05` |
+| `markers_to_test.rds` | module `02` | modules `03` and `05` |
 
 All checkpoints are saved under `results/checkpoint_data/`.
 
@@ -277,7 +277,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
 | **01 — marker selection** | Set `isotype_markers` for your panel, then review `selected_markers` |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
-| **05 — reference condition** (optional) | Set `reference_condition` to your control condition (default example: `"donor1"`) |
+| **03 — reference condition** | Set `reference_condition` to your control condition (default example: `"donor1"`) |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
 > 💡 **Tip:** Comments above each section explain what you might want to change. Look for text like "adjust according to your data" or "change according to your dataset".
@@ -291,9 +291,9 @@ results/
 ├── checkpoint_data/          # Cross-module checkpoints (see table above)
 ├── 01_quality_control/
 ├── 02_clustering_annotation/
-├── 03_abundance/
-├── 04_proximity/
-├── 05_statistical_testing/
+├── 03_statistical_testing/
+├── 04_abundance/
+├── 05_proximity/
 ├── 06_cell_visualization/
 └── 07_data_interpretation/
 ```

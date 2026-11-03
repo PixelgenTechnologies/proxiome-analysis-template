@@ -1,12 +1,12 @@
-# 3. Abundance distribution
+# 4. Abundance distribution
 
-**Module 03 — Abundance.** Plot marker abundance across samples and cell types. Run the first chunk below to load packages and the annotated object saved by module `02`. You can open this module in a new R session after module `02` has finished.
+**Module 04 — Abundance.** Plot marker abundance across samples and cell types. Run the first chunk below to load packages and the annotated object saved by module `02`. You can open this module in a new R session after module `02` has finished.
 
 ```{r}
-#| label: module03_setup
+#| label: module04_setup
 
 library(here)
-here::i_am("modules/03_abundance.qmd")
+here::i_am("modules/04_abundance.qmd")
 
 source(here::here("modules", "common_setup.R"))
 
@@ -101,7 +101,7 @@ plot_data |>
     # Save per sample plots
     p_abundance_distribution_per_sample <- (p_clr_per_sample + p_count_per_sample) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
     export_plot(
-      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_sample/{marker_savename}_abundance_distribution_per_sample")),
+      filename = glue::glue(here::here("results/04_abundance/abundance_plots/per_sample/{marker_savename}_abundance_distribution_per_sample")),
       width = 12,
       height = 8,
       plot = p_abundance_distribution_per_sample
@@ -130,7 +130,7 @@ plot_data |>
     # Save per cell type plots
     p_abundance_distribution_per_celltype <- (p_clr_per_celltype + p_count_per_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
     export_plot(
-      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type/{marker_savename}_abundance_distribution_per_celltype")),
+      filename = glue::glue(here::here("results/04_abundance/abundance_plots/per_cell_type/{marker_savename}_abundance_distribution_per_celltype")),
       width = 12,
       height = 8,
       plot = p_abundance_distribution_per_celltype
@@ -161,7 +161,7 @@ plot_data |>
 
     p_abundance_distribution_per_celltype_faceted_by_group <- (p_clr_per_celltype_faceted_by_group + p_count_per_celltype_faceted_by_group) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
     export_plot(
-      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_cell_type_faceted_by_{abundance_plots_grouping_column}/{marker_savename}_abundance_distribution_per_celltype_faceted_by_{abundance_plots_grouping_column}")),
+      filename = glue::glue(here::here("results/04_abundance/abundance_plots/per_cell_type_faceted_by_{abundance_plots_grouping_column}/{marker_savename}_abundance_distribution_per_celltype_faceted_by_{abundance_plots_grouping_column}")),
       width = 16,
       height = 12,
       plot = p_abundance_distribution_per_celltype_faceted_by_group
@@ -191,7 +191,7 @@ plot_data |>
 
     p_abundance_distribution_per_condition_faceted_by_celltype <- (p_clr_per_condition_faceted_by_celltype + p_count_per_condition_faceted_by_celltype) + patchwork::plot_annotation(title = paste0("Marker: ", .y)) # .y contains the name of the current marker
     export_plot(
-      filename = glue::glue(here::here("results/03_abundance/abundance_plots/per_condition_faceted_by_celltype/{marker_savename}_abundance_distribution_per_condition_faceted_by_celltype")),
+      filename = glue::glue(here::here("results/04_abundance/abundance_plots/per_condition_faceted_by_celltype/{marker_savename}_abundance_distribution_per_condition_faceted_by_celltype")),
       width = 16,
       height = 12,
       plot = p_abundance_distribution_per_condition_faceted_by_celltype
