@@ -1,6 +1,6 @@
 # 3. Statistical testing
 
-**Module 03 — Statistical testing.** Differential abundance, clustering, and colocalization tests. Running this before modules `04` (abundance) and `05` (proximity) means those modules can flag, per cell type and comparison, when none of the markers they plot were found significant here. Run the first chunk below after module `02` has finished.
+**Module 03 — Statistical testing.** Differential abundance, clustering, and colocalization tests. Run the first chunk below after module `02` has finished.
 
 ```{r}
 #| label: module03_setup

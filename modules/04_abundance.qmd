@@ -45,23 +45,6 @@ markers_for_abundance_plots <- rownames(pg_data)[seq_len(min(10, nrow(pg_data)))
 abundance_plots_grouping_column <- "condition"
 ```
 
-If module `03` (statistical testing) has already been run for this dataset, its differential abundance results are used here to flag, per cell type and comparison, whether any of `markers_for_abundance_plots` reached significance. No plots are skipped either way — this only adds a warning next to plots that are unlikely to show a significant difference, since `markers_for_abundance_plots` is selected independently of the module `03` results.
-
-```{r}
-#| label: abundance_significance_check
-
-module03_daa_results <- load_statistical_testing_results(
-  "results/03_statistical_testing/abundance/differential_abundance_analysis.rds"
-)
-
-warn_if_no_significant_markers(
-  module03_daa_results,
-  marker_cols = "marker",
-  selected_markers = markers_for_abundance_plots,
-  analysis_label = "differential abundance"
-)
-```
-
 ```{r}
 #| label: abundance_distribution_plots
 

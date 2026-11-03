@@ -18,14 +18,6 @@ if (!exists("pg_data", inherits = TRUE)) {
 if (!exists("markers_to_test", inherits = TRUE)) {
   markers_to_test <- load_checkpoint("markers_to_test.rds")
 }
-
-# Differential colocalization results from module `03`, if it has already been
-# run for this dataset. `NULL` when module `03` was skipped; the per-cell-type
-# and per-cell-type-network sections below only warn (never skip a plot) when
-# this is available.
-module03_dcoloc_results <- load_statistical_testing_results(
-  "results/03_statistical_testing/colocalization/differential_colocalization_analysis.rds"
-)
 ```
 
 ## 5.1. Heatmap of colocalization score
@@ -215,8 +207,6 @@ To keep heatmaps readable when many markers are used, marker display can be limi
 
 The visualization follows the same principles as the per-group analysis: color intensity represents the mean log2 ratio of observed versus expected colocalization, and dot size indicates the percentage of cells in which the marker pair was detected. All heatmaps for a given cell type use consistent marker ordering and scales to enable direct comparison across groups. Individual heatmaps are saved for each group-cell type combination, and combined visualizations showing all groups side-by-side are generated for each cell type. Results are organized in separate subdirectories for each cell type to facilitate navigation and interpretation.
 
-If module `03` has already produced differential colocalization results for this dataset, each cell type's heatmap is still generated from all of its markers as above, but a warning is raised when none of the displayed marker pairs were significant for that cell type in a given comparison.
-
 ```{r}
 #| label: colocalization_raw_heatmap_per_cell_type
 
@@ -244,15 +234,6 @@ for (cell_type in cell_types) {
     sort(decreasing = TRUE) |>
     head(max_heatmap_markers) |>
     names()
-
-  # Flag, per comparison, if none of plot_markers were significant for this
-  # cell type in the module `03` differential colocalization results.
-  warn_if_no_significant_markers(
-    if (!is.null(module03_dcoloc_results)) filter(module03_dcoloc_results, group == cell_type),
-    marker_cols = c("marker_1", "marker_2"),
-    selected_markers = plot_markers,
-    analysis_label = "differential colocalization"
-  )
 
   pg_data_cell_type <- subset(pg_data, cell_annotation == cell_type)
 
@@ -495,8 +476,6 @@ This section generates cell type-specific network visualizations, analyzing colo
 
 Users should specify the `cell_type_of_interest` variable to select which cell type to analyze. The same filtering criteria and visualization principles apply as in the all-cell-types analysis, but the proximity data is filtered to include only cells belonging to the specified cell type. This enables identification of cell type-specific marker interactions and comparison of how colocalization networks differ between cell types.
 
-As in the per-cluster heatmaps above, if module `03` differential colocalization results are available, a warning is raised (without skipping the plot) when none of `network_markers` were significant for `cell_type_of_interest` in a given comparison.
-
 ```{r}
 #| label: colocalization_network_per_cell_type_parameters
 
@@ -511,15 +490,6 @@ pct_detected_threshold <- 0.5
 
 ```{r}
 #| label: colocalization_score_network_per_cell_type
-
-# Flag, per comparison, if none of network_markers were significant for
-# cell_type_of_interest in the module `03` differential colocalization results.
-warn_if_no_significant_markers(
-  if (!is.null(module03_dcoloc_results)) filter(module03_dcoloc_results, group == cell_type_of_interest),
-  marker_cols = c("marker_1", "marker_2"),
-  selected_markers = network_markers,
-  analysis_label = "differential colocalization"
-)
 
 proximity_data <- ProximityScores(pg_data,
   lazy = TRUE,
