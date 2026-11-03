@@ -107,7 +107,7 @@ Aggregation, plotting, and saving are done inline in each section below, mirrori
 
 ### Sample-level Aggregation
 
-Limma is fit on these tables, not on single cells. Each row is one sample × cell type × marker (or marker pair). The same tables feed the sample heatmaps, so the plot shows the values that were tested.
+In this section we create the tables of pseudobulk data that will be used for the statistical testing procedure. Each row is one sample × cell type × marker (or marker pair). The same tables feed the sample heatmaps, so the plot shows the values that were tested.
 
 #### Abundance Summary
 
@@ -145,18 +145,19 @@ write_rds(summary_abundance_data, file.path(abundance_dir, "summary_abundance_da
 
 #### Proximity Summary
 
-`FilterProximityScores()` drops pairs below an isotype-derived background, then `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type. Clustering (§5.2) uses the self-pairs (`marker_1 == marker_2`); colocalization (§5.3) uses the off-diagonal pairs. Both tests therefore see the same sample means.
+A similar process is used to create the tables of pseudobulked proximity data. `FilterProximityScores()` drops pairs below an isotype-derived background, then `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type, padding with 0 for missing observations. Clustering (§5.2) uses the self-pairs (`marker_1 == marker_2`); colocalization (§5.3) uses the off-diagonal pairs. 
 
 ```{r}
 #| label: module05b_aggregate_proximity
 
-# Mean log2_ratio per sample_alias × cell type × pair. The isotype cutoff is
-# computed once on the full object: median isotype fraction + 2 MAD (minimum 0.001).
+# The isotype cutoff is computed once on the full object: median isotype fraction + 2 MAD (minimum 0.001).
 bg <- if ("isotype_fraction" %in% colnames(pg_data[[]])) {
   max(median(pg_data$isotype_fraction, na.rm = TRUE) + 2 * mad(pg_data$isotype_fraction, na.rm = TRUE), 0.001)
 } else {
   0.001
 }
+
+# Mean log2_ratio per sample_alias × cell type × marker pair.
 summary_proximity_data <- names(markers_to_test) |>
   map(function(cell_type) {
     obj <- subset(pg_data, cell_annotation == cell_type)
@@ -271,7 +272,6 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
 
   abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "pseudobulk")
   dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
-  write_rds(differential_abundance_analysis_pseudobulk, file.path(abundance_dir, "differential_abundance_analysis.rds"))
   write_csv(differential_abundance_analysis_pseudobulk, file.path(abundance_dir, "differential_abundance_analysis.csv"))
 }
 ```
@@ -331,15 +331,15 @@ if (
           pivot_wider(names_from = sample_alias, values_from = mean_clr) |>
           column_to_rownames("marker") |>
           as.matrix()
-        # A marker with the same CLR in every sample has 0 variance; scale()
-        # turns that row into NaN, which crashes pheatmap's row clustering.
         clr_mat <- t(scale(t(clr_mat[labels$marker, , drop = FALSE])))
         if (!all(is.finite(clr_mat))) {
           stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
         }
+        z_lim <- max(abs(clr_mat))
         sample_hm <- ComplexHeatmap::pheatmap(
           clr_mat,
           color = PixelgenGradient(100, "BluesCherry"),
+          breaks = seq(-z_lim, z_lim, length.out = 101),
           name = "CLR z-score",
           main = cell_type
         ) |>
@@ -472,7 +472,6 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
 
   clustering_dir <- here::here("results", "05_statistical_testing", "clustering", "pseudobulk")
   dir.create(clustering_dir, recursive = TRUE, showWarnings = FALSE)
-  write_rds(differential_clustering_analysis_pseudobulk, file.path(clustering_dir, "differential_clustering_analysis.rds"))
   write_csv(differential_clustering_analysis_pseudobulk, file.path(clustering_dir, "differential_clustering_analysis.csv"))
 }
 ```
@@ -542,9 +541,11 @@ if (
         if (!all(is.finite(prox_mat))) {
           stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
         }
+        z_lim <- max(abs(prox_mat))
         sample_hm <- ComplexHeatmap::pheatmap(
           prox_mat,
           color = PixelgenGradient(100, "BluesCherry"),
+          breaks = seq(-z_lim, z_lim, length.out = 101),
           name = "log2_ratio z-score",
           main = cell_type
         ) |>
@@ -678,7 +679,6 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
 
   colocalization_dir <- here::here("results", "05_statistical_testing", "colocalization", "pseudobulk")
   dir.create(colocalization_dir, recursive = TRUE, showWarnings = FALSE)
-  write_rds(differential_colocalization_analysis_pseudobulk, file.path(colocalization_dir, "differential_colocalization_analysis.rds"))
   write_csv(differential_colocalization_analysis_pseudobulk, file.path(colocalization_dir, "differential_colocalization_analysis.csv"))
 }
 ```
@@ -748,9 +748,11 @@ if (
         if (!all(is.finite(prox_mat))) {
           stop("non-finite values after z-scoring (a labeled pair has 0 variance across samples)")
         }
+        z_lim <- max(abs(prox_mat))
         sample_hm <- ComplexHeatmap::pheatmap(
           prox_mat,
           color = PixelgenGradient(100, "BluesCherry"),
+          breaks = seq(-z_lim, z_lim, length.out = 101),
           name = "log2_ratio z-score",
           main = cell_type
         ) |>
@@ -758,11 +760,26 @@ if (
         export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
 
         # Dot heatmap of diff_median for this cell type's significant pairs, dot
-        # size = -log10(p_adj). ColocalizationHeatmap errors with fewer than two
-        # significant pairs, so skip a cell type that has 0 or 1 instead of aborting.
+        # size = -log10(p_adj). Both axes are the union of marker_1 and marker_2,
+        # so walk pairs from most significant and stop before a new marker would
+        # make that union longer than 60. Pairs among markers already kept stay.
+        # ColocalizationHeatmap errors with fewer than two significant pairs, so
+        # skip a cell type that has 0 or 1 instead of aborting.
         sig_pairs <- data |>
           filter(p_adj < dcoloc_plot_p_adj_threshold) |>
           arrange(desc(neg_log10_p_adj))
+        kept <- character()
+        keep_row <- logical(nrow(sig_pairs))
+        for (i in seq_len(nrow(sig_pairs))) {
+          new_markers <- setdiff(c(sig_pairs$marker_1[i], sig_pairs$marker_2[i]), kept)
+          if (length(kept) + length(new_markers) <= 60) {
+            kept <- c(kept, new_markers)
+            keep_row[i] <- TRUE
+          } else if (length(new_markers) == 0) {
+            keep_row[i] <- TRUE
+          }
+        }
+        sig_pairs <- sig_pairs[keep_row, ]
         if (nrow(sig_pairs) < 2) {
           return(invisible(NULL))
         }

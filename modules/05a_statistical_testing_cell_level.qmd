@@ -210,7 +210,6 @@ differential_abundance_analysis <-
 
 abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "cell_level")
 dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(differential_abundance_analysis, file.path(abundance_dir, "differential_abundance_analysis.rds"))
 write_csv(differential_abundance_analysis, file.path(abundance_dir, "differential_abundance_analysis.csv"))
 ```
 
@@ -271,9 +270,11 @@ walk(unique(plot_data$group), function(cell_type) {
       if (!all(is.finite(clr_mat))) {
         stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
       }
+      z_lim <- max(abs(clr_mat))
       sample_hm <- ComplexHeatmap::pheatmap(
         clr_mat,
         color = PixelgenGradient(100, "BluesCherry"),
+        breaks = seq(-z_lim, z_lim, length.out = 101),
         name = "CLR z-score",
         main = cell_type
       ) |>
@@ -356,7 +357,6 @@ differential_clustering_analysis <-
 
 clustering_dir <- here::here("results", "05_statistical_testing", "clustering", "cell_level")
 dir.create(clustering_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(differential_clustering_analysis, file.path(clustering_dir, "differential_clustering_analysis.rds"))
 write_csv(differential_clustering_analysis, file.path(clustering_dir, "differential_clustering_analysis.csv"))
 ```
 
@@ -422,9 +422,11 @@ walk(unique(plot_data$group), function(cell_type) {
       if (!all(is.finite(prox_mat))) {
         stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
       }
+      z_lim <- max(abs(prox_mat))
       sample_hm <- ComplexHeatmap::pheatmap(
         prox_mat,
         color = PixelgenGradient(100, "BluesCherry"),
+        breaks = seq(-z_lim, z_lim, length.out = 101),
         name = "log2_ratio z-score",
         main = cell_type
       ) |>
@@ -508,7 +510,6 @@ gc()
 
 colocalization_dir <- here::here("results", "05_statistical_testing", "colocalization", "cell_level")
 dir.create(colocalization_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(differential_colocalization_analysis, file.path(colocalization_dir, "differential_colocalization_analysis.rds"))
 write_csv(differential_colocalization_analysis, file.path(colocalization_dir, "differential_colocalization_analysis.csv"))
 ```
 
@@ -573,9 +574,11 @@ walk(unique(plot_data$group), function(cell_type) {
       if (!all(is.finite(prox_mat))) {
         stop("non-finite values after z-scoring (a labeled pair has 0 variance across samples)")
       }
+      z_lim <- max(abs(prox_mat))
       sample_hm <- ComplexHeatmap::pheatmap(
         prox_mat,
         color = PixelgenGradient(100, "BluesCherry"),
+        breaks = seq(-z_lim, z_lim, length.out = 101),
         name = "log2_ratio z-score",
         main = cell_type
       ) |>
@@ -583,11 +586,26 @@ walk(unique(plot_data$group), function(cell_type) {
       export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
 
       # Dot heatmap of diff_median for this cell type's significant pairs, dot
-      # size = -log10(p_adj). ColocalizationHeatmap errors with fewer than two
-      # significant pairs, so skip a cell type that has 0 or 1 instead of aborting.
+      # size = -log10(p_adj). Both axes are the union of marker_1 and marker_2,
+      # so walk pairs from most significant and stop before a new marker would
+      # make that union longer than 60. Pairs among markers already kept stay.
+      # ColocalizationHeatmap errors with fewer than two significant pairs, so
+      # skip a cell type that has 0 or 1 instead of aborting.
       sig_pairs <- data |>
         filter(p_adj < dcoloc_plot_p_adj_threshold) |>
         arrange(desc(neg_log10_p_adj))
+      kept <- character()
+      keep_row <- logical(nrow(sig_pairs))
+      for (i in seq_len(nrow(sig_pairs))) {
+        new_markers <- setdiff(c(sig_pairs$marker_1[i], sig_pairs$marker_2[i]), kept)
+        if (length(kept) + length(new_markers) <= 60) {
+          kept <- c(kept, new_markers)
+          keep_row[i] <- TRUE
+        } else if (length(new_markers) == 0) {
+          keep_row[i] <- TRUE
+        }
+      }
+      sig_pairs <- sig_pairs[keep_row, ]
       if (nrow(sig_pairs) < 2) {
         return(invisible(NULL))
       }
