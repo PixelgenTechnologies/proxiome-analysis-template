@@ -7,16 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Reordered the analysis modules so statistical testing runs before abundance and proximity: `01_quality_control` → `02_clustering_annotation` → `03_statistical_testing` → `04_abundance` → `05_proximity` (previously `03_abundance` → `04_proximity` → `05_statistical_testing`).
+- Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
+
 ### Added
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
 
 ### Fixed
 
-- Module `04` per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
-### Changed
-
-- Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
+- Module `05` (proximity) per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
 
 ## [0.7.0] 2026-10-23
 

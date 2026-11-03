@@ -17,11 +17,11 @@ execute:
   message: false
 ---
 
-This template describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data loading, quality control, clustering, annotation, abundance, proximity, optional statistical testing, optional single-cell graph visualization, and optional data interpretation.
+This template describes a standard workflow for analyzing single cell PNA data using the `pixelatorR` package in R. It covers data loading, quality control, clustering, annotation, statistical testing, abundance, proximity, optional single-cell graph visualization, and optional data interpretation.
 
 **Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
-**How to run interactively:** Open and run the numbered notebooks in `modules/` in order (`01` through `04`; `05`–`07` are optional). Start with `01_quality_control.qmd`.
+**How to run interactively:** Open and run the numbered notebooks in `modules/` in order (`01` through `05`; `06`–`07` are optional). Start with `01_quality_control.qmd`.
 
 **How to re-render everything:** Render this file when you want a single HTML report of the full workflow at the end of a project (requires [Quarto](https://quarto.org/)).
 
@@ -39,9 +39,9 @@ This template describes a standard workflow for analyzing single cell PNA data u
 │   ├── common_setup.R                 # Shared setup (sourced automatically)
 │   ├── 01_quality_control.qmd
 │   ├── 02_clustering_annotation.qmd
-│   ├── 03_abundance.qmd
-│   ├── 04_proximity.qmd
-│   ├── 05_statistical_testing.qmd     # Optional
+│   ├── 03_statistical_testing.qmd
+│   ├── 04_abundance.qmd
+│   ├── 05_proximity.qmd
 │   ├── 06_cell_visualization.qmd      # Optional
 │   └── 07_data_interpretation.qmd     # Optional
 │
@@ -53,9 +53,9 @@ This template describes a standard workflow for analyzing single cell PNA data u
     │   └── markers_to_test.rds        # After module 02
     ├── 01_quality_control/
     ├── 02_clustering_annotation/
-    ├── 03_abundance/
-    ├── 04_proximity/
-    ├── 05_statistical_testing/
+    ├── 03_statistical_testing/
+    ├── 04_abundance/
+    ├── 05_proximity/
     ├── 06_cell_visualization/
     └── 07_data_interpretation/
 ```
@@ -69,11 +69,11 @@ This template describes a standard workflow for analyzing single cell PNA data u
 
 {{< include modules/02_clustering_annotation.qmd >}}
 
-{{< include modules/03_abundance.qmd >}}
+{{< include modules/03_statistical_testing.qmd >}}
 
-{{< include modules/04_proximity.qmd >}}
+{{< include modules/04_abundance.qmd >}}
 
-{{< include modules/05_statistical_testing.qmd >}}
+{{< include modules/05_proximity.qmd >}}
 
 {{< include modules/06_cell_visualization.qmd >}}
 
