@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
 - Statistical testing is now split into two modules: cell-level testing in `03a_statistical_testing_cell_level.qmd` and pseudobulking in `03b_statistical_testing_pseudobulk.qmd`.
+- Module `02` now has a "Set the cell type color palette" decision checkpoint: `cell_palette` is built from the cell types actually present in `cell_annotation` and validated before plotting, so a cell type missing a color (e.g. after switching to manual or gating-based annotation) raises a clear error instead of silently rendering grey in plots. `cell_palette` is saved as a checkpoint and reused by module `04`.
 
 ### Fixed
 

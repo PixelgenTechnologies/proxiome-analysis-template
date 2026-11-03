@@ -207,7 +207,69 @@ sample_palette <-
     unique_samples
   )
 
-cell_palette <- Pixelgen_cell_palette
+# Colors for the Pixelgen PBMC reference cell type labels, used for the
+# automatic annotation plots (l1_annotation, l2_annotation, and their
+# `_summary` columns) in module 02 section 2.6.1. Custom cell type labels
+# (manual annotation, gating, or anything not in this reference) are not
+# guaranteed to be covered here - the final `cell_annotation` column gets its
+# own `cell_palette`, built and reviewed as a decision checkpoint in module 02
+# section "Set the cell type color palette".
+reference_cell_palette <- Pixelgen_cell_palette
+
+#' Build a default color palette for a set of cell type labels.
+#'
+#' Starts from `reference_cell_palette` for any label already named there
+#' (e.g. the Pixelgen PBMC reference cell types), and generates additional
+#' colors with `create_discrete_palette()` for labels that are not in the
+#' reference (e.g. custom manual or gating-based cell type names). The result
+#' always has one color per unique value in `cell_types`.
+#'
+#' @param cell_types Character vector of cell type labels to generate colors for.
+#' @return Named character vector of hex colors, one per unique value in `cell_types`.
+#' @noRd
+build_cell_palette <- function(cell_types) {
+  unique_cell_types <- unique(cell_types)
+  known_cell_types <- intersect(unique_cell_types, names(reference_cell_palette))
+  custom_cell_types <- setdiff(unique_cell_types, known_cell_types)
+
+  palette <- reference_cell_palette[known_cell_types]
+  if (length(custom_cell_types) > 0) {
+    palette <-
+      c(
+        palette,
+        set_names(
+          create_discrete_palette(custom_cell_types)[seq_along(custom_cell_types)],
+          custom_cell_types
+        )
+      )
+  }
+
+  return(palette[unique_cell_types])
+}
+
+#' Check that a color palette has a color for every cell type label.
+#'
+#' Stops with an informative error listing the missing labels when
+#' `cell_palette` does not have a named color for every unique value in
+#' `cell_types`. Intended to catch mismatches early (e.g. after switching to
+#' manual or gating-based annotation) instead of letting plots silently drop
+#' or grey out the unmapped cell types.
+#'
+#' @param cell_palette Named character vector of hex colors, keyed by cell type label.
+#' @param cell_types Character vector of cell type labels that `cell_palette` must cover.
+#' @return Invisibly `TRUE` if the check passes; errors otherwise.
+#' @noRd
+assert_cell_palette_covers <- function(cell_palette, cell_types) {
+  missing_labels <- setdiff(unique(cell_types), names(cell_palette))
+  if (length(missing_labels) > 0) {
+    stop(
+      "cell_palette is missing a color for: ", paste(missing_labels, collapse = ", "), ".\n",
+      "Add an entry for each of these labels in the `cell_palette` decision checkpoint ",
+      "(module 02, section \"Set the cell type color palette\") before plotting."
+    )
+  }
+  return(invisible(TRUE))
+}
 
 gradient_palette <-
   c(
