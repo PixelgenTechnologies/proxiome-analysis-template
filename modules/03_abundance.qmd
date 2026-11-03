@@ -13,6 +13,14 @@ source(here::here("modules", "common_setup.R"))
 if (!exists("pg_data", inherits = TRUE)) {
   pg_data <- load_checkpoint("annotated_seurat_object.rds")
 }
+if (!exists("cell_palette", inherits = TRUE)) {
+  cell_palette <- load_checkpoint("cell_palette.rds")
+}
+
+# Fails loudly if cell_palette (saved by module 02) does not cover every
+# cell_annotation label, instead of letting the plots below silently grey out
+# the missing ones.
+assert_cell_palette_covers(cell_palette, pg_data$cell_annotation)
 ```
 
 > **Decision checkpoint** (abundance plots scope)  
