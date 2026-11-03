@@ -56,7 +56,7 @@ dclust_heatmap_effect_threshold <- 0.5
 dclust_volcano_top_n <- 5
 
 # Adjusted p-value cutoff for the colocalization effect-size heatmap (§5.3.1). Does not filter the saved table.
-dcoloc_plot_p_adj_threshold <- 0.001
+dcoloc_plot_p_adj_threshold <- 0.05
 # |difference| cutoff for the colocalization effect-size heatmap (§5.3.1). Does not filter the saved table.
 dcoloc_heatmap_effect_threshold <- 0.5
 # Top n pairs to label on the colocalization volcano (§5.3.1). Does not filter the saved table.
@@ -145,7 +145,7 @@ write_rds(summary_abundance_data, file.path(abundance_dir, "summary_abundance_da
 
 #### Proximity Summary
 
-A similar process is used to create the tables of pseudobulked proximity data. `FilterProximityScores()` drops pairs below an isotype-derived background, then `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type, padding with 0 for missing observations. Clustering (§5.2) uses the self-pairs (`marker_1 == marker_2`); colocalization (§5.3) uses the off-diagonal pairs. 
+A similar process is used to create the tables of pseudobulked proximity data. `FilterProximityScores()` drops pairs below an isotype-derived background. A pair is then kept in a sample only when more than 3 cells in that sample still have it. `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type, padding with 0 for missing observations. Clustering (§5.2) uses the self-pairs (`marker_1 == marker_2`); colocalization (§5.3) uses the off-diagonal pairs. 
 
 ```{r}
 #| label: module05b_aggregate_proximity
@@ -161,12 +161,13 @@ bg <- if ("isotype_fraction" %in% colnames(pg_data[[]])) {
 summary_proximity_data <- names(markers_to_test) |>
   map(function(cell_type) {
     obj <- subset(pg_data, cell_annotation == cell_type)
-    # Pull the markers out first. filter() is evaluated in DuckDB, and
-    # markers_to_test[[cell_type]] is a list, which SQL cannot interpolate.
     markers_vec <- markers_to_test[[cell_type]]
     ProximityScores(obj, lazy = TRUE, meta_data_columns = "sample_alias", add_marker_proportions = TRUE) |>
       filter(marker_1 %in% markers_vec, marker_2 %in% markers_vec) |>
       FilterProximityScores(background_threshold_pct = bg) |>
+      group_by(sample_alias, marker_1, marker_2) |>
+      filter(n() > 3) |>
+      ungroup() |>
       SummarizeProximityScores(
         proximity_metric = "log2_ratio", group_vars = "sample_alias",
         summary_stat = "mean", include_missing_obs = TRUE
@@ -175,7 +176,7 @@ summary_proximity_data <- names(markers_to_test) |>
   }) |>
   bind_rows()
 
-proximity_dir <- here::here("results", "05_statistical_testing", "proximity", "pseudobulk")
+proximity_dir <- here::here("results", "05_statistical_testing", "colocalization", "pseudobulk")
 dir.create(proximity_dir, recursive = TRUE, showWarnings = FALSE)
 write_rds(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.rds"))
 ```
@@ -360,13 +361,20 @@ if (
     pivot_wider(names_from = group, values_from = difference, values_fill = 0) |>
     column_to_rownames("marker") |>
     as.matrix()
-  heatmap_plot <- ComplexHeatmap::pheatmap(
-    heatmap_mat,
-    color = PixelgenGradient(100, "BluesCherry"),
-    main = paste0(target, " vs ", reference_condition)
-  ) |>
-    as.ggplot()
-  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  # min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+  # seq() call for color breaks. Skip the heatmap (not just the export) when
+  # no marker passes both cutoffs above.
+  if (nrow(heatmap_mat) == 0) {
+    message("Skipping abundance effect-size heatmap: no marker passed both cutoffs.")
+  } else {
+    heatmap_plot <- ComplexHeatmap::pheatmap(
+      heatmap_mat,
+      color = PixelgenGradient(100, "BluesCherry"),
+      main = paste0(target, " vs ", reference_condition)
+    ) |>
+      as.ggplot()
+    export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  }
 }
 ```
 
@@ -422,13 +430,37 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
                   mutate(!!contrast_column := droplevels(relevel(factor(.data[[contrast_column]]), ref = reference_condition))) |>
                   arrange(.data$sample_alias)
 
-                # Missing sample × pair combinations become 0 (no observed
-                # self-proximity), not NA, so limma can still fit them.
+                # A marker's self-proximity is only observed in a sample when
+                # SummarizeProximityScores() kept a row for it there (see the
+                # aggregation chunk above). Require >=2 observed samples in
+                # every condition before fitting. Samples with no row stay NA
+                # in the matrix below, and lmFit omits them for that marker.
+                conditions <- levels(sample_info[[contrast_column]])
+                keep_features <- cell_clustering |>
+                  mutate(sample_alias = as.character(sample_alias)) |>
+                  filter(.data$sample_alias %in% sample_info$sample_alias) |>
+                  distinct(feature, sample_alias) |>
+                  left_join(select(sample_info, sample_alias, all_of(contrast_column)), by = "sample_alias") |>
+                  count(feature, .data[[contrast_column]], name = "n_samples") |>
+                  filter(n_samples >= 2) |>
+                  group_by(feature) |>
+                  summarise(n_conditions = n_distinct(.data[[contrast_column]]), .groups = "drop") |>
+                  filter(n_conditions == length(conditions)) |>
+                  pull(feature)
+                cell_clustering <- filter(cell_clustering, feature %in% keep_features)
+                if (nrow(cell_clustering) == 0) {
+                  return(NULL)
+                }
+
+                # Missing samples stay NA rather than 0. complete() still adds a
+                # column for every sample in the design so the column order
+                # matches sample_info. lmFit drops NA samples for that marker.
                 expr_mat <- cell_clustering |>
                   mutate(sample_alias = as.character(sample_alias)) |>
                   filter(.data$sample_alias %in% sample_info$sample_alias) |>
                   select(feature, sample_alias, mean_log2_ratio) |>
-                  pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0, values_fn = mean) |>
+                  complete(feature, sample_alias = sample_info$sample_alias) |>
+                  pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fn = mean) |>
                   column_to_rownames("feature") |>
                   as.matrix()
                 expr_mat <- expr_mat[, sample_info$sample_alias, drop = FALSE]
@@ -535,8 +567,6 @@ if (
           pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
           column_to_rownames("marker") |>
           as.matrix()
-        # A marker with the same log2_ratio in every sample has 0 variance;
-        # scale() turns that row into NaN, which crashes pheatmap's row clustering.
         prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
         if (!all(is.finite(prox_mat))) {
           stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
@@ -566,13 +596,20 @@ if (
     pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
     column_to_rownames("marker") |>
     as.matrix()
-  heatmap_plot <- ComplexHeatmap::pheatmap(
-    heatmap_mat,
-    color = PixelgenGradient(100, "BluesCherry"),
-    main = paste0(target, " vs ", reference_condition)
-  ) |>
-    as.ggplot()
-  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  # min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+  # seq() call for color breaks. Skip the heatmap (not just the export) when
+  # no marker passes both cutoffs above.
+  if (nrow(heatmap_mat) == 0) {
+    message("Skipping clustering effect-size heatmap: no marker passed both cutoffs.")
+  } else {
+    heatmap_plot <- ComplexHeatmap::pheatmap(
+      heatmap_mat,
+      color = PixelgenGradient(100, "BluesCherry"),
+      main = paste0(target, " vs ", reference_condition)
+    ) |>
+      as.ggplot()
+    export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  }
 }
 ```
 
@@ -629,13 +666,37 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
                   mutate(!!contrast_column := droplevels(relevel(factor(.data[[contrast_column]]), ref = reference_condition))) |>
                   arrange(.data$sample_alias)
 
-                # Missing sample × pair combinations become 0 (no observed
-                # proximity), not NA, so limma can still fit them.
+                # A pair is only observed in a sample when SummarizeProximityScores()
+                # kept a row for it there (see the aggregation chunk above).
+                # Require >=2 observed samples in every condition before fitting.
+                # Samples with no row stay NA in the matrix below, and lmFit
+                # omits them for that pair.
+                conditions <- levels(sample_info[[contrast_column]])
+                keep_features <- cell_colocalization |>
+                  mutate(sample_alias = as.character(sample_alias)) |>
+                  filter(.data$sample_alias %in% sample_info$sample_alias) |>
+                  distinct(feature, sample_alias) |>
+                  left_join(select(sample_info, sample_alias, all_of(contrast_column)), by = "sample_alias") |>
+                  count(feature, .data[[contrast_column]], name = "n_samples") |>
+                  filter(n_samples >= 2) |>
+                  group_by(feature) |>
+                  summarise(n_conditions = n_distinct(.data[[contrast_column]]), .groups = "drop") |>
+                  filter(n_conditions == length(conditions)) |>
+                  pull(feature)
+                cell_colocalization <- filter(cell_colocalization, feature %in% keep_features)
+                if (nrow(cell_colocalization) == 0) {
+                  return(NULL)
+                }
+
+                # Missing samples stay NA rather than 0. complete() still adds a
+                # column for every sample in the design so the column order
+                # matches sample_info. lmFit drops NA samples for that pair.
                 expr_mat <- cell_colocalization |>
                   mutate(sample_alias = as.character(sample_alias)) |>
                   filter(.data$sample_alias %in% sample_info$sample_alias) |>
                   select(feature, sample_alias, mean_log2_ratio) |>
-                  pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0, values_fn = mean) |>
+                  complete(feature, sample_alias = sample_info$sample_alias) |>
+                  pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fn = mean) |>
                   column_to_rownames("feature") |>
                   as.matrix()
                 expr_mat <- expr_mat[, sample_info$sample_alias, drop = FALSE]
@@ -742,8 +803,6 @@ if (
           pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
           column_to_rownames("marker") |>
           as.matrix()
-        # A pair with the same log2_ratio in every sample has 0 variance;
-        # scale() turns that row into NaN, which crashes pheatmap's row clustering.
         prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
         if (!all(is.finite(prox_mat))) {
           stop("non-finite values after z-scoring (a labeled pair has 0 variance across samples)")
@@ -820,12 +879,19 @@ if (
     pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
     column_to_rownames("marker") |>
     as.matrix()
-  heatmap_plot <- ComplexHeatmap::pheatmap(
-    heatmap_mat,
-    color = PixelgenGradient(100, "BluesCherry"),
-    main = paste0(target, " vs ", reference_condition)
-  ) |>
-    as.ggplot()
-  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  # min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+  # seq() call for color breaks. Skip the heatmap (not just the export) when
+  # no pair passes both cutoffs above.
+  if (nrow(heatmap_mat) == 0) {
+    message("Skipping colocalization effect-size heatmap: no pair passed both cutoffs.")
+  } else {
+    heatmap_plot <- ComplexHeatmap::pheatmap(
+      heatmap_mat,
+      color = PixelgenGradient(100, "BluesCherry"),
+      main = paste0(target, " vs ", reference_condition)
+    ) |>
+      as.ggplot()
+    export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  }
 }
 ```

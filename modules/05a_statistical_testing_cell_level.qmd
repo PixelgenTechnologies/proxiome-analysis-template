@@ -159,7 +159,7 @@ summary_proximity_data <- names(markers_to_test) |>
     markers_vec <- markers_to_test[[cell_type]]
     ProximityScores(obj, lazy = TRUE, meta_data_columns = "sample_alias", add_marker_proportions = TRUE) |>
       filter(marker_1 %in% markers_vec, marker_2 %in% markers_vec) |>
-      FilterProximityScores(background_threshold_pct = bg) |>
+      FilterProximityScores(background_threshold_pct = bg, min_cells_count = 3) |>
       SummarizeProximityScores(
         proximity_metric = "log2_ratio", group_vars = "sample_alias",
         summary_stat = "mean", include_missing_obs = TRUE
@@ -264,8 +264,6 @@ walk(unique(plot_data$group), function(cell_type) {
         pivot_wider(names_from = sample_alias, values_from = mean_clr) |>
         column_to_rownames("marker") |>
         as.matrix()
-      # A marker with the same CLR in every sample has 0 variance; scale()
-      # turns that row into NaN, which crashes pheatmap's row clustering.
       clr_mat <- t(scale(t(clr_mat[labels$marker, , drop = FALSE])))
       if (!all(is.finite(clr_mat))) {
         stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
@@ -295,13 +293,20 @@ heatmap_mat <- plot_data |>
   pivot_wider(names_from = group, values_from = difference, values_fill = 0) |>
   column_to_rownames("marker") |>
   as.matrix()
-heatmap_plot <- ComplexHeatmap::pheatmap(
-  heatmap_mat,
-  color = PixelgenGradient(100, "BluesCherry"),
-  main = paste0(target, " vs ", reference_condition)
-) |>
-  as.ggplot()
-export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+# min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+# seq() call for color breaks. Skip the heatmap (not just the export) when
+# no marker passes both cutoffs above.
+if (nrow(heatmap_mat) == 0) {
+  message("Skipping abundance effect-size heatmap: no marker passed both cutoffs.")
+} else {
+  heatmap_plot <- ComplexHeatmap::pheatmap(
+    heatmap_mat,
+    color = PixelgenGradient(100, "BluesCherry"),
+    main = paste0(target, " vs ", reference_condition)
+  ) |>
+    as.ggplot()
+  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+}
 ``` 
 
 
@@ -416,8 +421,6 @@ walk(unique(plot_data$group), function(cell_type) {
         pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
         column_to_rownames("marker") |>
         as.matrix()
-      # A marker with the same log2_ratio in every sample has 0 variance;
-      # scale() turns that row into NaN, which crashes pheatmap's row clustering.
       prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
       if (!all(is.finite(prox_mat))) {
         stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
@@ -447,13 +450,20 @@ heatmap_mat <- plot_data |>
   pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
   column_to_rownames("marker") |>
   as.matrix()
-heatmap_plot <- ComplexHeatmap::pheatmap(
-  heatmap_mat,
-  color = PixelgenGradient(100, "BluesCherry"),
-  main = paste0(target, " vs ", reference_condition)
-) |>
-  as.ggplot()
-export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+# min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+# seq() call for color breaks. Skip the heatmap (not just the export) when
+# no marker passes both cutoffs above.
+if (nrow(heatmap_mat) == 0) {
+  message("Skipping clustering effect-size heatmap: no marker passed both cutoffs.")
+} else {
+  heatmap_plot <- ComplexHeatmap::pheatmap(
+    heatmap_mat,
+    color = PixelgenGradient(100, "BluesCherry"),
+    main = paste0(target, " vs ", reference_condition)
+  ) |>
+    as.ggplot()
+  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+}
 ```
 
 ## 5.3. Differential Colocalization Analysis
@@ -568,8 +578,6 @@ walk(unique(plot_data$group), function(cell_type) {
         pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
         column_to_rownames("marker") |>
         as.matrix()
-      # A pair with the same log2_ratio in every sample has 0 variance;
-      # scale() turns that row into NaN, which crashes pheatmap's row clustering.
       prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
       if (!all(is.finite(prox_mat))) {
         stop("non-finite values after z-scoring (a labeled pair has 0 variance across samples)")
@@ -646,11 +654,18 @@ heatmap_mat <- plot_data |>
   pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
   column_to_rownames("marker") |>
   as.matrix()
-heatmap_plot <- ComplexHeatmap::pheatmap(
-  heatmap_mat,
-  color = PixelgenGradient(100, "BluesCherry"),
-  main = paste0(target, " vs ", reference_condition)
-) |>
-  as.ggplot()
-export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+# min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+# seq() call for color breaks. Skip the heatmap (not just the export) when
+# no pair passes both cutoffs above.
+if (nrow(heatmap_mat) == 0) {
+  message("Skipping colocalization effect-size heatmap: no pair passed both cutoffs.")
+} else {
+  heatmap_plot <- ComplexHeatmap::pheatmap(
+    heatmap_mat,
+    color = PixelgenGradient(100, "BluesCherry"),
+    main = paste0(target, " vs ", reference_condition)
+  ) |>
+    as.ggplot()
+  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+}
 ```
