@@ -281,7 +281,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
 | **01 — marker selection** | Set `isotype_markers` for your panel, then review `selected_markers` |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
-| **02 — cell type colors** | Review `cell_palette`, especially after switching to `manual_cell_annotation` or `cd4_subtype`, so every value in `cell_annotation` has a color |
+| **02 — cell type colors** | Review `cell_palette` so every value in `cell_annotation` has a color. Keep the generated colors, or replace `cell_palette` with a named vector of your own labels and colors |
 | **03a / 03b — reference condition** (optional) | Set `reference_condition` to your control condition in the notebook you run (default example: `"donor1"`). Use 03b only when each condition has at least two samples |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
