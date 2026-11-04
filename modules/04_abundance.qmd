@@ -17,10 +17,16 @@ if (!exists("cell_palette", inherits = TRUE)) {
   cell_palette <- load_checkpoint("cell_palette.rds")
 }
 
-# Fails loudly if cell_palette (saved by module 02) does not cover every
-# cell_annotation label, instead of letting the plots below silently grey out
-# the missing ones.
-assert_cell_palette_covers(cell_palette, pg_data$cell_annotation)
+# Stop here if any cell type is missing a color, instead of letting the plots
+# below draw those cells in grey.
+missing_cell_types <- setdiff(unique(pg_data$cell_annotation), names(cell_palette))
+if (length(missing_cell_types) > 0) {
+  stop(
+    "cell_palette is missing a color for: ",
+    paste(missing_cell_types, collapse = ", "),
+    ". Add a color for each of these labels in the cell_palette decision checkpoint in module 02 before continuing."
+  )
+}
 ```
 
 > **Decision checkpoint** (abundance plots scope)  
