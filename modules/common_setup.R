@@ -247,30 +247,6 @@ build_cell_palette <- function(cell_types) {
   return(palette[unique_cell_types])
 }
 
-#' Check that a color palette has a color for every cell type label.
-#'
-#' Stops with an informative error listing the missing labels when
-#' `cell_palette` does not have a named color for every unique value in
-#' `cell_types`. Intended to catch mismatches early (e.g. after switching to
-#' manual or gating-based annotation) instead of letting plots silently drop
-#' or grey out the unmapped cell types.
-#'
-#' @param cell_palette Named character vector of hex colors, keyed by cell type label.
-#' @param cell_types Character vector of cell type labels that `cell_palette` must cover.
-#' @return Invisibly `TRUE` if the check passes; errors otherwise.
-#' @noRd
-assert_cell_palette_covers <- function(cell_palette, cell_types) {
-  missing_labels <- setdiff(unique(cell_types), names(cell_palette))
-  if (length(missing_labels) > 0) {
-    stop(
-      "cell_palette is missing a color for: ", paste(missing_labels, collapse = ", "), ".\n",
-      "Add an entry for each of these labels in the `cell_palette` decision checkpoint ",
-      "(module 02, section \"Set the cell type color palette\") before plotting."
-    )
-  }
-  return(invisible(TRUE))
-}
-
 gradient_palette <-
   c(
     "#1F395F",
