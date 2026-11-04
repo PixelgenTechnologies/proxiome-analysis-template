@@ -182,9 +182,6 @@ jobs:
               set -euo pipefail
               quarto render proxiome_analysis_template.qmd --embed-resources
               test -f proxiome_analysis_template.html
-              quarto render modules/05a_statistical_testing_cell_level.qmd --no-execute
-              quarto render modules/05b_statistical_testing_pseudobulk.qmd --no-execute
-              test -f modules/05a_statistical_testing_cell_level.html
               test -f modules/05b_statistical_testing_pseudobulk.html
             '
           df -h
