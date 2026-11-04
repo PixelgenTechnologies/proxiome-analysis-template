@@ -98,7 +98,7 @@ To smoke-test a branch: Actions → **Build** → Run workflow → leave “run 
 
 ### HTML smoke test
 
-When the smoke test runs, CI downloads donors 1 and 3 from the public [16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (~7.1 GiB) and runs `quarto render proxiome_analysis_template.qmd --embed-resources` in the image from the same build (single self-contained HTML file). It then renders `05a` and `05b` with `--no-execute` and checks that both HTML files exist.
+When the smoke test runs, CI downloads donors 1 and 3 from the public [16 healthy donors](https://software.pixelgen.com/datasets/PBMC-16-healthy-donors-v2.0-proxiome-immuno-155/) dataset (~7.1 GiB) and runs `quarto render proxiome_analysis_template.qmd --embed-resources` in the image from the same build (single self-contained HTML file). That render includes `05a`. `05b` is not rendered.
 
 **When it runs**
 
@@ -109,9 +109,8 @@ When the smoke test runs, CI downloads donors 1 and 3 from the public [16 health
 **What it does**
 
 1. Download PXLs via [`.github/smoke-test/download_dataset.sh`](.github/smoke-test/download_dataset.sh) / [`dataset.tsv`](.github/smoke-test/dataset.tsv).
-2. Render the master QMD in the built image with `--embed-resources`.
-3. Render `modules/05a_statistical_testing_cell_level.qmd` and `modules/05b_statistical_testing_pseudobulk.qmd` with `--no-execute` and check that both HTML files exist. This does not run Wilcoxon or limma. The extra HTML files are deleted before upload.
-4. Upload the self-contained HTML as an Actions artifact named `proxiome-analysis-template-example`. On Release, attach `proxiome-analysis-template-example.html` to the GitHub Release (stable filename for `releases/latest/download/...`).
+2. Render the master QMD in the built image with `--embed-resources`. This includes `05a` and does not render `05b`.
+3. Upload the self-contained HTML as an Actions artifact named `proxiome-analysis-template-example`. On Release, attach `proxiome-analysis-template-example.html` to the GitHub Release (stable filename for `releases/latest/download/...`).
 
 **Dataset config:** Keep [`dataset.tsv`](.github/smoke-test/dataset.tsv) and [`data/metadata.csv`](data/metadata.csv) in sync. When the public dataset is republished:
 

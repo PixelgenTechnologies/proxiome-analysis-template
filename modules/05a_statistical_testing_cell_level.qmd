@@ -38,7 +38,7 @@ contrast_column <- "condition"
 # Baseline / control condition. Must match a value in contrast_column.
 # All tests compare each other condition against this one (target − reference).
 # Output folders are named {target}_vs_{reference}.
-reference_condition <- "resting"
+reference_condition <- "donor1"
 
 # FDR cutoff for the abundance effect-size heatmap (§5.1.1). Does not filter the saved table.
 dabund_plot_p_adj_threshold <- 0.05
