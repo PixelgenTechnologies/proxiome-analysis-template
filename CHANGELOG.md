@@ -10,13 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
+- Module `05_statistical_testing.md` now split in two modules; cell-level testing in `05a_statistical_testing_cell_level.qmd` and pseudobulking in `05b_statistical_testing_pseudobulk.qmd`.
 
 ### Fixed
 
 - Module `04` per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
-### Changed
-
-- Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
 
 ## [0.7.0] 2026-10-23
 
