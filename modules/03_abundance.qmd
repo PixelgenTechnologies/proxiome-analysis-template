@@ -19,6 +19,12 @@ if (!exists("cell_palette", inherits = TRUE)) {
 
 # Stop here if any cell type is missing a color, instead of letting the plots
 # below draw those cells in grey.
+if (anyNA(pg_data$cell_annotation)) {
+  stop(
+    "Some cells have no cell_annotation (NA). ",
+    "Give every cell a label in module 02 before continuing."
+  )
+}
 missing_cell_types <- setdiff(unique(pg_data$cell_annotation), names(cell_palette))
 if (length(missing_cell_types) > 0) {
   stop(

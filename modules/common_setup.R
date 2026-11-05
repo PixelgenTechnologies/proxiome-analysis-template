@@ -228,7 +228,7 @@ reference_cell_palette <- Pixelgen_cell_palette
 #' @return Named character vector of hex colors, one per unique value in `cell_types`.
 #' @noRd
 build_cell_palette <- function(cell_types) {
-  unique_cell_types <- unique(cell_types)
+  unique_cell_types <- unique(cell_types[!is.na(cell_types)])
   known_cell_types <- intersect(unique_cell_types, names(reference_cell_palette))
   custom_cell_types <- setdiff(unique_cell_types, known_cell_types)
 

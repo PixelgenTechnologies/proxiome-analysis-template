@@ -1020,6 +1020,12 @@ print(cell_palette)
 
 # Stop here if any cell type is missing a color, instead of letting the plots
 # below draw those cells in grey.
+if (anyNA(pg_data$cell_annotation)) {
+  stop(
+    "Some cells have no cell_annotation (NA). ",
+    "Give every cluster a label in cluster_cell_annotation, or choose another selected_annotation_column."
+  )
+}
 missing_cell_types <- setdiff(unique(pg_data$cell_annotation), names(cell_palette))
 if (length(missing_cell_types) > 0) {
   stop(
