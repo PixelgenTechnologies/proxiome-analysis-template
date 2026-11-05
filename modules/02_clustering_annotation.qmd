@@ -355,7 +355,7 @@ Embeddings(pg_data, "harmony_umap") |>
     color = "black"
   ) +
   coord_fixed() +
-  scale_color_manual(values = cell_palette) +
+  scale_color_manual(values = reference_cell_palette) +
   theme_bw() +
   theme(panel.grid = element_blank())
 export_plot(
@@ -385,7 +385,7 @@ Embeddings(pg_data, "harmony_umap") |>
     color = "black"
   ) +
   coord_fixed() +
-  scale_color_manual(values = cell_palette) +
+  scale_color_manual(values = reference_cell_palette) +
   theme_bw() +
   theme(panel.grid = element_blank())
 export_plot(
@@ -415,7 +415,7 @@ Embeddings(pg_data, "harmony_umap") |>
     color = "black"
   ) +
   coord_fixed() +
-  scale_color_manual(values = cell_palette) +
+  scale_color_manual(values = reference_cell_palette) +
   theme_bw() +
   theme(panel.grid = element_blank())
 export_plot(
@@ -444,7 +444,7 @@ Embeddings(pg_data, "harmony_umap") |>
     color = "black"
   ) +
   coord_fixed() +
-  scale_color_manual(values = cell_palette) +
+  scale_color_manual(values = reference_cell_palette) +
   theme_bw() +
   theme(panel.grid = element_blank())
 export_plot(
@@ -466,7 +466,7 @@ FetchData(pg_data, c("sample_alias", "l1_annotation_summary")) |>
     size = 3
   ) +
   scale_y_continuous(labels = scales::percent_format()) +
-  scale_fill_manual(values = cell_palette) +
+  scale_fill_manual(values = reference_cell_palette) +
   theme_bw() +
   theme(
     axis.text.x = element_text(angle = 60, hjust = 1)
@@ -981,7 +981,63 @@ pg_data[[]] <-
   mutate(
     cell_annotation = .data[[selected_annotation_column]]
   )
+```
 
+### 2.6.8. Set the cell type color palette
+
+Every plot colored or filled by `cell_annotation` uses `cell_palette`, a named vector of colors. Each name is a cell type label and must match a value in `cell_annotation` exactly, including spelling and spaces. `cell_palette` is set once here and reused in downstream modules.
+
+> **Decision checkpoint** (cell type colors — your labels, your colors)  
+> The chunk prints the labels currently in `cell_annotation`. `build_cell_palette()` then assigns one color to each of them: a Pixelgen PBMC reference color when the label text matches a reference cell type, and a newly generated color for every other label. Change a single color with `cell_palette["your label"] <- "#44628E"`. To choose the whole palette yourself, replace that line with a named vector: the names are your `cell_annotation` labels (they can be entirely different from the reference names), and the values are any colors you want. The next chunk stops and lists any label that still has no color.
+
+```{r}
+#| label: annotation_set_cell_palette_parameters
+
+# Labels that cell_palette must name. Copy these into your own vector below
+# if you define the colors from scratch.
+print(unique(as.character(pg_data$cell_annotation)))
+
+# One color per label printed above. A label keeps a Pixelgen PBMC reference
+# color only when its text matches that reference. Every other label gets a
+# generated color. Change one color with, for example:
+# cell_palette["CD4 T"] <- "#44628E"
+cell_palette <- build_cell_palette(pg_data$cell_annotation)
+
+# Or set every name and color yourself. Comment out the line above and edit
+# this vector so each name is one of your cell_annotation labels.
+# cell_palette <- c(
+#   "CD4 T" = "#44628E",
+#   "CD8 T" = "#A23F5E",
+#   "B" = "#718BB2",
+#   "Monocytes" = "#1F395F"
+# )
+
+print(cell_palette)
+```
+
+```{r}
+#| label: annotation_set_cell_palette
+
+# Stop here if any cell type is missing a color, instead of letting the plots
+# below draw those cells in grey.
+if (anyNA(pg_data$cell_annotation)) {
+  stop(
+    "Some cells have no cell_annotation (NA). ",
+    "Give every cluster a label in cluster_cell_annotation, or choose another selected_annotation_column."
+  )
+}
+missing_cell_types <- setdiff(unique(pg_data$cell_annotation), names(cell_palette))
+if (length(missing_cell_types) > 0) {
+  stop(
+    "cell_palette is missing a color for: ",
+    paste(missing_cell_types, collapse = ", "),
+    ". Add a color for each of these labels in cell_palette above before continuing."
+  )
+}
+```
+
+```{r}
+#| label: annotation_choose_annotation_plots
 
 # L1 automatic annotation - summarised by cluster
 Embeddings(pg_data, "harmony_umap") |>
@@ -1053,7 +1109,7 @@ export_plot(
 )
 ```
 
-### 2.6.8. Marker selection per cell type
+### 2.6.9. Marker selection per cell type
 
 > **Decision checkpoint** (which markers enter differential testing)  
 > The PLS and filter logic below defines `markers_to_test` for modules `04`–`05`. Adjust `isotype_markers` if your panel differs (defaults are mouse isotypes; use your human isotype controls for human panels). Review the scatter plot and heatmaps before trusting exclusions.
@@ -1342,4 +1398,5 @@ markers_to_test <-
 
 save_checkpoint("annotated_seurat_object.rds", pg_data)
 save_checkpoint("markers_to_test.rds", markers_to_test)
+save_checkpoint("cell_palette.rds", cell_palette)
 ```

@@ -13,6 +13,26 @@ source(here::here("modules", "common_setup.R"))
 if (!exists("pg_data", inherits = TRUE)) {
   pg_data <- load_checkpoint("annotated_seurat_object.rds")
 }
+if (!exists("cell_palette", inherits = TRUE)) {
+  cell_palette <- load_checkpoint("cell_palette.rds")
+}
+
+# Stop here if any cell type is missing a color, instead of letting the plots
+# below draw those cells in grey.
+if (anyNA(pg_data$cell_annotation)) {
+  stop(
+    "Some cells have no cell_annotation (NA). ",
+    "Give every cell a label in module 02 before continuing."
+  )
+}
+missing_cell_types <- setdiff(unique(pg_data$cell_annotation), names(cell_palette))
+if (length(missing_cell_types) > 0) {
+  stop(
+    "cell_palette is missing a color for: ",
+    paste(missing_cell_types, collapse = ", "),
+    ". Add a color for each of these labels in the cell_palette decision checkpoint in module 02 before continuing."
+  )
+}
 ```
 
 > **Decision checkpoint** (abundance plots scope)  

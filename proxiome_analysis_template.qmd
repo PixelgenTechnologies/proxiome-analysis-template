@@ -50,7 +50,8 @@ This template describes a standard workflow for analyzing single cell PNA data u
     │   ├── pg_data_merged.rds         # After module 01 (QC-filtered)
     │   ├── selected_markers.rds       # After module 01
     │   ├── annotated_seurat_object.rds # After module 02
-    │   └── markers_to_test.rds        # After module 02
+    │   ├── markers_to_test.rds        # After module 02
+    │   └── cell_palette.rds           # After module 02
     ├── 01_quality_control/
     ├── 02_clustering_annotation/
     ├── 03_abundance/
