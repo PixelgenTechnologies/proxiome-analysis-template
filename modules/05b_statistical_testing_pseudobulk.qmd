@@ -25,7 +25,7 @@ suppressPackageStartupMessages(library(limma))
 ## 5.0. Set Up Statistical Testing
 
 > **Decision checkpoint** (statistical contrasts and plot cutoffs)  
-> Set `contrast_column` and `reference_condition` (a value in that column). All `{target}_vs_{reference}` outputs in this notebook use this baseline. Adjust the significance and effect-size cutoffs used for summary plots. Result tables (`.rds` and `.csv`) are saved in full regardless of plot cutoffs.  
+> Set `contrast_column` and `reference_condition` (a value in that column). All `{target}_vs_{reference}` outputs in this notebook use this baseline. Adjust the significance and effect-size cutoffs used for summary plots. Result tables are saved in full regardless of plot cutoffs.  
 > Optionally set `pseudobulk_covariate_cols` to metadata columns (for example `c("donor", "batch")`) to include in the limma model. Leave `NULL` for a condition-only model. Do not add the contrast column itself.
 
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. Sample means in each other condition are compared with sample means in the reference.
@@ -39,7 +39,7 @@ contrast_column <- "condition"
 # Baseline / control condition. Must match a value in contrast_column.
 # All tests compare each other condition against this one (target − reference).
 # Output folders are named {target}_vs_{reference}.
-reference_condition <- "resting"
+reference_condition <- "donor1"
 
 # Adjusted p-value cutoff for the abundance effect-size heatmap (§5.1.1). Does not filter the saved table.
 dabund_plot_p_adj_threshold <- 0.05
@@ -140,7 +140,7 @@ summary_abundance_data <-
 
 abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "pseudobulk")
 dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.rds"))
+write_csv(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.csv"))
 ```
 
 #### Proximity Summary
@@ -178,12 +178,12 @@ summary_proximity_data <- names(markers_to_test) |>
 
 proximity_dir <- here::here("results", "05_statistical_testing", "colocalization", "pseudobulk")
 dir.create(proximity_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.rds"))
+write_csv(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.csv"))
 ```
 
 ## 5.1. Differential abundance analysis
 
-Limma is fit on `summary_abundance_data` (mean CLR per `sample_alias` × cell type × marker). The model formula uses `contrast_column`, plus any columns in `pseudobulk_covariate_cols`. The coefficient for each non-reference condition is the difference in mean CLR. Results are written as `differential_abundance_analysis.rds` under `abundance/pseudobulk/`. In module 07, set `stats_method` to `"pseudobulk"` to use these tables (the default `"cell_level"` reads module 05a).
+Limma is fit on `summary_abundance_data` (mean CLR per `sample_alias` × cell type × marker). The model formula uses `contrast_column`, plus any columns in `pseudobulk_covariate_cols`. The coefficient for each non-reference condition is the difference in mean CLR. Results are written as `differential_abundance_analysis.csv` under `abundance/pseudobulk/`. In module 07, set `stats_method` to `"pseudobulk"` to use these tables (the default `"cell_level"` reads module 05a).
 
 ```{r}
 #| label: module05b_abundance

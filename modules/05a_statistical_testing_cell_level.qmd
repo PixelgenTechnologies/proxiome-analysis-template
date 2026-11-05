@@ -133,7 +133,7 @@ summary_abundance_data <-
 
 abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "cell_level")
 dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.rds"))
+write_csv(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.csv"))
 ```
 
 #### Proximity
@@ -170,7 +170,7 @@ summary_proximity_data <- names(markers_to_test) |>
 
 proximity_dir <- here::here("results", "05_statistical_testing", "proximity", "cell_level")
 dir.create(proximity_dir, recursive = TRUE, showWarnings = FALSE)
-write_rds(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.rds"))
+write_csv(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.csv"))
 ```
 
 ## 5.1. Differential abundance analysis
