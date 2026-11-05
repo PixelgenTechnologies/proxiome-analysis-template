@@ -985,7 +985,7 @@ pg_data[[]] <-
 
 ### 2.6.8. Set the cell type color palette
 
-Every plot colored or filled by `cell_annotation` uses `cell_palette`, a named vector of colors. Each name is a cell type label and must match a value in `cell_annotation` exactly, including spelling and spaces. `cell_palette` is set once here and reused in module `03`. A label with no entry is drawn in grey (or dropped from the legend), which is easy to miss. That shows up as soon as `cell_annotation` uses your own names, for example after switching `selected_annotation_column` to `manual_cell_annotation` or `cd4_subtype`.
+Every plot colored or filled by `cell_annotation` uses `cell_palette`, a named vector of colors. Each name is a cell type label and must match a value in `cell_annotation` exactly, including spelling and spaces. `cell_palette` is set once here and reused in downstream modules.
 
 > **Decision checkpoint** (cell type colors — your labels, your colors)  
 > The chunk prints the labels currently in `cell_annotation`. `build_cell_palette()` then assigns one color to each of them: a Pixelgen PBMC reference color when the label text matches a reference cell type, and a newly generated color for every other label. Change a single color with `cell_palette["your label"] <- "#44628E"`. To choose the whole palette yourself, replace that line with a named vector: the names are your `cell_annotation` labels (they can be entirely different from the reference names), and the values are any colors you want. The next chunk stops and lists any label that still has no color.
@@ -1000,15 +1000,16 @@ print(unique(as.character(pg_data$cell_annotation)))
 # One color per label printed above. A label keeps a Pixelgen PBMC reference
 # color only when its text matches that reference. Every other label gets a
 # generated color. Change one color with, for example:
-# cell_palette["Treg"] <- "#44628E"
+# cell_palette["CD4 T"] <- "#44628E"
 cell_palette <- build_cell_palette(pg_data$cell_annotation)
 
 # Or set every name and color yourself. Comment out the line above and edit
 # this vector so each name is one of your cell_annotation labels.
 # cell_palette <- c(
-#   "Treg" = "#44628E",
-#   "Tumor epithelial" = "#A23F5E",
-#   "Stroma" = "#1F395F"
+#   "CD4 T" = "#44628E",
+#   "CD8 T" = "#A23F5E",
+#   "B" = "#718BB2",
+#   "Monocytes" = "#1F395F"
 # )
 
 print(cell_palette)
