@@ -224,88 +224,93 @@ Here we create summarizing plots for the differential abundance analysis results
 ```{r}
 #| label: module05a_differential_abundance_analysis_summarizing_plots
 
-modality <- "abundance"
-target <- setdiff(unique(differential_abundance_analysis$target), reference_condition)[1]
+if (
+  exists("differential_abundance_analysis") &&
+    nrow(differential_abundance_analysis) > 0
+) {
+  modality <- "abundance"
+  target <- setdiff(unique(differential_abundance_analysis$target), reference_condition)[1]
 
-# results/05_statistical_testing/{modality}/cell_level/{target}_vs_{reference}/...
-plot_path <- function(...) {
-  here::here(
-    "results/05_statistical_testing", modality, "cell_level",
-    paste0(target, "_vs_", reference_condition),
-    ...
-  )
-}
+  # results/05_statistical_testing/{modality}/cell_level/{target}_vs_{reference}/...
+  plot_path <- function(...) {
+    here::here(
+      "results/05_statistical_testing", modality, "cell_level",
+      paste0(target, "_vs_", reference_condition),
+      ...
+    )
+  }
 
-plot_data <- differential_abundance_analysis |>
-  filter(target == !!target) |>
-  mutate(neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)))
+  plot_data <- differential_abundance_analysis |>
+    filter(target == !!target) |>
+    mutate(neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)))
 
-# Per cell type: volcano with its n most significant labeled markers, plus a
-# row-z-scored sample heatmap of those same markers' CLR means. Both saved
-# under the cell type's own folder within the target-vs-reference folder.
-walk(unique(plot_data$group), function(cell_type) {
-  tryCatch(
-    {
-      data <- filter(plot_data, group == cell_type)
-      labels <- slice_max(data, order_by = neg_log10_p_adj, n = dabund_volcano_top_n, with_ties = FALSE)
+  # Per cell type: volcano with its n most significant labeled markers, plus a
+  # row-z-scored sample heatmap of those same markers' CLR means. Both saved
+  # under the cell type's own folder within the target-vs-reference folder.
+  walk(unique(plot_data$group), function(cell_type) {
+    tryCatch(
+      {
+        data <- filter(plot_data, group == cell_type)
+        labels <- slice_max(data, order_by = neg_log10_p_adj, n = dabund_volcano_top_n, with_ties = FALSE)
 
-      volcano <- ggplot(data, aes(difference, neg_log10_p_adj, color = difference)) +
-        geom_point(size = 0.7) +
-        geom_text(data = labels, aes(label = marker), size = 2.5, vjust = -0.5, show.legend = FALSE) +
-        geom_vline(xintercept = 0) +
-        scale_color_gradient2() +
-        theme_bw() +
-        labs(title = paste0(cell_type, " (", target, " vs ", reference_condition, ")"), x = "Difference", y = "-log10(FDR-adjusted p-value)")
-      export_plot(plot_path(cell_type, paste0("differential_", modality, "_volcano")), volcano, width = 6, height = 5)
+        volcano <- ggplot(data, aes(difference, neg_log10_p_adj, color = difference)) +
+          geom_point(size = 0.7) +
+          geom_text(data = labels, aes(label = marker), size = 2.5, vjust = -0.5, show.legend = FALSE) +
+          geom_vline(xintercept = 0) +
+          scale_color_gradient2() +
+          theme_bw() +
+          labs(title = paste0(cell_type, " (", target, " vs ", reference_condition, ")"), x = "Difference", y = "-log10(FDR-adjusted p-value)")
+        export_plot(plot_path(cell_type, paste0("differential_", modality, "_volcano")), volcano, width = 6, height = 5)
 
-      clr_mat <- summary_abundance_data |>
-        filter(group == cell_type, marker %in% labels$marker) |>
-        select(marker, sample_alias, mean_clr) |>
-        pivot_wider(names_from = sample_alias, values_from = mean_clr) |>
-        column_to_rownames("marker") |>
-        as.matrix()
-      clr_mat <- t(scale(t(clr_mat[labels$marker, , drop = FALSE])))
-      if (!all(is.finite(clr_mat))) {
-        stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
+        clr_mat <- summary_abundance_data |>
+          filter(group == cell_type, marker %in% labels$marker) |>
+          select(marker, sample_alias, mean_clr) |>
+          pivot_wider(names_from = sample_alias, values_from = mean_clr) |>
+          column_to_rownames("marker") |>
+          as.matrix()
+        clr_mat <- t(scale(t(clr_mat[labels$marker, , drop = FALSE])))
+        if (!all(is.finite(clr_mat))) {
+          stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
+        }
+        z_lim <- max(abs(clr_mat))
+        sample_hm <- ComplexHeatmap::pheatmap(
+          clr_mat,
+          color = PixelgenGradient(100, "BluesCherry"),
+          breaks = seq(-z_lim, z_lim, length.out = 101),
+          name = "CLR z-score",
+          main = cell_type
+        ) |>
+          as.ggplot()
+        export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
+      },
+      error = function(e) {
+        message(paste("Skipping abundance sample heatmap for", cell_type, ":", conditionMessage(e)))
+        NULL
       }
-      z_lim <- max(abs(clr_mat))
-      sample_hm <- ComplexHeatmap::pheatmap(
-        clr_mat,
-        color = PixelgenGradient(100, "BluesCherry"),
-        breaks = seq(-z_lim, z_lim, length.out = 101),
-        name = "CLR z-score",
-        main = cell_type
-      ) |>
-        as.ggplot()
-      export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
-    },
-    error = function(e) {
-      message(paste("Skipping abundance sample heatmap for", cell_type, ":", conditionMessage(e)))
-      NULL
-    }
-  )
-})
+    )
+  })
 
-# Effect-size heatmap of significant markers across cell types
-heatmap_mat <- plot_data |>
-  filter(p_adj < dabund_plot_p_adj_threshold, abs(difference) > dabund_heatmap_effect_threshold) |>
-  select(marker, group, difference) |>
-  pivot_wider(names_from = group, values_from = difference, values_fill = 0) |>
-  column_to_rownames("marker") |>
-  as.matrix()
-# min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
-# seq() call for color breaks. Skip the heatmap (not just the export) when
-# no marker passes both cutoffs above.
-if (nrow(heatmap_mat) == 0) {
-  message("Skipping abundance effect-size heatmap: no marker passed both cutoffs.")
-} else {
-  heatmap_plot <- ComplexHeatmap::pheatmap(
-    heatmap_mat,
-    color = PixelgenGradient(100, "BluesCherry"),
-    main = paste0(target, " vs ", reference_condition)
-  ) |>
-    as.ggplot()
-  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  # Effect-size heatmap of significant markers across cell types
+  heatmap_mat <- plot_data |>
+    filter(p_adj < dabund_plot_p_adj_threshold, abs(difference) > dabund_heatmap_effect_threshold) |>
+    select(marker, group, difference) |>
+    pivot_wider(names_from = group, values_from = difference, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    as.matrix()
+  # min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+  # seq() call for color breaks. Skip the heatmap (not just the export) when
+  # no marker passes both cutoffs above.
+  if (nrow(heatmap_mat) == 0) {
+    message("Skipping abundance effect-size heatmap: no marker passed both cutoffs.")
+  } else {
+    heatmap_plot <- ComplexHeatmap::pheatmap(
+      heatmap_mat,
+      color = PixelgenGradient(100, "BluesCherry"),
+      main = paste0(target, " vs ", reference_condition)
+    ) |>
+      as.ggplot()
+    export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  }
 }
 ``` 
 
@@ -377,92 +382,97 @@ Here we create summarizing plots for the differential clustering analysis result
 ```{r}
 #| label: module05a_differential_clustering_plots
 
-modality <- "clustering"
-target <- setdiff(unique(differential_clustering_analysis$target), reference_condition)[1]
+if (
+  exists("differential_clustering_analysis") &&
+    nrow(differential_clustering_analysis) > 0
+) {
+  modality <- "clustering"
+  target <- setdiff(unique(differential_clustering_analysis$target), reference_condition)[1]
 
-# results/05_statistical_testing/{modality}/cell_level/{target}_vs_{reference}/...
-plot_path <- function(...) {
-  here::here(
-    "results/05_statistical_testing", modality, "cell_level",
-    paste0(target, "_vs_", reference_condition),
-    ...
-  )
-}
+  # results/05_statistical_testing/{modality}/cell_level/{target}_vs_{reference}/...
+  plot_path <- function(...) {
+    here::here(
+      "results/05_statistical_testing", modality, "cell_level",
+      paste0(target, "_vs_", reference_condition),
+      ...
+    )
+  }
 
-# Self-proximity: marker_1 is the feature (marker_1 == marker_2).
-plot_data <- differential_clustering_analysis |>
-  filter(target == !!target) |>
-  mutate(
-    marker = marker_1,
-    neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold))
-  )
+  # Self-proximity: marker_1 is the feature (marker_1 == marker_2).
+  plot_data <- differential_clustering_analysis |>
+    filter(target == !!target) |>
+    mutate(
+      marker = marker_1,
+      neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold))
+    )
 
-# Per cell type: volcano with its n most significant labeled markers, plus a
-# row-z-scored sample heatmap of those markers' self-proximity. Both saved
-# under the cell type's own folder within the target-vs-reference folder.
-walk(unique(plot_data$group), function(cell_type) {
-  tryCatch(
-    {
-      data <- filter(plot_data, group == cell_type)
-      labels <- slice_max(data, order_by = neg_log10_p_adj, n = dclust_volcano_top_n, with_ties = FALSE)
+  # Per cell type: volcano with its n most significant labeled markers, plus a
+  # row-z-scored sample heatmap of those markers' self-proximity. Both saved
+  # under the cell type's own folder within the target-vs-reference folder.
+  walk(unique(plot_data$group), function(cell_type) {
+    tryCatch(
+      {
+        data <- filter(plot_data, group == cell_type)
+        labels <- slice_max(data, order_by = neg_log10_p_adj, n = dclust_volcano_top_n, with_ties = FALSE)
 
-      volcano <- ggplot(data, aes(diff_median, neg_log10_p_adj, color = diff_median)) +
-        geom_point(size = 0.7) +
-        geom_text(data = labels, aes(label = marker), size = 2.5, vjust = -0.5, show.legend = FALSE) +
-        geom_vline(xintercept = 0) +
-        scale_color_gradient2() +
-        theme_bw() +
-        labs(title = paste0(cell_type, " (", target, " vs ", reference_condition, ")"), x = "Difference", y = "-log10(FDR-adjusted p-value)")
-      export_plot(plot_path(cell_type, paste0("differential_", modality, "_volcano")), volcano, width = 6, height = 5)
+        volcano <- ggplot(data, aes(diff_median, neg_log10_p_adj, color = diff_median)) +
+          geom_point(size = 0.7) +
+          geom_text(data = labels, aes(label = marker), size = 2.5, vjust = -0.5, show.legend = FALSE) +
+          geom_vline(xintercept = 0) +
+          scale_color_gradient2() +
+          theme_bw() +
+          labs(title = paste0(cell_type, " (", target, " vs ", reference_condition, ")"), x = "Difference", y = "-log10(FDR-adjusted p-value)")
+        export_plot(plot_path(cell_type, paste0("differential_", modality, "_volcano")), volcano, width = 6, height = 5)
 
-      prox_mat <- summary_proximity_data |>
-        filter(group == cell_type, marker_1 == marker_2, marker_1 %in% labels$marker) |>
-        select(marker = marker_1, sample_alias, mean_log2_ratio) |>
-        pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
-        column_to_rownames("marker") |>
-        as.matrix()
-      prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
-      if (!all(is.finite(prox_mat))) {
-        stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
+        prox_mat <- summary_proximity_data |>
+          filter(group == cell_type, marker_1 == marker_2, marker_1 %in% labels$marker) |>
+          select(marker = marker_1, sample_alias, mean_log2_ratio) |>
+          pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
+          column_to_rownames("marker") |>
+          as.matrix()
+        prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
+        if (!all(is.finite(prox_mat))) {
+          stop("non-finite values after z-scoring (a labeled marker has 0 variance across samples)")
+        }
+        z_lim <- max(abs(prox_mat))
+        sample_hm <- ComplexHeatmap::pheatmap(
+          prox_mat,
+          color = PixelgenGradient(100, "BluesCherry"),
+          breaks = seq(-z_lim, z_lim, length.out = 101),
+          name = "log2_ratio z-score",
+          main = cell_type
+        ) |>
+          as.ggplot()
+        export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
+      },
+      error = function(e) {
+        message(paste("Skipping clustering sample heatmap for", cell_type, ":", conditionMessage(e)))
+        NULL
       }
-      z_lim <- max(abs(prox_mat))
-      sample_hm <- ComplexHeatmap::pheatmap(
-        prox_mat,
-        color = PixelgenGradient(100, "BluesCherry"),
-        breaks = seq(-z_lim, z_lim, length.out = 101),
-        name = "log2_ratio z-score",
-        main = cell_type
-      ) |>
-        as.ggplot()
-      export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
-    },
-    error = function(e) {
-      message(paste("Skipping clustering sample heatmap for", cell_type, ":", conditionMessage(e)))
-      NULL
-    }
-  )
-})
+    )
+  })
 
-# Effect-size heatmap of significant markers across cell types
-heatmap_mat <- plot_data |>
-  filter(p_adj < dclust_plot_p_adj_threshold, abs(diff_median) > dclust_heatmap_effect_threshold) |>
-  select(marker, group, diff_median) |>
-  pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
-  column_to_rownames("marker") |>
-  as.matrix()
-# min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
-# seq() call for color breaks. Skip the heatmap (not just the export) when
-# no marker passes both cutoffs above.
-if (nrow(heatmap_mat) == 0) {
-  message("Skipping clustering effect-size heatmap: no marker passed both cutoffs.")
-} else {
-  heatmap_plot <- ComplexHeatmap::pheatmap(
-    heatmap_mat,
-    color = PixelgenGradient(100, "BluesCherry"),
-    main = paste0(target, " vs ", reference_condition)
-  ) |>
-    as.ggplot()
-  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  # Effect-size heatmap of significant markers across cell types
+  heatmap_mat <- plot_data |>
+    filter(p_adj < dclust_plot_p_adj_threshold, abs(diff_median) > dclust_heatmap_effect_threshold) |>
+    select(marker, group, diff_median) |>
+    pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    as.matrix()
+  # min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+  # seq() call for color breaks. Skip the heatmap (not just the export) when
+  # no marker passes both cutoffs above.
+  if (nrow(heatmap_mat) == 0) {
+    message("Skipping clustering effect-size heatmap: no marker passed both cutoffs.")
+  } else {
+    heatmap_plot <- ComplexHeatmap::pheatmap(
+      heatmap_mat,
+      color = PixelgenGradient(100, "BluesCherry"),
+      main = paste0(target, " vs ", reference_condition)
+    ) |>
+      as.ggplot()
+    export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  }
 }
 ```
 
@@ -534,138 +544,143 @@ Here we create summarizing plots for the differential colocalization analysis re
 ```{r}
 #| label: module05a_differential_colocalization_plots
 
-modality <- "colocalization"
-target <- setdiff(unique(differential_colocalization_analysis$target), reference_condition)[1]
+if (
+  exists("differential_colocalization_analysis") &&
+    nrow(differential_colocalization_analysis) > 0
+) {
+  modality <- "colocalization"
+  target <- setdiff(unique(differential_colocalization_analysis$target), reference_condition)[1]
 
-# results/05_statistical_testing/{modality}/cell_level/{target}_vs_{reference}/...
-plot_path <- function(...) {
-  here::here(
-    "results/05_statistical_testing", modality, "cell_level",
-    paste0(target, "_vs_", reference_condition),
-    ...
-  )
-}
+  # results/05_statistical_testing/{modality}/cell_level/{target}_vs_{reference}/...
+  plot_path <- function(...) {
+    here::here(
+      "results/05_statistical_testing", modality, "cell_level",
+      paste0(target, "_vs_", reference_condition),
+      ...
+    )
+  }
 
-# Cross-marker pairs. "A__B" matches summary_proximity_data$feature.
-plot_data <- differential_colocalization_analysis |>
-  filter(target == !!target) |>
-  mutate(
-    marker = paste(marker_1, marker_2, sep = "_"),
-    neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold))
-  )
+  # Cross-marker pairs. "A__B" matches summary_proximity_data$feature.
+  plot_data <- differential_colocalization_analysis |>
+    filter(target == !!target) |>
+    mutate(
+      marker = paste(marker_1, marker_2, sep = "_"),
+      neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold))
+    )
 
-# Per cell type: volcano with its n most significant labeled pairs, plus a
-# row-z-scored sample heatmap of those pairs' log2_ratio. Both saved under
-# the cell type's own folder within the target-vs-reference folder.
-walk(unique(plot_data$group), function(cell_type) {
-  tryCatch(
-    {
-      data <- filter(plot_data, group == cell_type)
-      labels <- slice_max(data, order_by = neg_log10_p_adj, n = dcoloc_volcano_top_n, with_ties = FALSE)
+  # Per cell type: volcano with its n most significant labeled pairs, plus a
+  # row-z-scored sample heatmap of those pairs' log2_ratio. Both saved under
+  # the cell type's own folder within the target-vs-reference folder.
+  walk(unique(plot_data$group), function(cell_type) {
+    tryCatch(
+      {
+        data <- filter(plot_data, group == cell_type)
+        labels <- slice_max(data, order_by = neg_log10_p_adj, n = dcoloc_volcano_top_n, with_ties = FALSE)
 
-      volcano <- ggplot(data, aes(diff_median, neg_log10_p_adj, color = diff_median)) +
-        geom_point(size = 0.7) +
-        geom_text(data = labels, aes(label = marker), size = 2.5, vjust = -0.5, show.legend = FALSE) +
-        geom_vline(xintercept = 0) +
-        scale_color_gradient2() +
-        theme_bw() +
-        labs(title = paste0(cell_type, " (", target, " vs ", reference_condition, ")"), x = "Difference", y = "-log10(FDR-adjusted p-value)")
-      export_plot(plot_path(cell_type, paste0("differential_", modality, "_volcano")), volcano, width = 6, height = 5)
+        volcano <- ggplot(data, aes(diff_median, neg_log10_p_adj, color = diff_median)) +
+          geom_point(size = 0.7) +
+          geom_text(data = labels, aes(label = marker), size = 2.5, vjust = -0.5, show.legend = FALSE) +
+          geom_vline(xintercept = 0) +
+          scale_color_gradient2() +
+          theme_bw() +
+          labs(title = paste0(cell_type, " (", target, " vs ", reference_condition, ")"), x = "Difference", y = "-log10(FDR-adjusted p-value)")
+        export_plot(plot_path(cell_type, paste0("differential_", modality, "_volcano")), volcano, width = 6, height = 5)
 
-      prox_mat <- summary_proximity_data |>
-        filter(group == cell_type, feature %in% labels$marker) |>
-        select(marker = feature, sample_alias, mean_log2_ratio) |>
-        pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
-        column_to_rownames("marker") |>
-        as.matrix()
-      prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
-      if (!all(is.finite(prox_mat))) {
-        stop("non-finite values after z-scoring (a labeled pair has 0 variance across samples)")
-      }
-      z_lim <- max(abs(prox_mat))
-      sample_hm <- ComplexHeatmap::pheatmap(
-        prox_mat,
-        color = PixelgenGradient(100, "BluesCherry"),
-        breaks = seq(-z_lim, z_lim, length.out = 101),
-        name = "log2_ratio z-score",
-        main = cell_type
-      ) |>
-        as.ggplot()
-      export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
-
-      # Dot heatmap of diff_median for this cell type's significant pairs, dot
-      # size = -log10(p_adj). Both axes are the union of marker_1 and marker_2,
-      # so walk pairs from most significant and stop before a new marker would
-      # make that union longer than 60. Pairs among markers already kept stay.
-      # ColocalizationHeatmap errors with fewer than two significant pairs, so
-      # skip a cell type that has 0 or 1 instead of aborting.
-      sig_pairs <- data |>
-        filter(p_adj < dcoloc_plot_p_adj_threshold) |>
-        arrange(desc(neg_log10_p_adj))
-      kept <- character()
-      keep_row <- logical(nrow(sig_pairs))
-      for (i in seq_len(nrow(sig_pairs))) {
-        new_markers <- setdiff(c(sig_pairs$marker_1[i], sig_pairs$marker_2[i]), kept)
-        if (length(kept) + length(new_markers) <= 60) {
-          kept <- c(kept, new_markers)
-          keep_row[i] <- TRUE
-        } else if (length(new_markers) == 0) {
-          keep_row[i] <- TRUE
+        prox_mat <- summary_proximity_data |>
+          filter(group == cell_type, feature %in% labels$marker) |>
+          select(marker = feature, sample_alias, mean_log2_ratio) |>
+          pivot_wider(names_from = sample_alias, values_from = mean_log2_ratio, values_fill = 0) |>
+          column_to_rownames("marker") |>
+          as.matrix()
+        prox_mat <- t(scale(t(prox_mat[labels$marker, , drop = FALSE])))
+        if (!all(is.finite(prox_mat))) {
+          stop("non-finite values after z-scoring (a labeled pair has 0 variance across samples)")
         }
-      }
-      sig_pairs <- sig_pairs[keep_row, ]
-      if (nrow(sig_pairs) < 2) {
-        return(invisible(NULL))
-      }
-      coloc_hm <- ColocalizationHeatmap(
-        sig_pairs,
-        marker1_col = "marker_1",
-        marker2_col = "marker_2",
-        value_col = "diff_median",
-        type = "dots",
-        colors = gradient_palette,
-        size_col_transform = \(x) -log10(x)
-      ) &
-        labs(
-          size = "-log10(p_adj)",
-          fill = "Difference\nin medians",
-          title = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
-        ) &
-        scale_size(range = c(1, 5), limits = c(0, max(-log10(sig_pairs$p_adj))))
-      plot_markers <- unique(c(sig_pairs$marker_1, sig_pairs$marker_2))
-      export_plot(
-        plot_path(cell_type, "colocalization_heatmap"),
-        coloc_hm,
-        width = max(4, length(plot_markers) * 0.15 + 1.5),
-        height = max(4, length(plot_markers) * 0.15 + 3)
-      )
-    },
-    error = function(e) {
-      message(paste("Skipping colocalization plots for", cell_type, ":", conditionMessage(e)))
-      NULL
-    }
-  )
-})
+        z_lim <- max(abs(prox_mat))
+        sample_hm <- ComplexHeatmap::pheatmap(
+          prox_mat,
+          color = PixelgenGradient(100, "BluesCherry"),
+          breaks = seq(-z_lim, z_lim, length.out = 101),
+          name = "log2_ratio z-score",
+          main = cell_type
+        ) |>
+          as.ggplot()
+        export_plot(plot_path(cell_type, "sample_heatmap"), sample_hm, width = 6, height = 5)
 
-# Effect-size heatmap of significant pairs across cell types
-heatmap_mat <- plot_data |>
-  filter(p_adj < dcoloc_plot_p_adj_threshold, abs(diff_median) > dcoloc_heatmap_effect_threshold) |>
-  select(marker, group, diff_median) |>
-  pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
-  column_to_rownames("marker") |>
-  as.matrix()
-# min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
-# seq() call for color breaks. Skip the heatmap (not just the export) when
-# no pair passes both cutoffs above.
-if (nrow(heatmap_mat) == 0) {
-  message("Skipping colocalization effect-size heatmap: no pair passed both cutoffs.")
-} else {
-  heatmap_plot <- ComplexHeatmap::pheatmap(
-    heatmap_mat,
-    color = PixelgenGradient(100, "BluesCherry"),
-    main = paste0(target, " vs ", reference_condition)
-  ) |>
-    as.ggplot()
-  export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+        # Dot heatmap of diff_median for this cell type's significant pairs, dot
+        # size = -log10(p_adj). Both axes are the union of marker_1 and marker_2,
+        # so walk pairs from most significant and stop before a new marker would
+        # make that union longer than 60. Pairs among markers already kept stay.
+        # ColocalizationHeatmap errors with fewer than two significant pairs, so
+        # skip a cell type that has 0 or 1 instead of aborting.
+        sig_pairs <- data |>
+          filter(p_adj < dcoloc_plot_p_adj_threshold) |>
+          arrange(desc(neg_log10_p_adj))
+        kept <- character()
+        keep_row <- logical(nrow(sig_pairs))
+        for (i in seq_len(nrow(sig_pairs))) {
+          new_markers <- setdiff(c(sig_pairs$marker_1[i], sig_pairs$marker_2[i]), kept)
+          if (length(kept) + length(new_markers) <= 60) {
+            kept <- c(kept, new_markers)
+            keep_row[i] <- TRUE
+          } else if (length(new_markers) == 0) {
+            keep_row[i] <- TRUE
+          }
+        }
+        sig_pairs <- sig_pairs[keep_row, ]
+        if (nrow(sig_pairs) < 2) {
+          return(invisible(NULL))
+        }
+        coloc_hm <- ColocalizationHeatmap(
+          sig_pairs,
+          marker1_col = "marker_1",
+          marker2_col = "marker_2",
+          value_col = "diff_median",
+          type = "dots",
+          colors = gradient_palette,
+          size_col_transform = \(x) -log10(x)
+        ) &
+          labs(
+            size = "-log10(p_adj)",
+            fill = "Difference\nin medians",
+            title = paste0(cell_type, " (", target, " vs ", reference_condition, ")")
+          ) &
+          scale_size(range = c(1, 5), limits = c(0, max(-log10(sig_pairs$p_adj))))
+        plot_markers <- unique(c(sig_pairs$marker_1, sig_pairs$marker_2))
+        export_plot(
+          plot_path(cell_type, "colocalization_heatmap"),
+          coloc_hm,
+          width = max(4, length(plot_markers) * 0.15 + 1.5),
+          height = max(4, length(plot_markers) * 0.15 + 3)
+        )
+      },
+      error = function(e) {
+        message(paste("Skipping colocalization plots for", cell_type, ":", conditionMessage(e)))
+        NULL
+      }
+    )
+  })
+
+  # Effect-size heatmap of significant pairs across cell types
+  heatmap_mat <- plot_data |>
+    filter(p_adj < dcoloc_plot_p_adj_threshold, abs(diff_median) > dcoloc_heatmap_effect_threshold) |>
+    select(marker, group, diff_median) |>
+    pivot_wider(names_from = group, values_from = diff_median, values_fill = 0) |>
+    column_to_rownames("marker") |>
+    as.matrix()
+  # min()/max() of an empty matrix are Inf/-Inf, which crashes pheatmap's
+  # seq() call for color breaks. Skip the heatmap (not just the export) when
+  # no pair passes both cutoffs above.
+  if (nrow(heatmap_mat) == 0) {
+    message("Skipping colocalization effect-size heatmap: no pair passed both cutoffs.")
+  } else {
+    heatmap_plot <- ComplexHeatmap::pheatmap(
+      heatmap_mat,
+      color = PixelgenGradient(100, "BluesCherry"),
+      main = paste0(target, " vs ", reference_condition)
+    ) |>
+      as.ggplot()
+    export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
+  }
 }
 ```
