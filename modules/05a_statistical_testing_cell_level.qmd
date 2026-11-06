@@ -215,7 +215,7 @@ write_csv(differential_abundance_analysis, file.path(abundance_dir, "differentia
 
 ### 5.1.1. Summarizing plots
 
-Here we create summarizing plots for the differential abundance analysis results:
+Here we create summarizing plots for the differential abundance analysis results, plotting only the first non-reference target (the saved tables above keep every target):
 
 1. **Per-cell-type volcano + sample heatmap**: For each cell type, a volcano (effect size vs −log10 adjusted p-value, top `dabund_volcano_top_n` markers labeled by **adjusted significance**, not largest |effect|) and a row-z-scored heatmap of sample-mean CLR (`summary_abundance_data`) for those same labeled markers. Both are saved in the cell type's own folder.
 

@@ -253,7 +253,7 @@ The analysis lives in numbered notebooks under `modules/` — **Quarto documents
 
 > 💡 **Tip:** Each module starts with a short intro. Search for **Decision checkpoint** to find values you need to edit.
 
-Module `05a` runs cell-level Wilcoxon tests and writes `cell_level/`. Module `05b` runs limma on sample-level aggregates (mean CLR / mean `log2_ratio`) and writes `pseudobulk/`. Limma needs **≥2 `sample_alias` values per `condition`**. Each modality folder (`abundance`, `clustering`, `colocalization`) holds CSV tables at the folder root and plots per contrast / cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment. Set `reference_condition` in whichever notebook you run.
+Module `05a` runs cell-level Wilcoxon tests and writes `cell_level/`. Module `05b` runs limma on sample-level aggregates (mean CLR / mean `log2_ratio`) and writes `pseudobulk/`. Limma needs **≥2 `sample_alias` values per `condition`**. Each modality folder (`abundance`, `clustering`, `colocalization`) holds CSV tables at the folder root and plots for the first non-reference contrast per cell type. In module `07`, set `stats_method` to `"cell_level"` (default) or `"pseudobulk"` to choose which results feed enrichment. Set `reference_condition` in whichever notebook you run.
 
 ### Iterate on downstream modules
 
