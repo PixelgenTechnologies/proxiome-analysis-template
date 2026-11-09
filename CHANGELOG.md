@@ -11,9 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Module `06_cell_visualization.qmd` has been updated to include the new visualization framework.
 - Optional module `08` runs hdWGCNA co-proximity network analysis per cell type, with a differential module eigengene readout, module graphs and opt-in module preservation. It adds WGCNA and hdWGCNA v0.4.12 as dependencies.
+- Module `08` can fit networks per stratum (`stratify_column`, for example a cancer type) and per condition (`network_cells <- "each"`), and reports per-donor agreement for each differential module eigengene (`donor_column`).
+- Module `08` draws a summary dotplot (`dme_summary_dotplot`) and one lollipop plot per network (`dme_lollipop`) for the differential module eigengenes.
+- Module `08` module graphs draw the module's whole largest connected component, label the markers of the 10 pairs with the highest module membership, outline the 3 hub pairs, fill markers by a category and add a bar chart of the markers per category.
+- `modules/reference/marker_labels.csv` labels the markers of the Proxiome Immuno 155 panel (`proxiome-v2-immuno-155-v2.0`) by immune process, molecular family, expression context and signal polarity; module `08` uses it to colour the module graphs.
 
 ### Fixed
 
+- `common_setup.R` lets `GetAssayData()` and `SetAssayData()` accept `slot =` again under SeuratObject 5.3.0, where it is defunct; hdWGCNA 0.4.12 still uses it. Module `08` also joins the per-sample metacell layers before building networks.
+- Module `08` PDFs keep the Δ and minus signs of their legends (written with `cairo_pdf`).
 - Module `04` per-group colocalization heatmaps now keep the most abundant markers when more than `max_heatmap_markers` proteins are present. The previous selection kept the first markers in list order.
 ### Changed
 

@@ -187,6 +187,7 @@ proxiome-analysis-template/           ← Your project folder (can be renamed to
 │   └── *.layout.pxl                  ← Your PXL files
 ├── modules/                          ← Analysis notebooks (run in order)
 │   ├── common_setup.R                ← Shared setup (sourced automatically)
+│   ├── reference/marker_labels.csv   ← Marker categories (module 08 graphs)
 │   ├── 01_quality_control.qmd        ← Start here (load data + QC)
 │   ├── 02_clustering_annotation.qmd
 │   ├── 03_abundance.qmd

@@ -105,6 +105,36 @@ suppressPackageStartupMessages({
   library(ggraph)
 })
 
+# hdWGCNA 0.4.12 (module 08) still calls GetAssayData() and SetAssayData() with
+# `slot =`, which is defunct (an error) from SeuratObject 5.3.0. These two
+# methods accept `slot` as an alias of `layer` again; other calls are unchanged.
+if (packageVersion("SeuratObject") >= "5.3.0") {
+  registerS3method(
+    "GetAssayData",
+    "Seurat",
+    function(object, assay = NULL, layer = NULL, slot = NULL, ...) {
+      assay <- assay %||% SeuratObject::DefaultAssay(object)
+      SeuratObject::GetAssayData(object = object[[assay]], layer = layer %||% slot)
+    },
+    envir = asNamespace("SeuratObject")
+  )
+  registerS3method(
+    "SetAssayData",
+    "Seurat",
+    function(object, layer = NULL, new.data, slot = NULL, assay = NULL, ...) {
+      assay <- assay %||% SeuratObject::DefaultAssay(object)
+      object[[assay]] <- SeuratObject::SetAssayData(
+        object = object[[assay]],
+        layer = layer %||% slot %||% "data",
+        new.data = new.data,
+        ...
+      )
+      object
+    },
+    envir = asNamespace("SeuratObject")
+  )
+}
+
 if (packageVersion("pixelatorR") < "0.23.0") {
   stop(
     "Please update the pixelatorR package to version 0.23.0 or higher to run this analysis workflow."

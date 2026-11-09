@@ -5,8 +5,9 @@
 > **Note:** Vocabulary used in this analysis module.
 > - A **co-proximity module** is a set of marker pairs found by the network. An **analysis module** is one of the numbered notebooks of this template, such as this one.
 > - The **module eigengene** (ME) is one score per cell: the first principal component of the module's marker pairs.
-> - **kME** is a marker pair's correlation with its module's eigengene.
-> - The **hub pair** is the marker pair with the highest kME in its module.
+> - **Module membership** (hdWGCNA's **kME**) is a marker pair's correlation with its module's eigengene: how closely the pair follows the module.
+> - The **hub pairs** are the marker pairs with the highest module membership in their module.
+> - A **network** is fit per stratum (for example a cancer type), cell type and network cell set (for example one condition). It is named `stratum · cell type · network` (the stratum only with a `stratify_column`), and its modules M1, M2, ... are numbered within it, so M1 of one network is unrelated to M1 of another.
 
 > **Note:** The network sweep takes a few minutes. Module preservation (section 8.5) is opt-in and can take hours.
 
@@ -39,17 +40,24 @@ dir.create(module08_dir, recursive = TRUE, showWarnings = FALSE)
 
 ## 8.0. Set parameters
 
-> **Decision checkpoint** (contrast and cell types)  
-> Set `reference_condition` to the same value as in module `05`. Narrow `coproximity_cell_types` to the cell types you care about, and choose which cells the networks are built on with `network_cells`.
+> **Decision checkpoint** (contrast, strata, cell types and network cells)  
+> Set `reference_condition` to the same value as in module `05`. Choose a `stratify_column` to fit separate networks per stratum (for example per cancer type), narrow `coproximity_cell_types` to the cell types you care about, and choose which cells the networks are built on with `network_cells`.
 
 Every other level of `contrast_column` becomes a target condition and is compared to the reference condition.
 
-`network_cells` sets which cells each cell type's network is built on:
+`network_cells` sets which cells each network is built on:
 
 - `"reference"` (default): only the reference condition's cells. Co-proximity modules that exist only in a target condition are invisible. Module `05`'s differential colocalization covers gained proximity.
-- `"all"`: the cells of every condition. The modules are then fit on the same cells the differential module eigengene test (8.3) compares, which is mildly circular, and the larger condition dominates the network. Module preservation (8.5) is skipped.
+- `"each"`: one network per condition, so each condition gets its own modules. The differential module eigengene test (8.3) is then run for the modules of every network; for the networks of a target condition it is mildly circular, because their modules were fit on the cells the test compares.
+- `"all"`: one network on the cells of every condition. The test is mildly circular for every module, the larger condition dominates the network, and module preservation (8.5) is skipped.
 
-Each cell type's fit is cached under `networks/`. Set `rebuild_networks <- TRUE` after changing any setting in 8.0, 8.1 or 8.5, or the old fits and preservation results are reused. There are no cache keys: the cache does not notice changed settings.
+`stratify_column` names a column whose values each get their own networks, for example a cancer type or tissue, so that modules are not driven by differences between strata. Leave it `NULL` to fit one set of networks on all cells.
+
+`donor_column` names the column that pairs samples across conditions, such as a donor or patient column of `metadata.csv`. With it, 8.3 reports how many donors shift each module in the same direction as the test. Leave it `NULL` for unpaired designs.
+
+`marker_labels_path` points to a table with one row per marker (column `marker`) and a category per marker in `marker_label_column`. The module graphs (8.4) fill each marker with its category and count the markers per category. The template ships `modules/reference/marker_labels.csv` for the Proxiome Immuno 155 panel (`proxiome-v2-immuno-155-v2.0`, 155 markers and 3 isotype controls). Its `immune_process` column (the default) groups the markers into 12 curated immune processes; other columns are `family` (19 molecular families), `expression_context` (the cell lineages that express the marker) and `signal_polarity`. Set `marker_labels_path` to `NULL` to draw all markers alike.
+
+Each network's fit is cached under `networks/`. Set `rebuild_networks <- TRUE` after changing any setting in 8.0, 8.1 or 8.5, or the old fits and preservation results are reused. There are no cache keys: the cache does not notice changed settings.
 
 `markers_to_test` comes from module `02`. To use other markers, override it before this section.
 
@@ -60,12 +68,12 @@ results/08_coproximity_networks/
 ├── sweep_summary.csv
 ├── dme_results.csv
 ├── dme_results.rds
-├── dme_dotplot.{png,pdf}
-├── preservation_results.csv               # opt-in
-├── networks/                              # cache; delete or set rebuild_networks to refresh
-│   ├── {cell_type}.rds
-│   └── {cell_type}_preservation.rds       # opt-in
-└── {cell_type}/                           # name used verbatim, as in module 05
+├── dme_summary_dotplot.{png,pdf}
+├── preservation_results.csv                    # opt-in
+├── networks/                                   # cache; delete or set rebuild_networks to refresh
+│   ├── {stratum}_{cell_type}_{network}.rds
+│   └── {stratum}_{cell_type}_{network}_preservation.rds   # opt-in
+└── {stratum}/{cell_type}/{network}_network/     # one folder per network; no {stratum}/ level without stratify_column
     ├── soft_powers.{png,pdf}
     ├── dendrogram.{png,pdf}
     ├── modules.csv
@@ -73,22 +81,33 @@ results/08_coproximity_networks/
     ├── kme.{png,pdf}
     ├── me_umap.{png,pdf}
     ├── me_violins.{png,pdf}
-    ├── preservation_zsummary.{png,pdf}    # opt-in
+    ├── dme_lollipop.{png,pdf}
+    ├── preservation_zsummary.{png,pdf}         # opt-in
     └── module_graphs/
         └── M1.{png,pdf}, M2.{png,pdf}, ...
 ```
 
-The HTML report shows the sweep summary, the significant differential module eigengene rows, the dotplot and the preservation table. Per-cell-type figures are written to files only.
+Folder and file names replace characters other than letters and digits with `_`. Without a `stratify_column`, the stratum is left out of the network names, folders and cache files.
+
+The HTML report shows the sweep summary, the significant differential module eigengene rows and the summary dotplot. Per-network figures are written to files only.
 
 ```{r}
 #| label: module08_parameters
 
 contrast_column <- "condition"
 reference_condition <- "donor1" # keep consistent with module 05
+# Column whose values each get their own networks; NULL fits one set of
+# networks on all cells.
+stratify_column <- NULL
+# Column that pairs samples across conditions; NULL skips donor agreement.
+donor_column <- NULL
 # Narrow to the cell types you care about.
 coproximity_cell_types <- sort(unique(pg_data$cell_annotation))
-network_cells <- "reference" # or "all"
+network_cells <- "reference" # "reference", "each" or "all"
 rebuild_networks <- FALSE
+# One category per marker for the module graphs; NULL draws all markers alike.
+marker_labels_path <- here::here("modules", "reference", "marker_labels.csv")
+marker_label_column <- "immune_process"
 
 contrast_values <- pg_data[[contrast_column, drop = TRUE]]
 if (!reference_condition %in% contrast_values) {
@@ -97,30 +116,42 @@ if (!reference_condition %in% contrast_values) {
     "pg_data$", contrast_column, "."
   )
 }
-if (!network_cells %in% c("reference", "all")) {
-  stop("network_cells must be \"reference\" or \"all\".")
+if (!network_cells %in% c("reference", "each", "all")) {
+  stop("network_cells must be \"reference\", \"each\" or \"all\".")
 }
 
 target_conditions <- setdiff(unique(contrast_values), reference_condition)
-network_groups <- if (network_cells == "reference") {
-  reference_condition
+all_conditions <- c(reference_condition, target_conditions)
+# Named list: one entry per network fit within a stratum and cell type; the
+# name is the network's name and the value the conditions it is built on.
+network_sets <- switch(
+  network_cells,
+  reference = set_names(list(reference_condition), reference_condition),
+  each = set_names(as.list(all_conditions), all_conditions),
+  all = list(all = all_conditions)
+)
+stratum_values <- if (is.null(stratify_column)) {
+  rep("all cells", ncol(pg_data))
 } else {
-  unique(contrast_values)
+  pg_data[[stratify_column, drop = TRUE]]
 }
+strata <- sort(unique(stratum_values))
+# Network names and folders include the stratum only with a stratify_column.
+use_stratum_names <- !is.null(stratify_column)
 ```
 
 ## 8.1. Build co-proximity networks
 
-For each cell type, the network is built in the steps of the hdWGCNA single-cell vignette, with marker pairs in the place of genes:
+For each stratum, cell type and network cell set, the network is built in the steps of the hdWGCNA single-cell vignette, with marker pairs in the place of genes:
 
-1. **Marker pairs.** The proximity scores (`log2_ratio`) of the cell type become a pairs × cells matrix. Pairs whose two markers are both in `markers_to_test` and that are detected in at least `min_pair_detection` of the network cells are kept.
+1. **Marker pairs.** The proximity scores (`log2_ratio`) of the stratum's cells of the cell type become a pairs × cells matrix. Pairs whose two markers are both in `markers_to_test` and that are detected in at least `min_pair_detection` of the cells of all the stratum's network cell sets are kept, so the networks of one stratum and cell type share their pairs.
 2. **Metacells.** Neighbouring cells of the same condition and sample are averaged into metacells (`metacell_k` cells each) to reduce the sparsity of single-cell proximity scores.
-3. **Soft power.** Correlations between pairs are raised to a power so that the network approximates a scale-free topology. By default the lowest power above 3 that reaches a scale-free fit R² ≥ 0.8 is picked per cell type.
-4. **Network.** A signed network is built from biweight midcorrelations (bicor), and its topological overlap is clustered into a dendrogram.
-5. **Modules.** The dendrogram is cut into co-proximity modules of at least `min_module_size` pairs, and similar modules are merged (`merge_cut_height`). Pairs that fit no module go to the grey module, which is left out of every readout. Modules are named M1, M2, ... per cell type, and shown as `cell type · M3` across cell types.
+3. **Soft power.** Correlations between pairs are raised to a power so that the network approximates a scale-free topology. By default the lowest power above 3 that reaches a scale-free fit R² ≥ 0.8 is picked per network.
+4. **Network.** A signed network is built from biweight midcorrelations (bicor) on the metacells of the network's conditions, and its topological overlap is clustered into a dendrogram.
+5. **Modules.** The dendrogram is cut into co-proximity modules of at least `min_module_size` pairs, and similar modules are merged (`merge_cut_height`). Pairs that fit no module go to the grey module, which is left out of every readout. Modules are named M1, M2, ... per network.
 
 > **Decision checkpoint** (network settings)  
-> Set the pair, metacell and module floors. Cell types that fall below a floor are skipped and listed with the reason in `sweep_summary.csv`. Leave `soft_power <- NULL` to pick the power per cell type, or set a number to use it for every cell type.
+> Set the pair, metacell and module floors. Networks that fall below a floor are skipped and listed with the reason in `sweep_summary.csv`. Leave `soft_power <- NULL` to pick the power per network, or set a number to use it for every network.
 
 ```{r}
 #| label: module08_network_settings
@@ -130,7 +161,7 @@ min_network_pairs <- 100
 metacell_k <- 25
 metacell_min_cells <- 50
 min_network_metacells <- 20
-soft_power <- NULL # NULL = auto per cell type; a number applies to all
+soft_power <- NULL # NULL = auto per network; a number applies to all
 min_module_size <- 30
 merge_cut_height <- 0.2
 ```
@@ -139,9 +170,11 @@ merge_cut_height <- 0.2
 
 > **Note:** Metacells average cells of similar abundance, not similar proximity, because the neighbours are found on the abundance-based `harmony` reduction. The vignette notes that a `metacell_k` of 20-75 usually works.
 
-> **Note:** A cell type needs roughly 100 reference cells, because one metacell comes from about 4 cells at the default settings. If a cell type falls short, merge small annotations or lower `metacell_k`, but not below about 15.
+> **Note:** A sample needs at least `metacell_min_cells` cells of the cell type to contribute metacells, and a network needs `min_network_metacells` metacells. If a cell type falls short, merge small annotations or lower `metacell_k`, but not below about 15.
 
 > **Note:** hdWGCNA warns that fewer than 500 features were selected; this is expected for PNA, which has a few thousand marker pairs. bicor falls back to Pearson correlation for pairs with zero median absolute deviation.
+
+> **Note:** hdWGCNA 0.4.12 does not run as shipped with SeuratObject 5.3.0. `common_setup.R` lets `GetAssayData()` and `SetAssayData()` accept hdWGCNA's `slot =` again, and the metacells of all samples, which hdWGCNA merges into one layer per sample, are joined into one layer below.
 
 ```{r}
 #| label: module08_build_networks
@@ -150,279 +183,299 @@ networks_dir <- file.path(module08_dir, "networks")
 dir.create(networks_dir, recursive = TRUE, showWarnings = FALSE)
 
 coproximity_fits <- list()
+fit_index <- tibble()
 sweep_summary <- tibble()
 
-for (cell_type in coproximity_cell_types) {
-  cell_type_dir <- file.path(module08_dir, cell_type)
-  cache_path <- file.path(networks_dir, paste0(cell_type, ".rds"))
-
-  if (file.exists(cache_path) && !rebuild_networks) {
-    coproximity_fits[[cell_type]] <- readRDS(cache_path)
-    sweep_summary <- bind_rows(
-      sweep_summary,
-      coproximity_fits[[cell_type]]@misc$coproximity_summary
-    )
-    next
-  }
-
-  summary_row <- tibble(
-    cell_type = cell_type,
-    n_cells_reference = sum(
-      pg_data$cell_annotation == cell_type &
-        contrast_values == reference_condition
-    ),
-    n_pairs = NA_integer_,
-    n_network_metacells = NA_integer_,
-    n_network_samples = NA_integer_,
-    soft_power = NA_real_,
-    power_fallback = NA,
-    n_modules = NA_integer_,
-    status = "ok"
-  )
-
-  if (is.null(markers_to_test[[cell_type]])) {
-    summary_row$status <- "not in markers_to_test"
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
-  }
-
-  # Pairs x cells, data layer only, zero-filled.
-  cell_type_object <-
-    subset(pg_data, cell_annotation == cell_type) |>
-    ProximityScoresToAssay(
-      assay = "PNA",
-      new_assay = "proximity",
-      values_from = "log2_ratio",
-      lazy = TRUE
-    )
-  DefaultAssay(cell_type_object) <- "proximity"
-
-  proximity_matrix <- LayerData(cell_type_object, layer = "data")
-  pair_markers <- str_split_fixed(rownames(proximity_matrix), ":", 2)
-  is_network_cell <-
-    cell_type_object[[contrast_column, drop = TRUE]] %in% network_groups
-  pair_detection <- rowMeans(proximity_matrix[, is_network_cell] != 0)
-  network_pairs <- rownames(proximity_matrix)[
-    pair_markers[, 1] %in% markers_to_test[[cell_type]] &
-      pair_markers[, 2] %in% markers_to_test[[cell_type]] &
-      pair_detection >= min_pair_detection
-  ]
-  summary_row$n_pairs <- length(network_pairs)
-  if (length(network_pairs) < min_network_pairs) {
-    summary_row$status <- paste("fewer than", min_network_pairs, "pairs")
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
-  }
-
-  cell_type_object <- hdWGCNA::SetupForWGCNA(
-    cell_type_object,
-    features = network_pairs,
-    wgcna_name = make.names(cell_type)
-  )
-  # Metacells are built for every condition; 8.3 and 8.5 use the targets.
-  metacell_result <- tryCatch(
-    hdWGCNA::MetacellsByGroups(
-      cell_type_object,
-      group.by = c(contrast_column, "sample_alias"),
-      ident.group = contrast_column,
-      reduction = "harmony",
-      dims = 1:20,
-      k = metacell_k,
-      max_shared = round(0.6 * metacell_k),
-      min_cells = metacell_min_cells,
-      assay = "proximity",
-      slot = "data",
-      layer = "data",
-      mode = "average",
-      verbose = FALSE
-    ),
-    error = conditionMessage
-  )
-  if (is.character(metacell_result)) {
-    summary_row$status <- paste("metacells failed:", metacell_result)
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
-  }
-  cell_type_object <- metacell_result
-
-  # Under "all", a network group without metacells is left out of this cell
-  # type's network; the cell type is skipped only if no group has metacells.
-  metacell_meta <- hdWGCNA::GetMetacellObject(cell_type_object)[[]]
-  cell_type_network_groups <-
-    intersect(network_groups, metacell_meta[[contrast_column]])
-  if (length(cell_type_network_groups) == 0) {
-    summary_row$status <- "reference condition below metacell_min_cells"
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
-  }
-
-  # mode = "average" puts the averaged log2_ratio in the metacell counts
-  # layer. It is already on the log2_ratio scale, so it is read from counts
-  # and NormalizeMetacells is never called.
-  cell_type_object <- hdWGCNA::SetDatExpr(
-    cell_type_object,
-    group_name = cell_type_network_groups,
-    group.by = contrast_column,
-    assay = "proximity",
-    slot = "counts",
-    layer = "counts"
-  )
-  summary_row$n_network_metacells <-
-    nrow(hdWGCNA::GetDatExpr(cell_type_object))
-  summary_row$n_network_samples <- n_distinct(
-    metacell_meta$sample_alias[
-      metacell_meta[[contrast_column]] %in% cell_type_network_groups
+for (stratum in strata) {
+  for (cell_type in coproximity_cell_types) {
+    # Name parts of this stratum and cell type's networks: fit_id, folders
+    # and cache files leave the stratum out without a stratify_column.
+    name_parts <- c(if (use_stratum_names) stratum, cell_type)
+    stratum_slug <- str_replace_all(paste(name_parts, collapse = " "), "[^A-Za-z0-9]+", "_")
+    stratum_cells <- colnames(pg_data)[
+      stratum_values == stratum & pg_data$cell_annotation == cell_type
     ]
-  )
-  if (summary_row$n_network_metacells < min_network_metacells) {
-    summary_row$status <- paste(
-      "fewer than", min_network_metacells, "network metacells"
+    stratum_conditions <- contrast_values[stratum_values == stratum & pg_data$cell_annotation == cell_type]
+    cache_paths <- file.path(
+      networks_dir,
+      paste0(stratum_slug, "_", str_replace_all(names(network_sets), "[^A-Za-z0-9]+", "_"), ".rds")
     )
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
-  }
-  if (summary_row$n_network_samples == 1) {
-    warning(
-      cell_type, ": network metacells come from a single sample; ",
-      "modules may be sample-specific"
-    )
-  }
 
-  # The summary_row assignments inside tryCatch() land in the loop's scope.
-  network_result <- tryCatch(
-    {
-      cell_type_object <- hdWGCNA::TestSoftPowers(
-        cell_type_object,
-        networkType = "signed",
-        corFnc = "bicor"
+    if (all(file.exists(cache_paths)) && !rebuild_networks) {
+      for (network_name in names(network_sets)) {
+        network_fit <- readRDS(cache_paths[names(network_sets) == network_name])
+        fit_id <- paste(c(name_parts, paste(network_name, "network")), collapse = " · ")
+        coproximity_fits[[fit_id]] <- network_fit
+        fit_index <- bind_rows(fit_index, network_fit@misc$coproximity_index)
+        sweep_summary <- bind_rows(sweep_summary, network_fit@misc$coproximity_summary)
+      }
+      next
+    }
+
+    summary_template <- tibble(
+      stratum = stratum,
+      cell_type = cell_type,
+      network = names(network_sets),
+      n_cells_network = NA_integer_,
+      n_pairs = NA_integer_,
+      n_network_metacells = NA_integer_,
+      n_network_samples = NA_integer_,
+      soft_power = NA_real_,
+      power_fallback = NA,
+      n_modules = NA_integer_,
+      status = "ok"
+    )
+
+    if (is.null(markers_to_test[[cell_type]]) || length(stratum_cells) == 0) {
+      summary_template$status <- "no cells or not in markers_to_test"
+      warning(paste(name_parts, collapse = " / "), ": ", summary_template$status[1], "; skipped")
+      sweep_summary <- bind_rows(sweep_summary, summary_template)
+      next
+    }
+
+    # Pairs x cells, data layer only, zero-filled.
+    stratum_object <-
+      subset(pg_data, cells = stratum_cells) |>
+      ProximityScoresToAssay(
+        assay = "PNA",
+        new_assay = "proximity",
+        values_from = "log2_ratio",
+        lazy = TRUE
       )
-      power_table <- hdWGCNA::GetPowerTable(cell_type_object)
-      auto_powers <- power_table$Power[
-        power_table$Power > 3 & power_table$SFT.R.sq >= 0.8
-      ]
-      summary_row$power_fallback <-
-        is.null(soft_power) && length(auto_powers) == 0
-      summary_row$soft_power <- soft_power %||% min(auto_powers, Inf)
-      if (summary_row$power_fallback) {
-        # WGCNA FAQ powers for signed networks, by number of samples
-        # (metacells).
-        summary_row$soft_power <- case_when(
-          summary_row$n_network_metacells < 30 ~ 16,
-          summary_row$n_network_metacells < 40 ~ 14,
-          .default = 12
-        )
-        warning(
-          cell_type, ": no soft power reached scale-free R^2 >= 0.8; ",
-          "using fallback power ", summary_row$soft_power
-        )
+    DefaultAssay(stratum_object) <- "proximity"
+
+    # One pair set per stratum and cell type, detected over the cells of all
+    # its network cell sets, so all its networks share their pairs.
+    proximity_matrix <- LayerData(stratum_object, layer = "data")
+    pair_markers <- str_split_fixed(rownames(proximity_matrix), ":", 2)
+    is_network_cell <- stratum_object[[contrast_column, drop = TRUE]] %in% unlist(network_sets)
+    pair_detection <- rowMeans(proximity_matrix[, is_network_cell] != 0)
+    network_pairs <- rownames(proximity_matrix)[
+      pair_markers[, 1] %in% markers_to_test[[cell_type]] &
+        pair_markers[, 2] %in% markers_to_test[[cell_type]] &
+        pair_detection >= min_pair_detection
+    ]
+    summary_template$n_pairs <- length(network_pairs)
+    if (length(network_pairs) < min_network_pairs) {
+      summary_template$status <- paste("fewer than", min_network_pairs, "pairs")
+      warning(paste(name_parts, collapse = " / "), ": ", summary_template$status[1], "; skipped")
+      sweep_summary <- bind_rows(sweep_summary, summary_template)
+      next
+    }
+
+    stratum_object <- hdWGCNA::SetupForWGCNA(
+      stratum_object,
+      features = network_pairs,
+      wgcna_name = stratum_slug
+    )
+    # Metacells are built for every condition; 8.3 and 8.5 use all of them.
+    metacell_result <- tryCatch(
+      hdWGCNA::MetacellsByGroups(
+        stratum_object,
+        group.by = c(contrast_column, "sample_alias"),
+        ident.group = contrast_column,
+        reduction = "harmony",
+        dims = 1:20,
+        k = metacell_k,
+        max_shared = round(0.6 * metacell_k),
+        min_cells = metacell_min_cells,
+        assay = "proximity",
+        slot = "data",
+        layer = "data",
+        mode = "average",
+        verbose = FALSE
+      ),
+      error = conditionMessage
+    )
+    if (is.character(metacell_result)) {
+      summary_template$status <- paste("metacells failed:", metacell_result)
+      warning(paste(name_parts, collapse = " / "), ": ", summary_template$status[1], "; skipped")
+      sweep_summary <- bind_rows(sweep_summary, summary_template)
+      next
+    }
+    # MetacellsByGroups merges the per-group metacell objects into one layer
+    # per group (counts.1, counts.2, ...); SetDatExpr needs a single layer.
+    stratum_object <- hdWGCNA::SetMetacellObject(
+      metacell_result,
+      JoinLayers(hdWGCNA::GetMetacellObject(metacell_result)),
+      wgcna_name = stratum_slug
+    )
+    metacell_meta <- hdWGCNA::GetMetacellObject(stratum_object)[[]]
+
+    for (network_name in names(network_sets)) {
+      summary_row <- filter(summary_template, network == network_name)
+      summary_row$n_cells_network <- sum(stratum_conditions %in% network_sets[[network_name]])
+      fit_id <- paste(c(name_parts, paste(network_name, "network")), collapse = " · ")
+      fit_dir <- do.call(file.path, as.list(c(
+        module08_dir,
+        str_replace_all(name_parts, "[^A-Za-z0-9]+", "_"),
+        paste0(str_replace_all(network_name, "[^A-Za-z0-9]+", "_"), "_network")
+      )))
+      cache_path <- cache_paths[names(network_sets) == network_name]
+
+      # A network condition without metacells is left out of the network;
+      # the network is skipped only if none of its conditions has metacells.
+      network_groups <- intersect(network_sets[[network_name]], metacell_meta[[contrast_column]])
+      if (length(network_groups) == 0) {
+        summary_row$status <- "network conditions below metacell_min_cells"
+        warning(fit_id, ": ", summary_row$status, "; skipped")
+        sweep_summary <- bind_rows(sweep_summary, summary_row)
+        next
       }
 
-      cell_type_object <- hdWGCNA::ConstructNetwork(
-        cell_type_object,
-        soft_power = summary_row$soft_power,
-        networkType = "signed",
-        TOMType = "signed",
-        corType = "bicor",
-        minModuleSize = min_module_size,
-        mergeCutHeight = merge_cut_height,
-        tom_outdir = tempdir(),
-        tom_name = make.names(cell_type),
-        overwrite_tom = TRUE,
-        setDatExpr = FALSE,
-        verbose = 0
+      # mode = "average" puts the averaged log2_ratio in the metacell counts
+      # layer. It is already on the log2_ratio scale, so it is read from
+      # counts and NormalizeMetacells is never called.
+      network_fit <- hdWGCNA::SetDatExpr(
+        stratum_object,
+        group_name = network_groups,
+        group.by = contrast_column,
+        assay = "proximity",
+        slot = "counts",
+        layer = "counts"
       )
+      summary_row$n_network_metacells <- nrow(hdWGCNA::GetDatExpr(network_fit))
+      summary_row$n_network_samples <- n_distinct(
+        metacell_meta$sample_alias[metacell_meta[[contrast_column]] %in% network_groups]
+      )
+      if (summary_row$n_network_metacells < min_network_metacells) {
+        summary_row$status <- paste("fewer than", min_network_metacells, "network metacells")
+        warning(fit_id, ": ", summary_row$status, "; skipped")
+        sweep_summary <- bind_rows(sweep_summary, summary_row)
+        next
+      }
+      if (summary_row$n_network_samples == 1) {
+        warning(fit_id, ": network metacells come from a single sample; modules may be sample-specific")
+      }
 
-      # Plain MEs on all of the cell type's cells; kME on the network cells.
-      cell_type_object |>
-        hdWGCNA::ModuleEigengenes(
-          group.by.vars = NULL,
-          assay = "proximity",
-          verbose = FALSE
-        ) |>
-        hdWGCNA::ModuleConnectivity(
-          group.by = contrast_column,
-          group_name = cell_type_network_groups,
-          harmonized = FALSE,
-          assay = "proximity",
-          layer = "data"
-        ) |>
-        hdWGCNA::ResetModuleNames(new_name = "M")
-    },
-    error = conditionMessage
-  )
-  if (is.character(network_result)) {
-    summary_row$status <- paste("network failed:", network_result)
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
+      # The summary_row assignments inside tryCatch() land in the loop's scope.
+      network_result <- tryCatch(
+        {
+          network_fit <- hdWGCNA::TestSoftPowers(
+            network_fit,
+            networkType = "signed",
+            corFnc = "bicor"
+          )
+          power_table <- hdWGCNA::GetPowerTable(network_fit)
+          auto_powers <- power_table$Power[
+            power_table$Power > 3 & power_table$SFT.R.sq >= 0.8
+          ]
+          summary_row$power_fallback <- is.null(soft_power) && length(auto_powers) == 0
+          summary_row$soft_power <- soft_power %||% min(auto_powers, Inf)
+          if (summary_row$power_fallback) {
+            # WGCNA FAQ powers for signed networks, by number of samples
+            # (metacells).
+            summary_row$soft_power <- case_when(
+              summary_row$n_network_metacells < 30 ~ 16,
+              summary_row$n_network_metacells < 40 ~ 14,
+              .default = 12
+            )
+            warning(
+              fit_id, ": no soft power reached scale-free R^2 >= 0.8; ",
+              "using fallback power ", summary_row$soft_power
+            )
+          }
+
+          network_fit <- hdWGCNA::ConstructNetwork(
+            network_fit,
+            soft_power = summary_row$soft_power,
+            networkType = "signed",
+            TOMType = "signed",
+            corType = "bicor",
+            minModuleSize = min_module_size,
+            mergeCutHeight = merge_cut_height,
+            tom_outdir = tempdir(),
+            tom_name = paste0(stratum_slug, "_", make.names(network_name)),
+            overwrite_tom = TRUE,
+            setDatExpr = FALSE,
+            verbose = 0
+          )
+
+          # Plain MEs on all of the stratum's cells; kME on the network cells.
+          network_fit |>
+            hdWGCNA::ModuleEigengenes(
+              group.by.vars = NULL,
+              assay = "proximity",
+              verbose = FALSE
+            ) |>
+            hdWGCNA::ModuleConnectivity(
+              group.by = contrast_column,
+              group_name = network_groups,
+              harmonized = FALSE,
+              assay = "proximity",
+              layer = "data"
+            ) |>
+            hdWGCNA::ResetModuleNames(new_name = "M")
+        },
+        error = conditionMessage
+      )
+      if (is.character(network_result)) {
+        summary_row$status <- paste("network failed:", network_result)
+        warning(fit_id, ": ", summary_row$status, "; skipped")
+        sweep_summary <- bind_rows(sweep_summary, summary_row)
+        next
+      }
+      network_fit <- network_result
+      modules <- hdWGCNA::GetModules(network_fit)
+      summary_row$n_modules <- n_distinct(modules$module[modules$module != "grey"])
+      if (summary_row$n_modules == 0) {
+        summary_row$status <- "no co-proximity modules"
+        warning(fit_id, ": ", summary_row$status, "; skipped")
+        sweep_summary <- bind_rows(sweep_summary, summary_row)
+        next
+      }
+
+      # DietSeurat keeps @misc (misc = TRUE), where hdWGCNA stores the fit. The
+      # summary and index rows are stored with it, so a cached fit restores
+      # them.
+      index_row <- tibble(
+        fit_id = fit_id,
+        stratum = stratum,
+        cell_type = cell_type,
+        network = network_name,
+        fit_dir = fit_dir
+      )
+      network_fit <- DietSeurat(
+        network_fit,
+        assays = "proximity",
+        dimreducs = c("harmony", "harmony_umap")
+      )
+      network_fit@misc$coproximity_summary <- summary_row
+      network_fit@misc$coproximity_index <- index_row
+      saveRDS(network_fit, cache_path)
+      coproximity_fits[[fit_id]] <- network_fit
+      fit_index <- bind_rows(fit_index, index_row)
+      sweep_summary <- bind_rows(sweep_summary, summary_row)
+
+      dir.create(fit_dir, recursive = TRUE, showWarnings = FALSE)
+      export_plot(
+        filename = file.path(fit_dir, "soft_powers"),
+        plot = patchwork::wrap_plots(hdWGCNA::PlotSoftPowers(network_fit), ncol = 2),
+        width = 10,
+        height = 7
+      )
+      # PlotDendrogram draws with base graphics, so it is saved per device.
+      png(file.path(fit_dir, "dendrogram.png"), width = 8, height = 4, units = "in", res = 300)
+      hdWGCNA::PlotDendrogram(network_fit, main = fit_id)
+      dev.off()
+      pdf(file.path(fit_dir, "dendrogram.pdf"), width = 8, height = 4)
+      hdWGCNA::PlotDendrogram(network_fit, main = fit_id)
+      dev.off()
+    }
   }
-  cell_type_object <- network_result
-  modules <- hdWGCNA::GetModules(cell_type_object)
-  summary_row$n_modules <- n_distinct(modules$module[modules$module != "grey"])
-  if (summary_row$n_modules == 0) {
-    summary_row$status <- "no co-proximity modules"
-    warning(cell_type, ": ", summary_row$status, "; skipped")
-    sweep_summary <- bind_rows(sweep_summary, summary_row)
-    next
-  }
-
-  # DietSeurat keeps @misc (misc = TRUE), where hdWGCNA stores the fit. The
-  # summary row is stored with it so a cached fit restores its row.
-  cell_type_object <- DietSeurat(
-    cell_type_object,
-    assays = "proximity",
-    dimreducs = c("harmony", "harmony_umap")
-  )
-  cell_type_object@misc$coproximity_summary <- summary_row
-  saveRDS(cell_type_object, cache_path)
-  coproximity_fits[[cell_type]] <- cell_type_object
-  sweep_summary <- bind_rows(sweep_summary, summary_row)
-
-  dir.create(cell_type_dir, recursive = TRUE, showWarnings = FALSE)
-  export_plot(
-    filename = file.path(cell_type_dir, "soft_powers"),
-    plot = patchwork::wrap_plots(
-      hdWGCNA::PlotSoftPowers(cell_type_object),
-      ncol = 2
-    ),
-    width = 10,
-    height = 7
-  )
-  # PlotDendrogram draws with base graphics, so it is saved per device.
-  png(
-    file.path(cell_type_dir, "dendrogram.png"),
-    width = 8,
-    height = 4,
-    units = "in",
-    res = 300
-  )
-  hdWGCNA::PlotDendrogram(cell_type_object, main = cell_type)
-  dev.off()
-  pdf(file.path(cell_type_dir, "dendrogram.pdf"), width = 8, height = 4)
-  hdWGCNA::PlotDendrogram(cell_type_object, main = cell_type)
-  dev.off()
 }
 
-write.csv(
-  sweep_summary,
-  file.path(module08_dir, "sweep_summary.csv"),
-  row.names = FALSE
-)
+write.csv(sweep_summary, file.path(module08_dir, "sweep_summary.csv"), row.names = FALSE)
 sweep_summary
 ```
 
 ## 8.2. Module composition
 
-Each co-proximity module is described by its marker pairs and their kME, the correlation of a pair's proximity score with the module eigengene. A pair with a high kME follows the module closely, and the pairs with the highest kME are the module's hub pairs: they are the best single summary of what the module captures. kME is computed on the network cells, so it describes the reference network (or the pooled network under `network_cells <- "all"`).
+Each co-proximity module is described by its marker pairs and their module membership (kME), the correlation of a pair's proximity score with the module eigengene. A pair with a high membership follows the module closely, and the pairs with the highest membership are the module's hub pairs: they are the best single summary of what the module captures. Membership is computed on the network's own cells.
 
-For each fitted cell type, this section writes:
+For each network, this section writes:
 
-- `modules.csv`: one row per marker pair in a co-proximity module, with its module, its kME in that module and its mean `log2_ratio` per condition (over single cells, zeros included).
+- `modules.csv`: one row per marker pair in a co-proximity module, with its module, its kME in that module and its mean `log2_ratio` per condition (over the stratum's single cells of the cell type, zeros included).
 - `hub_pairs.csv`: the 10 pairs with the highest kME per module.
 - `kme`: each module's pairs ranked by kME, with the hub pairs named.
 - `me_umap`: the module eigengene of each cell on the `harmony_umap` embedding, one panel per module.
@@ -431,18 +484,18 @@ For each fitted cell type, this section writes:
 #| label: module08_module_composition
 
 if (length(coproximity_fits) == 0) {
-  message("No cell type was fitted (see sweep_summary.csv); 8.2 is skipped.")
+  message("No network was fitted (see sweep_summary.csv); 8.2 is skipped.")
 }
 
-for (cell_type in names(coproximity_fits)) {
-  cell_type_fit <- coproximity_fits[[cell_type]]
-  cell_type_dir <- file.path(module08_dir, cell_type)
-  cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
-  proximity_matrix <- LayerData(cell_type_fit, layer = "data")
+for (fit_id in names(coproximity_fits)) {
+  network_fit <- coproximity_fits[[fit_id]]
+  fit_dir <- filter(fit_index, fit_id == .env$fit_id)$fit_dir
+  cell_conditions <- network_fit[[contrast_column, drop = TRUE]]
+  proximity_matrix <- LayerData(network_fit, layer = "data")
 
   # Keep each pair's kME in its own module only; grey is dropped.
   module_membership <-
-    hdWGCNA::GetModules(cell_type_fit) |>
+    hdWGCNA::GetModules(network_fit) |>
     filter(module != "grey") |>
     mutate(module = as.character(module)) |>
     pivot_longer(
@@ -458,7 +511,7 @@ for (cell_type in names(coproximity_fits)) {
       names = c("marker_1", "marker_2"),
       cols_remove = FALSE
     )
-  for (condition in c(reference_condition, target_conditions)) {
+  for (condition in all_conditions) {
     module_membership[[paste0("mean_log2_ratio_", condition)]] <- rowMeans(
       proximity_matrix[
         module_membership$gene_name,
@@ -470,19 +523,12 @@ for (cell_type in names(coproximity_fits)) {
   module_membership <-
     module_membership |>
     select(marker_1, marker_2, module, kME, starts_with("mean_log2_ratio_")) |>
-    arrange(module, desc(kME))
-  write.csv(
-    module_membership,
-    file.path(cell_type_dir, "modules.csv"),
-    row.names = FALSE
-  )
+    arrange(str_rank(module, numeric = TRUE), desc(kME))
+  write.csv(module_membership, file.path(fit_dir, "modules.csv"), row.names = FALSE)
   # 10 hub pairs per module, as in the hdWGCNA vignette.
-  hub_pairs <-
-    module_membership |>
-    slice_max(kME, n = 10, by = module, with_ties = FALSE)
   write.csv(
-    hub_pairs,
-    file.path(cell_type_dir, "hub_pairs.csv"),
+    slice_max(module_membership, kME, n = 10, by = module, with_ties = FALSE),
+    file.path(fit_dir, "hub_pairs.csv"),
     row.names = FALSE
   )
 
@@ -490,20 +536,18 @@ for (cell_type in names(coproximity_fits)) {
   n_panel_columns <- min(4, n_modules)
   n_panel_rows <- ceiling(n_modules / n_panel_columns)
   export_plot(
-    filename = file.path(cell_type_dir, "kme"),
-    plot = hdWGCNA::PlotKMEs(cell_type_fit, ncol = n_panel_columns),
+    filename = file.path(fit_dir, "kme"),
+    plot = hdWGCNA::PlotKMEs(network_fit, ncol = n_panel_columns),
     width = 4 * n_panel_columns,
     height = 3 * n_panel_rows
   )
   # features = "MEs": the plain eigengenes, as everywhere in this module.
-  me_umap_plots <- hdWGCNA::ModuleFeaturePlot(
-    cell_type_fit,
-    reduction = "harmony_umap",
-    features = "MEs"
-  )
   export_plot(
-    filename = file.path(cell_type_dir, "me_umap"),
-    plot = patchwork::wrap_plots(me_umap_plots, ncol = n_panel_columns),
+    filename = file.path(fit_dir, "me_umap"),
+    plot = patchwork::wrap_plots(
+      hdWGCNA::ModuleFeaturePlot(network_fit, reduction = "harmony_umap", features = "MEs"),
+      ncol = n_panel_columns
+    ),
     width = 3 * n_panel_columns,
     height = 3 * n_panel_rows
   )
@@ -512,80 +556,61 @@ for (cell_type in names(coproximity_fits)) {
 
 ## 8.3. Differential module eigengenes
 
-A differential module eigengene (DME) test asks whether a co-proximity module as a whole shifts between conditions. For each fitted cell type, co-proximity module and target condition, the module eigengenes of the target cells are compared to those of the reference cells with a Wilcoxon rank-sum test. The effect size is `diff_median`, the median eigengene of the target cells minus that of the reference cells. A positive `diff_median` means the module's marker pairs are, together, more colocalized in the target condition, and a negative one means less, for pairs with a positive kME.
+A differential module eigengene (DME) test asks whether a co-proximity module as a whole shifts between conditions. For each network, co-proximity module and target condition, the module eigengenes of the target cells are compared to those of the reference cells of the same stratum and cell type with a Wilcoxon rank-sum test. The effect size is `diff_median`, the median eigengene of the target cells minus that of the reference cells. A positive `diff_median` means the module's marker pairs are, together, more colocalized in the target condition, and a negative one means less, for pairs with a positive kME.
 
-A comparison is skipped when either condition has fewer than 10 cells of the cell type. P-values are adjusted with Benjamini-Hochberg (FDR) across all cell types, target conditions and modules, as in module `05`. Rows with `p_adj < 0.05` are printed below; all rows are written to `dme_results.csv` and `dme_results.rds`.
+A comparison is skipped when either condition has fewer than 10 cells. P-values are adjusted with Benjamini-Hochberg across all networks, target conditions and modules, as in module `05`. With a `donor_column`, each donor's shift is the median eigengene of its target sample minus that of its reference sample; `n_donors_same_direction` counts the donors whose shift has the sign of `diff_median`. Rows with `p_adj < 0.05` are printed below; all rows are written to `dme_results.csv` and `dme_results.rds`.
 
-> **Note:** Cells are treated as independent observations, although cells of one sample are not (pseudo-replication). The p-values therefore overstate the confidence, and with thousands of cells even small shifts become significant. Read `diff_median` and check that the shift is consistent across samples in the `me_violins` plots, where each point is the median of one sample.
+> **Note:** Cells are treated as independent observations, although cells of one sample are not (pseudo-replication). The p-values therefore overstate the confidence, and with thousands of cells even small shifts become significant. Read `diff_median` together with the donor agreement and the `me_violins` plots, where each point is the median of one sample.
 
 > **Note:** With one sample per condition, condition cannot be separated from sample: a significant module may reflect a difference between the two samples rather than between the conditions. The test still runs, and a warning is emitted.
 
-> **Note:** Under `network_cells <- "all"`, the co-proximity modules were fit on the same cells the test compares, so the test is mildly circular (see 8.0).
+> **Note:** For networks built on a target condition, or on all conditions, the modules were fit on cells the test compares, so the test is mildly circular (see 8.0).
 
 ```{r}
 #| label: module08_differential_module_eigengenes
 
 if (length(coproximity_fits) == 0) {
-  message("No cell type was fitted (see sweep_summary.csv); 8.3 is skipped.")
+  message("No network was fitted (see sweep_summary.csv); 8.3 is skipped.")
 }
 
-dme_results <- tibble(
-  cell_type = character(),
-  module = character(),
-  target = character(),
-  reference = character(),
-  n_cells_reference = integer(),
-  n_cells_target = integer(),
-  median_reference = numeric(),
-  median_target = numeric(),
-  diff_median = numeric(),
-  p_value = numeric()
-)
+dme_results <- tibble()
 
 # condition_palette is named by metadata$condition (common_setup.R); use it
 # only if it covers the contrast levels, else ggplot's default colours.
-violin_fill_scale <- if (
-  all(c(reference_condition, target_conditions) %in% names(condition_palette))
-) {
+violin_fill_scale <- if (all(all_conditions %in% names(condition_palette))) {
   scale_fill_manual(values = condition_palette)
 }
 
-for (cell_type in names(coproximity_fits)) {
-  cell_type_fit <- coproximity_fits[[cell_type]]
-  cell_type_dir <- file.path(module08_dir, cell_type)
-  cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
+for (fit_id in names(coproximity_fits)) {
+  network_fit <- coproximity_fits[[fit_id]]
+  fit_row <- filter(fit_index, fit_id == .env$fit_id)
+  cell_conditions <- network_fit[[contrast_column, drop = TRUE]]
 
   # Plain eigengenes, one row per cell and module, grey dropped.
   module_eigengenes <-
-    hdWGCNA::GetMEs(cell_type_fit, harmonized = FALSE) |>
+    hdWGCNA::GetMEs(network_fit, harmonized = FALSE) |>
     select(-any_of("grey")) |>
     mutate(
       condition = cell_conditions,
-      sample = cell_type_fit$sample_alias
+      sample = network_fit$sample_alias,
+      donor = if (is.null(donor_column)) NA_character_ else network_fit[[donor_column, drop = TRUE]]
     ) |>
-    pivot_longer(
-      -c(condition, sample),
-      names_to = "module",
-      values_to = "eigengene"
-    ) |>
+    pivot_longer(-c(condition, sample, donor), names_to = "module", values_to = "eigengene") |>
     mutate(
-      condition = factor(
-        condition,
-        levels = c(reference_condition, target_conditions)
-      ),
+      condition = factor(condition, levels = all_conditions),
       module = factor(module, levels = str_sort(unique(module), numeric = TRUE))
     )
 
   sample_medians <- summarise(
     module_eigengenes,
     eigengene = median(eigengene),
-    .by = c(module, condition, sample)
+    .by = c(module, condition, sample, donor)
   )
   n_modules <- nlevels(module_eigengenes$module)
   n_panel_columns <- min(4, n_modules)
   n_panel_rows <- ceiling(n_modules / n_panel_columns)
   export_plot(
-    filename = file.path(cell_type_dir, "me_violins"),
+    filename = file.path(fit_row$fit_dir, "me_violins"),
     plot = module_eigengenes |>
       ggplot(aes(x = condition, y = eigengene, fill = condition)) +
       geom_violin(scale = "width") +
@@ -595,7 +620,7 @@ for (cell_type in names(coproximity_fits)) {
       theme_bw() +
       theme(panel.grid = element_blank()) +
       labs(
-        title = paste("Module eigengenes:", cell_type),
+        title = paste("Module eigengenes:", fit_id),
         subtitle = "Points: per-sample medians",
         x = NULL,
         y = "Module eigengene",
@@ -606,31 +631,19 @@ for (cell_type in names(coproximity_fits)) {
   )
 
   # At least 10 cells per condition, as pixelatorR's min_cells_per_group.
-  cell_counts <- table(
-    factor(cell_conditions, levels = c(reference_condition, target_conditions))
-  )
+  cell_counts <- table(factor(cell_conditions, levels = all_conditions))
   comparable_targets <- target_conditions[
-    cell_counts[target_conditions] >= 10 &
-      cell_counts[[reference_condition]] >= 10
+    cell_counts[target_conditions] >= 10 & cell_counts[[reference_condition]] >= 10
   ]
   if (length(comparable_targets) == 0) {
-    message(
-      cell_type, ": no target condition with at least 10 cells next to ",
-      "at least 10 reference cells; DME skipped"
-    )
+    message(fit_id, ": no target condition with at least 10 cells next to at least 10 reference cells; DME skipped")
     next
   }
-
-  samples_per_condition <- tapply(
-    cell_type_fit$sample_alias,
-    cell_conditions,
-    n_distinct
-  )[c(reference_condition, comparable_targets)]
+  samples_per_condition <- tapply(network_fit$sample_alias, cell_conditions, n_distinct)[
+    c(reference_condition, comparable_targets)
+  ]
   if (any(samples_per_condition == 1)) {
-    warning(
-      cell_type, ": a compared condition has a single sample, so condition ",
-      "cannot be separated from sample"
-    )
+    warning(fit_id, ": a compared condition has a single sample, so condition cannot be separated from sample")
   }
 
   # FindDMEs is not used: it clips negative eigengenes to 0 before testing,
@@ -649,314 +662,329 @@ for (cell_type in names(coproximity_fits)) {
         )$p.value,
         .by = module
       ) |>
-      mutate(
-        cell_type = cell_type,
-        target = target,
-        reference = reference_condition,
-        diff_median = median_target - median_reference
+      mutate(diff_median = median_target - median_reference)
+
+    donor_agreement <-
+      sample_medians |>
+      filter(condition %in% c(reference_condition, target), !is.na(donor)) |>
+      select(module, donor, condition, eigengene) |>
+      pivot_wider(names_from = condition, values_from = eigengene) |>
+      filter(!is.na(.data[[reference_condition]]), !is.na(.data[[target]])) |>
+      mutate(donor_shift = .data[[target]] - .data[[reference_condition]]) |>
+      left_join(select(target_results, module, diff_median), by = "module") |>
+      summarise(
+        n_donors = n(),
+        n_donors_same_direction = sum(sign(donor_shift) == sign(diff_median)),
+        .by = module
       )
-    dme_results <- bind_rows(dme_results, target_results)
+
+    dme_results <- bind_rows(
+      dme_results,
+      target_results |>
+        left_join(donor_agreement, by = "module") |>
+        mutate(
+          fit_id = fit_id,
+          stratum = fit_row$stratum,
+          cell_type = fit_row$cell_type,
+          network = fit_row$network,
+          target = target,
+          reference = reference_condition,
+          module = as.character(module)
+        )
+    )
   }
 }
 
-dme_results <-
-  dme_results |>
-  mutate(p_adj = p.adjust(p_value, method = "BH")) |>
-  arrange(cell_type, target, str_rank(module, numeric = TRUE))
-write.csv(
-  dme_results,
-  file.path(module08_dir, "dme_results.csv"),
-  row.names = FALSE
-)
+if (nrow(dme_results) > 0) {
+  dme_results <-
+    dme_results |>
+    mutate(p_adj = p.adjust(p_value, method = "BH")) |>
+    relocate(fit_id, stratum, cell_type, network, module, target, reference) |>
+    arrange(stratum, cell_type, network, target, str_rank(module, numeric = TRUE))
+}
+write.csv(dme_results, file.path(module08_dir, "dme_results.csv"), row.names = FALSE)
 saveRDS(dme_results, file.path(module08_dir, "dme_results.rds"))
 
-significant_dme <- filter(dme_results, p_adj < 0.05)
-if (nrow(significant_dme) == 0) {
+if (nrow(dme_results) == 0 || !any(dme_results$p_adj < 0.05)) {
   message("No significant modules (p_adj < 0.05).")
 } else {
-  print(significant_dme, n = Inf, width = Inf)
+  filter(dme_results, p_adj < 0.05) |>
+    select(stratum, cell_type, network, module, target, diff_median, p_adj, any_of(c("n_donors_same_direction", "n_donors"))) |>
+    print(n = Inf, width = Inf)
 }
 ```
 
-The dotplot summarizes every fitted `cell type · module` (rows) against each target condition (columns). Colour is `diff_median`, size is -log10 `p_adj`, and modules with `p_adj ≥ 0.05` are drawn hollow. A comparison skipped by the 10-cell rule shows no point.
+The summary dotplot shows every tested module at once: one row per cell type, one column per module, one panel per stratum (rows) and network (columns). Colour is `diff_median`, size is −log10 `p_adj` (capped at 20), and modules with `p_adj ≥ 0.05` are faded. Module numbers are local to a network, so a column does not link modules across panels.
 
 ```{r}
-#| label: module08_dme_dotplot
+#| label: module08_dme_summary_dotplot
 
 if (nrow(dme_results) == 0) {
-  message("No module was tested; the DME dotplot is skipped.")
+  message("No module was tested; the DME dotplots are skipped.")
 } else {
-  # One row per fitted cell type · module (M1..Mn), tested or not.
-  dotplot_row_labels <-
-    sweep_summary |>
-    filter(status == "ok") |>
-    reframe(module = paste0("M", seq_len(n_modules)), .by = cell_type) |>
-    arrange(cell_type) |>
-    with(paste(cell_type, "·", module))
-  dme_dotplot_data <-
+  dme_plot_data <-
     dme_results |>
     mutate(
-      row_label = factor(
-        paste(cell_type, "·", module),
-        levels = rev(dotplot_row_labels)
-      ),
-      neg_log10_p_adj = -log10(pmax(p_adj, min_p_value_threshold)),
-      # Non-significant points get no fill, so they are drawn hollow.
-      significant_diff_median = if_else(p_adj < 0.05, diff_median, NA_real_)
+      module = factor(module, levels = str_sort(unique(module), numeric = TRUE)),
+      network = factor(paste(network, "network"), levels = paste(names(network_sets), "network")),
+      significant = p_adj < 0.05,
+      neg_log10_p_adj = pmin(-log10(pmax(p_adj, min_p_value_threshold)), 20)
     )
-  diff_median_limits <- c(-1, 1) * max(abs(dme_dotplot_data$diff_median))
+  shift_limits <- c(-1, 1) * max(abs(dme_plot_data$diff_median))
 
-  dme_dotplot <-
-    dme_dotplot_data |>
-    ggplot(aes(x = target, y = row_label)) +
+  dme_summary_dotplot <-
+    ggplot(dme_plot_data, aes(module, cell_type)) +
     geom_point(
-      aes(
-        size = neg_log10_p_adj,
-        colour = diff_median,
-        fill = significant_diff_median
-      ),
+      aes(fill = diff_median, size = neg_log10_p_adj, alpha = significant),
       shape = 21,
-      stroke = 1
-    ) +
-    scale_colour_gradientn(
-      colours = gradient_palette,
-      limits = diff_median_limits
+      colour = "grey30"
     ) +
     scale_fill_gradientn(
       colours = gradient_palette,
-      limits = diff_median_limits,
-      na.value = "transparent",
-      guide = "none"
+      limits = shift_limits,
+      name = paste0("Module shift\ntarget − ", reference_condition, "\n(median ME)")
     ) +
-    scale_size(range = c(1, 5)) +
-    scale_y_discrete(drop = FALSE) +
+    scale_size(range = c(2, 9), name = "−log10 adj. p", breaks = c(5, 10, 20), labels = c("5", "10", "≥20")) +
+    scale_alpha_manual(values = c(`FALSE` = 0.3, `TRUE` = 1), guide = "none") +
+    facet_grid(rows = vars(stratum), cols = vars(network, target), labeller = label_value) +
     theme_bw() +
-    theme(panel.grid = element_blank()) +
+    theme(panel.grid.minor = element_blank()) +
     labs(
-      title = "Differential module eigengenes",
-      subtitle = paste(
-        "vs", reference_condition, "| filled: p_adj < 0.05, hollow: n.s."
-      ),
-      x = "Target condition",
-      y = NULL,
-      colour = "Difference\nin medians",
-      size = "-log10(p_adj)"
+      title = paste("Differential module eigengenes vs", reference_condition),
+      x = "Module",
+      y = NULL
     )
 
+  # PNG through export_plot; the PDF through cairo_pdf, because the default
+  # pdf() device cannot encode the minus sign of the legends.
   export_plot(
-    filename = file.path(module08_dir, "dme_dotplot"),
-    plot = dme_dotplot,
-    width = 4 + n_distinct(dme_dotplot_data$target),
-    height = 2 + 0.25 * nlevels(dme_dotplot_data$row_label)
+    filename = file.path(module08_dir, "dme_summary_dotplot"),
+    plot = dme_summary_dotplot,
+    width = 4 + 0.45 * nlevels(dme_plot_data$module) * n_distinct(dme_plot_data$network) * n_distinct(dme_plot_data$target),
+    height = 2 + 3 * n_distinct(dme_plot_data$stratum),
+    file_formats = "png"
   )
-  dme_dotplot
+  ggsave(
+    file.path(module08_dir, "dme_summary_dotplot.pdf"),
+    plot = dme_summary_dotplot,
+    width = 4 + 0.45 * nlevels(dme_plot_data$module) * n_distinct(dme_plot_data$network) * n_distinct(dme_plot_data$target),
+    height = 2 + 3 * n_distinct(dme_plot_data$stratum),
+    device = cairo_pdf
+  )
+  dme_summary_dotplot
+}
+```
+
+Each network also gets a lollipop plot, `dme_lollipop`, with one row per module, sorted by `diff_median`. Points are filled by `diff_median` and faded when `p_adj ≥ 0.05`. All lollipop plots share the x axis and the colour scale, so their shifts can be compared.
+
+```{r}
+#| label: module08_dme_lollipops
+
+if (nrow(dme_results) > 0) {
+  shift_x_limits <- c(-1, 1) * max(abs(dme_plot_data$diff_median)) * 1.05
+  for (fit_id in unique(dme_plot_data$fit_id)) {
+    fit_dme <-
+      dme_plot_data |>
+      filter(fit_id == .env$fit_id) |>
+      mutate(module = fct_reorder(as.character(module), diff_median))
+    dme_lollipop <-
+      ggplot(fit_dme, aes(diff_median, module)) +
+      geom_vline(xintercept = 0, colour = "grey50") +
+      geom_segment(aes(x = 0, xend = diff_median, yend = module), colour = "grey60", linewidth = 1) +
+      geom_point(aes(fill = diff_median, alpha = significant), shape = 21, size = 5, colour = "grey20") +
+      scale_x_continuous(limits = shift_x_limits) +
+      scale_fill_gradientn(colours = gradient_palette, limits = shift_limits, guide = "none") +
+      scale_alpha_manual(
+        values = c(`FALSE` = 0.3, `TRUE` = 1),
+        labels = c(`FALSE` = "not significant", `TRUE` = "adj. p < 0.05"),
+        name = NULL,
+        drop = FALSE
+      ) +
+      theme_bw() +
+      theme(panel.grid.minor = element_blank(), legend.position = "bottom") +
+      labs(
+        title = fit_id,
+        x = paste0("Module shift, ", paste(unique(fit_dme$target), collapse = ", "), " − ", reference_condition, " (median ME)"),
+        y = "Module"
+      )
+    if (n_distinct(fit_dme$target) > 1) {
+      dme_lollipop <- dme_lollipop + facet_wrap(~target)
+    }
+
+    fit_dir <- filter(fit_index, fit_id == .env$fit_id)$fit_dir
+    lollipop_height <- 1.6 + 0.32 * n_distinct(fit_dme$module)
+    export_plot(
+      filename = file.path(fit_dir, "dme_lollipop"),
+      plot = dme_lollipop,
+      width = 6 * n_distinct(fit_dme$target),
+      height = lollipop_height,
+      file_formats = "png"
+    )
+    ggsave(
+      file.path(fit_dir, "dme_lollipop.pdf"),
+      plot = dme_lollipop,
+      width = 6 * n_distinct(fit_dme$target),
+      height = lollipop_height,
+      device = cairo_pdf
+    )
+  }
 }
 ```
 
 ## 8.4. Module graphs
 
-A module graph is this analysis module's own figure, not an hdWGCNA plot. It draws one co-proximity module as a network: the nodes are markers and each edge is one of the module's marker pairs. For each fitted cell type and co-proximity module, it is written to `{cell_type}/module_graphs/{module}`.
+A module graph is this analysis module's own figure, not an hdWGCNA plot. It draws one co-proximity module as a network: the nodes are markers and each edge is one of the module's marker pairs. For each network, co-proximity module and target condition with a DME test, it is written to `{network folder}/module_graphs/{module}` (with `_{target}` appended when there are several target conditions).
 
 How to read it:
 
-- **Pairs drawn.** Only the module's 50 pairs with the highest kME are drawn, and of those only the largest connected component, which is the module's core. The caption gives the module's size and how many of the 50 pairs fall outside the drawn component.
-- **Self-pairs.** A marker paired with itself (A:A) is not drawn as a loop. Instead, each marker's label is filled by its self-pair's mean `log2_ratio` in the target condition minus that in the reference condition, on the same colour scale as the edges: red means the marker clusters more in the target condition, blue less. It is computed for every drawn marker from the cell type's cells, whether or not its self-pair belongs to the co-proximity module. A grey label means the self-pair is never detected.
-- **Label size** shows a marker's degree, the number of drawn pairs it is part of, so the module's most connected markers stand out.
-- **Edge width and opacity** show the pair's kME: thick, opaque edges are the pairs that follow the module most closely.
-- **Edge colour** is the mean `log2_ratio` of the pair in the target condition minus that in the reference condition, over single cells, with cells where the pair is not detected counted as 0. The mean is used, not the median, because most pairs are undetected in many cells: their median is then 0 and hides a change in how many cells colocalize the pair, which is often what moves a sparse co-proximity module. Module `05`'s differential colocalization reports the median difference (`diff_median`) with a test per pair, so its number for the same pair differs; use module `05` for per-pair significance. Red means more colocalized in the target condition, blue less. The scale is centred at 0 and shared by all panels and by the labels.
-- **Panels.** There is one panel per target condition, all with the same layout, and each panel's title gives that target's differential module eigengene result (`diff_median`, `p_adj`, from 8.3). A target condition without a DME test (fewer than 10 cells) gets no panel. If no target condition is left, one panel with grey edges and grey labels is drawn, titled "no target cells".
+- **Edges.** All the module's pairs in its largest connected component are drawn; self-pairs (A:A) are not. The caption gives how many of the module's pairs are drawn.
+- **Edge colour** is Δ proximity: the pair's mean `log2_ratio` in the target condition minus that in the reference condition, over single cells, with cells where the pair is not detected counted as 0. The mean is used, not the median, because most pairs are undetected in many cells: their median is then 0 and hides a change in how many cells colocalize the pair. Module `05`'s differential colocalization reports the median difference (`diff_median`) with a test per pair; use module `05` for per-pair significance. Red means more colocalized in the target condition, blue less.
+- **Edge width and opacity** show module membership (kME): thick, opaque edges are the pairs that follow the module most closely.
+- **Hub pairs.** The three pairs with the highest membership have a thin black outline, and their markers are drawn as large nodes with bold, dark-orange labels. They are listed in the caption.
+- **Labels** are drawn only for the markers of the module's 10 pairs with the highest membership; the other markers are small points.
+- **Fill.** Nodes and labels are filled by the marker's category (`marker_label_column`), and the panel on the right counts the drawn markers per category.
+- **Title** gives the module's DME result (`diff_median`, `p_adj` and, with a `donor_column`, the donor agreement).
+
+```{r}
+#| label: module08_module_graph_settings
+
+n_label_pairs <- 10
+n_hub_pairs <- 3
+hub_label_colour <- "#C2560A"
+
+# One fixed fill per category, shared by every graph. Only the categories of
+# the markers in markers_to_test are coloured; with 12 or fewer, Set3 is
+# used, with its grey (9th) colour, which reads as "missing", replaced.
+marker_categories <- if (is.null(marker_labels_path)) {
+  tibble(marker = unique(unlist(markers_to_test)), category = "marker")
+} else {
+  read.csv(marker_labels_path) |>
+    as_tibble() |>
+    transmute(marker, category = .data[[marker_label_column]])
+}
+category_levels <- sort(unique(
+  marker_categories$category[marker_categories$marker %in% unlist(markers_to_test)]
+))
+set3_colours <- RColorBrewer::brewer.pal(12, "Set3")
+set3_colours[9] <- "#E5C494"
+category_palette <- set_names(
+  if (length(category_levels) <= 12) {
+    set3_colours[seq_along(category_levels)]
+  } else {
+    colorRampPalette(set3_colours)(length(category_levels))
+  },
+  category_levels
+)
+```
 
 ```{r}
 #| label: module08_module_graphs
 
-if (length(coproximity_fits) == 0) {
-  message("No cell type was fitted (see sweep_summary.csv); 8.4 is skipped.")
-}
-
-for (cell_type in names(coproximity_fits)) {
-  cell_type_dir <- file.path(module08_dir, cell_type)
-  module_graphs_dir <- file.path(cell_type_dir, "module_graphs")
+for (fit_id in unique(dme_results$fit_id)) {
+  fit_dir <- filter(fit_index, fit_id == .env$fit_id)$fit_dir
+  module_graphs_dir <- file.path(fit_dir, "module_graphs")
   dir.create(module_graphs_dir, recursive = TRUE, showWarnings = FALSE)
   # 8.2's membership table holds each pair's kME and per-condition means.
-  module_membership <- read_csv(
-    file.path(cell_type_dir, "modules.csv"),
-    show_col_types = FALSE
-  )
-
-  # Self-pair means over all of the cell type's cells, zero-filled as in 8.2,
-  # for every marker: a drawn marker's self-pair need not be in the module.
-  cell_type_fit <- coproximity_fits[[cell_type]]
-  cell_conditions <- cell_type_fit[[contrast_column, drop = TRUE]]
-  proximity_matrix <- LayerData(cell_type_fit, layer = "data")
-  pair_markers <- str_split_fixed(rownames(proximity_matrix), ":", 2)
-  self_pairs <-
-    rownames(proximity_matrix)[pair_markers[, 1] == pair_markers[, 2]]
-  reference_self_means <- rowMeans(
-    proximity_matrix[
-      self_pairs,
-      cell_conditions == reference_condition,
-      drop = FALSE
-    ]
-  )
-  self_pair_differences <-
-    target_conditions |>
-    map(\(target_condition) {
-      target_self_means <- rowMeans(
-        proximity_matrix[
-          self_pairs,
-          cell_conditions == target_condition,
-          drop = FALSE
-        ]
-      )
-      tibble(
-        target = target_condition,
-        name = str_remove(self_pairs, ":.*"),
-        self_pair_difference = target_self_means - reference_self_means
-      )
-    }) |>
-    bind_rows()
+  module_membership <- read_csv(file.path(fit_dir, "modules.csv"), show_col_types = FALSE)
+  fit_dme <- filter(dme_results, fit_id == .env$fit_id)
 
   for (module_name in unique(module_membership$module)) {
     module_pairs <- filter(module_membership, module == module_name)
-    # 50 pairs keep large modules readable; see the prose above.
-    top_pairs <- slice_max(module_pairs, kME, n = 50, with_ties = FALSE)
+    hub_pairs <- slice_max(module_pairs, kME, n = n_hub_pairs, with_ties = FALSE)
+    hub_markers <- unique(c(hub_pairs$marker_1, hub_pairs$marker_2))
+    label_markers <-
+      slice_max(module_pairs, kME, n = n_label_pairs, with_ties = FALSE) |>
+      with(unique(c(marker_1, marker_2)))
     # group_components() numbers components by size, largest first.
-    core_markers <-
-      top_pairs |>
+    component_markers <-
+      module_pairs |>
       select(marker_1, marker_2) |>
       tidygraph::as_tbl_graph(directed = FALSE) |>
       mutate(component = tidygraph::group_components()) |>
       filter(component == 1) |>
       pull(name)
-    core_pairs <- filter(top_pairs, marker_1 %in% core_markers)
-    core_edges <- filter(core_pairs, marker_1 != marker_2)
-
-    # One copy of each edge per target condition with a DME test (8.3), so
-    # targets with fewer than 10 cells get no panel.
-    module_dme <-
-      dme_results |>
-      filter(cell_type == .env$cell_type, module == module_name) |>
-      select(target, diff_median, p_adj)
-    graph_edges <-
-      core_edges |>
-      pivot_longer(
-        starts_with("mean_log2_ratio_"),
-        names_to = "target",
-        names_prefix = "mean_log2_ratio_",
-        values_to = "mean_log2_ratio"
-      ) |>
-      mutate(
-        mean_log2_ratio_difference =
-          mean_log2_ratio - mean_log2_ratio[target == reference_condition],
-        .by = c(marker_1, marker_2)
-      ) |>
-      inner_join(module_dme, by = "target") |>
-      mutate(
-        panel = paste0(
-          target, "\nDME diff_median ", signif(diff_median, 2),
-          ", p_adj ", signif(p_adj, 2)
-        )
-      )
-    if (nrow(module_dme) == 0) {
-      graph_edges <-
-        core_edges |>
-        mutate(
-          target = NA_character_,
-          mean_log2_ratio_difference = NA_real_,
-          panel = "no target cells"
-        )
-    }
-
-    # One row per marker and panel; markers keep core_markers' order, which
-    # the shared layout below relies on.
-    marker_degrees <- count(
-      tibble(name = c(core_edges$marker_1, core_edges$marker_2)),
-      name,
-      name = "degree"
-    )
+    component_pairs <- filter(module_pairs, marker_1 %in% component_markers)
     graph_nodes <-
-      distinct(graph_edges, target, panel) |>
-      cross_join(tibble(name = core_markers)) |>
-      left_join(self_pair_differences, by = c("target", "name")) |>
-      left_join(marker_degrees, by = "name")
+      tibble(name = component_markers) |>
+      left_join(rename(marker_categories, name = marker), by = "name") |>
+      mutate(
+        category = factor(replace_na(category, "unlabelled"), levels = c(names(category_palette), "unlabelled")),
+        is_labelled = name %in% label_markers,
+        is_hub_marker = name %in% hub_markers,
+        label_face = if_else(is_hub_marker, "bold", "plain")
+      )
 
-    # Edges and labels share one scale, so the figure has one colour legend.
-    difference_limit <- max(
-      abs(graph_edges$mean_log2_ratio_difference),
-      abs(graph_nodes$self_pair_difference),
-      0,
-      na.rm = TRUE
-    )
-    # kk layout computed once, so every panel places the markers alike.
-    graph_layout <-
-      tidygraph::tbl_graph(
-        nodes = tibble(name = core_markers),
-        edges = select(core_edges, from = marker_1, to = marker_2),
-        directed = FALSE
-      ) |>
-      create_layout(layout = "kk")
+    module_composition <-
+      graph_nodes |>
+      count(category) |>
+      mutate(category = fct_reorder(as.character(category), n))
+    composition_plot <-
+      ggplot(module_composition, aes(n, category, fill = category)) +
+      geom_col(colour = "grey30", linewidth = 0.3) +
+      geom_text(aes(label = n), hjust = -0.3, size = 3.5) +
+      scale_fill_manual(values = c(category_palette, unlabelled = "white"), guide = "none") +
+      scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+      theme_bw() +
+      theme(panel.grid = element_blank()) +
+      labs(title = paste0("Module markers (n = ", nrow(graph_nodes), ")"), x = "Markers", y = NULL)
 
-    # One ggraph per panel: facet_edges() cannot vary label fill by panel.
-    panel_plots <- map(unique(graph_edges$panel), \(panel_name) {
-      tidygraph::tbl_graph(
-        nodes = filter(graph_nodes, panel == panel_name),
-        edges = graph_edges |>
-          filter(panel == panel_name) |>
-          rename(from = marker_1, to = marker_2),
-        directed = FALSE
-      ) |>
-        ggraph(layout = "manual", x = graph_layout$x, y = graph_layout$y) +
-        geom_edge_link(
-          aes(
-            colour = mean_log2_ratio_difference,
-            width = kME,
-            alpha = kME
-          )
-        ) +
-        # Labels are repelled so they never overlap; a small point marks
-        # each marker's layout position, which edges and segments point to.
-        geom_node_point(size = 0.8, colour = "grey30") +
+    for (target in fit_dme$target |> unique()) {
+      module_dme <- filter(fit_dme, module == module_name, target == .env$target)
+      graph_edges <-
+        component_pairs |>
+        filter(marker_1 != marker_2) |>
+        mutate(
+          delta_proximity = .data[[paste0("mean_log2_ratio_", target)]] -
+            .data[[paste0("mean_log2_ratio_", reference_condition)]],
+          is_hub = paste(marker_1, marker_2) %in% paste(hub_pairs$marker_1, hub_pairs$marker_2)
+        ) |>
+        arrange(kME) # strong edges are drawn last, on top
+      delta_limit <- max(abs(graph_edges$delta_proximity), 0)
+      set.seed(analysis_seed)
+      graph_layout <- create_layout(
+        tidygraph::tbl_graph(
+          nodes = graph_nodes,
+          edges = rename(graph_edges, from = marker_1, to = marker_2),
+          directed = FALSE
+        ),
+        layout = "kk"
+      )
+
+      module_graph <-
+        ggraph(graph_layout) +
+        geom_edge_link(aes(filter = !is_hub, colour = delta_proximity, width = kME, alpha = kME)) +
+        # Hub pairs: a thin black outline under an opaque edge
+        geom_edge_link(aes(filter = is_hub), colour = "black", width = 2.8) +
+        geom_edge_link(aes(filter = is_hub, colour = delta_proximity), width = 2.2) +
+        geom_node_point(aes(filter = !is_labelled, fill = category), shape = 21, size = 2, colour = "grey30") +
+        geom_node_point(aes(filter = is_labelled & !is_hub_marker, fill = category), shape = 21, size = 2.5, colour = "grey30") +
+        geom_node_point(aes(filter = is_hub_marker, fill = category), shape = 21, size = 5.5, colour = "black", stroke = 0.9) +
+        # Labels are repelled so they never overlap; iterations, not time,
+        # bound the search, so placement is reproducible.
         geom_node_label(
-          aes(label = name, fill = self_pair_difference, size = degree),
+          aes(filter = is_labelled, label = name, fill = category, colour = is_hub_marker, fontface = label_face, size = is_hub_marker),
           repel = TRUE,
           max.overlaps = Inf,
-          box.padding = 0.4,
-          point.padding = 0.15,
+          box.padding = 0.5,
+          point.padding = 0.2,
           force = 8,
           force_pull = 0.5,
-          # Iterations, not time, bound the search, so placement is
-          # reproducible on slow (emulated) machines.
           max.time = 120,
           max.iter = 2e5,
-          min.segment.length = 0.2,
-          segment.colour = "grey50",
-          seed = analysis_seed
+          min.segment.length = 0,
+          segment.colour = "grey40",
+          seed = analysis_seed,
+          label.size = 0.8,
+          show.legend = FALSE
         ) +
-        scale_edge_colour_gradientn(
-          colours = gradient_palette,
-          limits = c(-1, 1) * difference_limit,
-          na.value = "grey60",
-          guide = if (nrow(module_dme) == 0) "none" else "edge_colourbar"
-        ) +
-        scale_fill_gradientn(
-          colours = gradient_palette,
-          limits = c(-1, 1) * difference_limit,
-          na.value = "grey88",
-          guide = "none"
-        ) +
-        scale_edge_width(range = c(0.3, 2.5)) +
-        scale_edge_alpha(range = c(0.3, 1)) +
-        # At most about 4 integer breaks, so the legend fits the figure.
-        scale_size(
-          range = c(2.5, 4),
-          limits = range(graph_nodes$degree),
-          breaks = \(limits) {
-            breaks <- unique(floor(pretty(limits, n = 3)))
-            breaks[breaks >= limits[1] & breaks <= limits[2]]
-          }
-        ) +
-        scale_x_continuous(expand = c(0.2, 0.2)) +
-        scale_y_continuous(expand = c(0.2, 0.2)) +
+        scale_colour_manual(values = c(`TRUE` = hub_label_colour, `FALSE` = "grey20"), guide = "none") +
+        scale_size_manual(values = c(`TRUE` = 4.5, `FALSE` = 3.2), guide = "none") +
+        scale_edge_colour_gradientn(colours = gradient_palette, limits = c(-1, 1) * delta_limit) +
+        scale_fill_manual(values = c(category_palette, unlabelled = "white"), guide = "none") +
+        scale_edge_width(range = c(0.1, 2.5)) +
+        scale_edge_alpha(range = c(0.05, 1)) +
+        scale_x_continuous(expand = c(0.1, 0.1)) +
+        scale_y_continuous(expand = c(0.1, 0.1)) +
         theme(
           aspect.ratio = 1,
           panel.background = element_rect(fill = "white", colour = "black"),
@@ -964,50 +992,55 @@ for (cell_type in names(coproximity_fits)) {
           axis.ticks = element_blank()
         ) +
         labs(
-          title = panel_name,
           x = NULL,
           y = NULL,
-          edge_colour = paste0(
-            "Mean log2_ratio\ntarget - ", reference_condition,
-            "\n(pairs and\nself-pairs)"
-          ),
-          edge_width = "kME",
-          edge_alpha = "kME",
-          size = "Degree"
+          edge_colour = paste0("Δ proximity\n(", target, " − ", reference_condition, ")"),
+          edge_width = "Module\nmembership",
+          edge_alpha = "Module\nmembership"
         )
-    })
-
-    module_graph <-
-      patchwork::wrap_plots(panel_plots, nrow = 1) +
-      patchwork::plot_layout(guides = "collect") +
-      patchwork::plot_annotation(
-        title = paste(cell_type, "·", module_name),
-        caption = paste0(
-          "top ", nrow(top_pairs), " of ", nrow(module_pairs), " pairs; ",
-          nrow(top_pairs) - nrow(core_pairs),
-          " outside the largest component"
-        ),
-        theme = theme(plot.caption = element_text(hjust = 0))
+      graph_caption <- paste0(
+        "Edges: ", nrow(graph_edges), " of the module's ", nrow(module_pairs),
+        " pairs (largest connected component; self-pairs not drawn) · labels: markers of the top ",
+        n_label_pairs, " pairs by membership\n",
+        "Hub pairs (outlined, large nodes): ",
+        paste(hub_pairs$marker_1, hub_pairs$marker_2, sep = ":", collapse = ", ")
       )
 
-    export_plot(
-      filename = file.path(module_graphs_dir, module_name),
-      plot = module_graph,
-      width = 2 + 5 * length(panel_plots),
-      height = 6
-    )
+      module_figure <-
+        patchwork::wrap_plots(module_graph, composition_plot, widths = c(3, 1.4)) +
+        patchwork::plot_annotation(
+          title = paste0(
+            fit_id, " · ", module_name,
+            "\n", target, " vs ", reference_condition,
+            ": diff_median ", signif(module_dme$diff_median, 2),
+            ", adj. p ", signif(module_dme$p_adj, 2),
+            if (!is.null(donor_column)) paste0(", ", module_dme$n_donors_same_direction, "/", module_dme$n_donors, " donors")
+          ),
+          caption = graph_caption,
+          theme = theme(plot.caption = element_text(hjust = 0))
+        )
+
+      graph_file <- file.path(
+        module_graphs_dir,
+        if (length(target_conditions) > 1) paste0(module_name, "_", str_replace_all(target, "[^A-Za-z0-9]+", "_")) else module_name
+      )
+      # PNG through export_plot; the PDF through cairo_pdf, because the
+      # default pdf() device cannot encode Δ and the minus sign.
+      export_plot(filename = graph_file, plot = module_figure, width = 15, height = 8.5, file_formats = "png")
+      ggsave(paste0(graph_file, ".pdf"), plot = module_figure, width = 15, height = 8.5, device = cairo_pdf)
+    }
   }
 }
 ```
 
 ## 8.5. Module preservation (opt-in)
 
-Module preservation asks whether the reference network's co-proximity modules hold together in each target condition. For each fitted cell type and target condition, hdWGCNA's permutation test compares the reference modules with the target condition's metacells of the same cell type and summarizes the evidence as Zsummary. A Zsummary below 2 means no evidence of preservation, and above 10 means strong preservation (Langfelder 2011).
+Module preservation asks whether a network's co-proximity modules hold together in the conditions the network was not built on: the target conditions of a reference network, or the other conditions of a per-condition network. For each network and query condition, hdWGCNA's permutation test compares the network's modules with the query condition's metacells of the same stratum and cell type and summarizes the evidence as Zsummary. A Zsummary below 2 means no evidence of preservation, and above 10 means strong preservation (Langfelder 2011).
 
-The section is skipped unless `run_preservation <- TRUE`. It is also skipped, with a warning, when `network_cells <- "all"`, because the target conditions then helped build the networks.
+The section is skipped unless `run_preservation <- TRUE`. It is also skipped, with a warning, when `network_cells <- "all"`, because every condition then helped build the networks.
 
 > **Decision checkpoint** (module preservation)  
-> Set `run_preservation <- TRUE` to run the test. It is a permutation test per cell type × target condition: expect about 3 min each at about 3k pairs, 50 metacells and 100 permutations, scaling with the square of the number of pairs. Lower `preservation_permutations` for a quick look; 100 is the recommended minimum.
+> Set `run_preservation <- TRUE` to run the test. It is a permutation test per network × query condition, and its time grows with the number of metacells and with the square of the number of pairs: about 3 min at about 3k pairs, 50 metacells and 100 permutations, but about 25 min at about 3k pairs and 600–850 metacells. Lower `preservation_permutations` for a quick look; 100 is the recommended minimum.
 
 ```{r}
 #| label: module08_preservation_settings
@@ -1018,77 +1051,70 @@ preservation_permutations <- 100
 
 > **Note:** Modules of more than 1,000 marker pairs are subsampled to 1,000 pairs for the test (`maxModuleSize`), and their `module_size` in the table and plots is 1,000.
 
-> **Note:** The results are cached under `networks/{cell_type}_preservation.rds`. Changing `preservation_permutations` without `rebuild_networks <- TRUE` keeps the old results.
+> **Note:** The results are cached under `networks/{stratum}_{cell_type}_{network}_preservation.rds`. Changing `preservation_permutations` without `rebuild_networks <- TRUE` keeps the old results.
 
 ```{r}
 #| label: module08_preservation
 
-preservation_cell_types <- names(coproximity_fits)
+preservation_fit_ids <- names(coproximity_fits)
 if (length(coproximity_fits) == 0) {
-  message("No cell type was fitted (see sweep_summary.csv); 8.5 is skipped.")
+  message("No network was fitted (see sweep_summary.csv); 8.5 is skipped.")
 } else if (!run_preservation) {
-  message(
-    "Module preservation skipped; set run_preservation <- TRUE to run it."
-  )
-  preservation_cell_types <- character()
+  message("Module preservation skipped; set run_preservation <- TRUE to run it.")
+  preservation_fit_ids <- character()
 } else if (network_cells == "all") {
-  warning(
-    "Module preservation skipped: with network_cells = \"all\", the target ",
-    "conditions helped build the networks."
-  )
-  preservation_cell_types <- character()
-} else {
-  message(
-    "Module preservation runs a permutation test per cell type x target ",
-    "condition: about 3 min each at about 3k pairs, 50 metacells and 100 ",
-    "permutations, scaling with pairs^2."
-  )
+  warning("Module preservation skipped: with network_cells = \"all\", every condition helped build the networks.")
+  preservation_fit_ids <- character()
 }
 
 preservation_results <- tibble()
-for (cell_type in preservation_cell_types) {
-  cache_path <- file.path(networks_dir, paste0(cell_type, "_preservation.rds"))
-  cell_type_dir <- file.path(module08_dir, cell_type)
+for (fit_id in preservation_fit_ids) {
+  fit_row <- filter(fit_index, fit_id == .env$fit_id)
+  cache_path <- file.path(
+    networks_dir,
+    paste0(
+      str_replace_all(
+        paste(c(if (use_stratum_names) fit_row$stratum, fit_row$cell_type, fit_row$network), collapse = " "),
+        "[^A-Za-z0-9]+",
+        "_"
+      ),
+      "_preservation.rds"
+    )
+  )
 
   if (file.exists(cache_path) && !rebuild_networks) {
-    cell_type_preservation <- readRDS(cache_path)
+    fit_preservation <- readRDS(cache_path)
   } else {
-    cell_type_fit <- coproximity_fits[[cell_type]]
-    metacell_meta <- hdWGCNA::GetMetacellObject(cell_type_fit)[[]]
-    cell_type_preservation <- tibble()
+    network_fit <- coproximity_fits[[fit_id]]
+    metacell_meta <- hdWGCNA::GetMetacellObject(network_fit)[[]]
+    query_conditions <- setdiff(
+      intersect(all_conditions, unique(metacell_meta[[contrast_column]])),
+      network_sets[[fit_row$network]]
+    )
+    fit_preservation <- tibble()
     # An errored test is not cached, so the next render retries it.
     preservation_failed <- FALSE
 
-    for (target in target_conditions) {
-      if (!target %in% metacell_meta[[contrast_column]]) {
-        warning(
-          cell_type, " / ", target, ": target condition below ",
-          "metacell_min_cells; preservation skipped"
-        )
-        next
-      }
-      # The query is the target's metacells, read as in 8.1.
+    for (query in query_conditions) {
+      # The query is the query condition's metacells, read as in 8.1.
       query_object <- hdWGCNA::SetDatExpr(
-        cell_type_fit,
-        group_name = target,
+        network_fit,
+        group_name = query,
         group.by = contrast_column,
         assay = "proximity",
         slot = "counts",
         layer = "counts"
       )
       if (nrow(hdWGCNA::GetDatExpr(query_object)) < min_network_metacells) {
-        warning(
-          cell_type, " / ", target, ": fewer than ", min_network_metacells,
-          " metacells; preservation skipped"
-        )
+        warning(fit_id, " / ", query, ": fewer than ", min_network_metacells, " metacells; preservation skipped")
         next
       }
 
       preservation_result <- tryCatch(
         hdWGCNA::ModulePreservation(
           query_object,
-          seurat_ref = cell_type_fit,
-          name = target,
+          seurat_ref = network_fit,
+          name = query,
           n_permutations = preservation_permutations,
           parallel = FALSE,
           seed = analysis_seed,
@@ -1100,21 +1126,17 @@ for (cell_type in preservation_cell_types) {
         error = conditionMessage
       )
       if (is.character(preservation_result)) {
-        warning(
-          cell_type, " / ", target, ": preservation failed: ",
-          preservation_result
-        )
+        warning(fit_id, " / ", query, ": preservation failed: ", preservation_result)
         preservation_failed <- TRUE
         next
       }
 
-      preservation_stats <-
-        hdWGCNA::GetModulePreservation(preservation_result, target)
-      cell_type_preservation <- bind_rows(
-        cell_type_preservation,
+      preservation_stats <- hdWGCNA::GetModulePreservation(preservation_result, query)
+      fit_preservation <- bind_rows(
+        fit_preservation,
         tibble(
-          cell_type = cell_type,
-          target = target,
+          fit_id = fit_id,
+          query = query,
           module = rownames(preservation_stats$Z),
           module_size = preservation_stats$Z$moduleSize,
           zsummary = preservation_stats$Z$Zsummary.pres,
@@ -1123,42 +1145,29 @@ for (cell_type in preservation_cell_types) {
           filter(!module %in% c("grey", "gold"))
       )
     }
-    if (!preservation_failed) saveRDS(cell_type_preservation, cache_path)
+    if (!preservation_failed) saveRDS(fit_preservation, cache_path)
   }
 
-  preservation_results <- bind_rows(
-    preservation_results,
-    cell_type_preservation
-  )
-  if (nrow(cell_type_preservation) == 0) next
+  preservation_results <- bind_rows(preservation_results, fit_preservation)
+  if (nrow(fit_preservation) == 0) next
 
-  preservation_plot <-
-    ggplot(cell_type_preservation, aes(module_size, zsummary)) +
-    geom_hline(yintercept = c(2, 10), linetype = "dashed", colour = "grey50") +
-    geom_point() +
-    geom_text(aes(label = module), vjust = -0.8, size = 3) +
-    scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
-    facet_wrap(~target) +
-    theme_bw() +
-    labs(
-      title = paste(cell_type, "module preservation"),
-      x = "Module size (pairs)",
-      y = "Zsummary"
-    )
   export_plot(
-    filename = file.path(cell_type_dir, "preservation_zsummary"),
-    plot = preservation_plot,
+    filename = file.path(fit_row$fit_dir, "preservation_zsummary"),
+    plot = ggplot(fit_preservation, aes(module_size, zsummary)) +
+      geom_hline(yintercept = c(2, 10), linetype = "dashed", colour = "grey50") +
+      geom_point() +
+      geom_text(aes(label = module), vjust = -0.8, size = 3) +
+      scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
+      facet_wrap(~query) +
+      theme_bw() +
+      labs(title = paste(fit_id, "module preservation"), x = "Module size (pairs)", y = "Zsummary"),
     width = 7,
     height = 4
   )
 }
 
-if (length(preservation_cell_types) > 0) {
-  write.csv(
-    preservation_results,
-    file.path(module08_dir, "preservation_results.csv"),
-    row.names = FALSE
-  )
+if (length(preservation_fit_ids) > 0) {
+  write.csv(preservation_results, file.path(module08_dir, "preservation_results.csv"), row.names = FALSE)
   preservation_results
 }
 ```
