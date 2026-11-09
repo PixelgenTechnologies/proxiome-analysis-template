@@ -668,7 +668,9 @@ for (fit_id in names(coproximity_fits)) {
       sample_medians |>
       filter(condition %in% c(reference_condition, target), !is.na(donor)) |>
       select(module, donor, condition, eigengene) |>
-      pivot_wider(names_from = condition, values_from = eigengene) |>
+      # names_expand keeps a column per condition when no donor is left
+      # (no donor_column, or no donor with both samples).
+      pivot_wider(names_from = condition, values_from = eigengene, names_expand = TRUE) |>
       filter(!is.na(.data[[reference_condition]]), !is.na(.data[[target]])) |>
       mutate(donor_shift = .data[[target]] - .data[[reference_condition]]) |>
       left_join(select(target_results, module, diff_median), by = "module") |>
