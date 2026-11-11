@@ -21,7 +21,7 @@ This template describes a standard workflow for analyzing single cell PNA data u
 
 **Important:** Users must actively review and adjust quality control thresholds, select markers, and most critically, perform manual cell type annotation based on marker expression patterns. Automated annotation provides a starting point but should always be verified and refined through careful inspection of differential abundance patterns and marker distributions.
 
-**How to run interactively:** Open and run the numbered notebooks in `modules/` in order (`01` through `04`; `05`–`07` are optional). Start with `01_quality_control.qmd`.
+**How to run interactively:** Open and run the numbered notebooks in `modules/` in order (`01` through `04`; `05a`, `05b`, `06`, and `07` are optional). Start with `01_quality_control.qmd`.
 
 **How to re-render everything:** Render this file when you want a single HTML report of the full workflow at the end of a project (requires [Quarto](https://quarto.org/)).
 
@@ -41,7 +41,8 @@ This template describes a standard workflow for analyzing single cell PNA data u
 │   ├── 02_clustering_annotation.qmd
 │   ├── 03_abundance.qmd
 │   ├── 04_proximity.qmd
-│   ├── 05_statistical_testing.qmd     # Optional
+│   ├── 05a_statistical_testing_cell_level.qmd  # Optional (Wilcoxon)
+│   ├── 05b_statistical_testing_pseudobulk.qmd  # Optional (limma; needs replicates)
 │   ├── 06_cell_visualization.qmd      # Optional
 │   └── 07_data_interpretation.qmd     # Optional
 │
@@ -73,7 +74,7 @@ This template describes a standard workflow for analyzing single cell PNA data u
 
 {{< include modules/04_proximity.qmd >}}
 
-{{< include modules/05_statistical_testing.qmd >}}
+{{< include modules/05a_statistical_testing_cell_level.qmd >}}
 
 {{< include modules/06_cell_visualization.qmd >}}
 

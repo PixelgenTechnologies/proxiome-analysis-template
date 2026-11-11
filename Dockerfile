@@ -19,7 +19,7 @@ RUN mkdir -p /workspace/data
 RUN R -e "pak::pak(c( \
   'tidyverse', 'Seurat', 'here', 'Matrix', 'ggraph', 'pls', \
   'ggplotify', 'harmony', 'ggbeeswarm', 'RcppML', 'ComplexHeatmap', \
-  'clusterProfiler', 'org.Hs.eg.db', 'AnnotationDbi' \
+  'clusterProfiler', 'org.Hs.eg.db', 'AnnotationDbi', 'limma' \
 ))"
 
 COPY proxiome_analysis_template.qmd /workspace/proxiome_analysis_template.qmd

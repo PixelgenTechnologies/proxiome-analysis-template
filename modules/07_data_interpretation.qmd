@@ -25,11 +25,18 @@ dir.create(
 
 ## 7.0. Set interpretation parameters
 
-> **Decision checkpoint** (significance cutoffs)  
-> Adjust `p_adj` and effect-size thresholds for markers from module `05` differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables.
+> **Decision checkpoint** (module 05 inputs and significance cutoffs)  
+> Set `stats_method` to `"cell_level"` (default; Wilcoxon from `05a_statistical_testing_cell_level.qmd`) or `"pseudobulk"` (limma from `05b_statistical_testing_pseudobulk.qmd`) to choose which results feed enrichment.  
+> Adjust `p_adj` and effect-size thresholds for differential abundance and colocalization. Protein sets are built for all cell types and contrasts present in those tables. Limma effect sizes are often smaller than cell-level Wilcoxon differences — consider relaxing thresholds when using `"pseudobulk"`.
 
 ```{r}
 #| label: module07_parameters
+
+# Which module 05 outputs to use: "cell_level" (Wilcoxon) or "pseudobulk" (limma)
+stats_method <- "cell_level"
+if (!stats_method %in% c("cell_level", "pseudobulk")) {
+  stop('stats_method must be "cell_level" or "pseudobulk"')
+}
 
 daa_p_adj_threshold <- 0.05
 daa_effect_size_threshold <- 0.5 # minimum |difference|; 0 keeps all significant markers
@@ -44,25 +51,35 @@ coloc_effect_size_threshold <- 0.25 # minimum |diff_median|; 0 keeps all signifi
 #| label: module07_load_module05_results
 
 daa_path <- here::here(
-  "results/05_statistical_testing/abundance/differential_abundance_analysis.rds"
+  "results/05_statistical_testing/abundance",
+  stats_method,
+  "differential_abundance_analysis.csv"
 )
 coloc_path <- here::here(
-  "results/05_statistical_testing/colocalization/differential_colocalization_analysis.rds"
+  "results/05_statistical_testing/colocalization",
+  stats_method,
+  "differential_colocalization_analysis.csv"
 )
 
 if (!file.exists(daa_path) || !file.exists(coloc_path)) {
+  notebook <- if (identical(stats_method, "pseudobulk")) {
+    "modules/05b_statistical_testing_pseudobulk.qmd"
+  } else {
+    "modules/05a_statistical_testing_cell_level.qmd"
+  }
   stop(
-    "Module 05 results not found. Run statistical testing first.\n",
-    "Expected:\n  ", daa_path, "\n  ", coloc_path
+    "Module 05 results not found for stats_method = \"", stats_method, "\". ",
+    "Run ", notebook, " first.\nExpected:\n  ", daa_path, "\n  ", coloc_path
   )
 }
 
-if (!exists("differential_abundance_analysis", inherits = TRUE)) {
-  differential_abundance_analysis <- readRDS(daa_path)
-}
-if (!exists("differential_colocalization_analysis", inherits = TRUE)) {
-  differential_colocalization_analysis <- readRDS(coloc_path)
-}
+# Always read the CSV for stats_method. A full-template render defines
+# cell-level Wilcoxon objects in 05a under these names, so an
+# exists() skip would keep Wilcoxon tables while claiming to load
+# pseudobulk/ (or the reverse if those names were overwritten).
+message("Loading module 05 results from ", stats_method, "/")
+differential_abundance_analysis <- read_csv(daa_path, show_col_types = FALSE)
+differential_colocalization_analysis <- read_csv(coloc_path, show_col_types = FALSE)
 ```
 
 ## 7.2. Build protein sets
@@ -72,35 +89,68 @@ Significant markers from differential abundance and unique markers from signific
 ```{r}
 #| label: module07_build_protein_sets
 
-daa_sets <-
-  differential_abundance_analysis |>
-  filter(
-    p_adj < daa_p_adj_threshold,
-    abs(difference) >= daa_effect_size_threshold,
-    difference != 0
-  ) |>
-  mutate(direction = if_else(difference > 0, "up", "down")) |>
-  group_by(source = "differential_abundance", group, target, direction) |>
-  summarise(
-    markers = list(sort(unique(marker))),
-    n_markers = n_distinct(marker),
-    .groups = "drop"
+# 0-row schema used when a module 05 table is empty or has no columns.
+# bind_rows() of all-NULL limma fits writes a 0×0 CSV; filter(p_adj < ...)
+# would error on that object, so treat it as no significant markers and
+# fall through to the empty-set warning below.
+empty_protein_sets <- function() {
+  tibble(
+    source = character(),
+    group = character(),
+    target = character(),
+    direction = character(),
+    markers = list(),
+    n_markers = integer()
   )
+}
+
+has_diff_columns <- function(df, extra) {
+  is.data.frame(df) && all(c("p_adj", "group", "target", extra) %in% names(df))
+}
+
+daa_sets <-
+  if (!has_diff_columns(
+    differential_abundance_analysis,
+    c("difference", "marker")
+  )) {
+    empty_protein_sets()
+  } else {
+    differential_abundance_analysis |>
+      filter(
+        p_adj < daa_p_adj_threshold,
+        abs(difference) >= daa_effect_size_threshold,
+        difference != 0
+      ) |>
+      mutate(direction = if_else(difference > 0, "up", "down")) |>
+      group_by(source = "differential_abundance", group, target, direction) |>
+      summarise(
+        markers = list(sort(unique(marker))),
+        n_markers = n_distinct(marker),
+        .groups = "drop"
+      )
+  }
 
 coloc_sets <-
-  differential_colocalization_analysis |>
-  filter(
-    p_adj < coloc_p_adj_threshold,
-    abs(diff_median) >= coloc_effect_size_threshold,
-    diff_median != 0
-  ) |>
-  mutate(direction = if_else(diff_median > 0, "up", "down")) |>
-  group_by(source = "differential_colocalization", group, target, direction) |>
-  summarise(
-    markers = list(sort(unique(c(marker_1, marker_2)))),
-    .groups = "drop"
-  ) |>
-  mutate(n_markers = map_int(markers, length))
+  if (!has_diff_columns(
+    differential_colocalization_analysis,
+    c("diff_median", "marker_1", "marker_2")
+  )) {
+    empty_protein_sets()
+  } else {
+    differential_colocalization_analysis |>
+      filter(
+        p_adj < coloc_p_adj_threshold,
+        abs(diff_median) >= coloc_effect_size_threshold,
+        diff_median != 0
+      ) |>
+      mutate(direction = if_else(diff_median > 0, "up", "down")) |>
+      group_by(source = "differential_colocalization", group, target, direction) |>
+      summarise(
+        markers = list(sort(unique(c(marker_1, marker_2)))),
+        .groups = "drop"
+      ) |>
+      mutate(n_markers = map_int(markers, length))
+  }
 
 protein_sets <-
   bind_rows(daa_sets, coloc_sets) |>
@@ -194,17 +244,9 @@ For each protein set (cell type × contrast × direction), UniProt IDs are teste
 Plots: a term overview bar chart, then a term × marker map where each point marks membership, colored by condition effect size and sized by significance.
 
 ```{r}
-#| label: module07_enrichment_parameters
+#| label: module07_enrichment
 
 top_n_terms <- 10
-enrichment_pvalue_cutoff <- 0.05
-enrichment_qvalue_cutoff <- 0.2
-enrichment_min_gs_size <- 2
-enrichment_max_gs_size <- 500
-```
-
-```{r}
-#| label: module07_enrichment
 
 safe_plot_stem <- function(...) {
   gsub("[^A-Za-z0-9._-]+", "_", paste(..., sep = "__"))
@@ -233,7 +275,7 @@ term2name <-
   rename(term = go_id, name = Term)
 
 enrich_one_set <- function(ids) {
-  if (length(ids) < enrichment_min_gs_size) {
+  if (length(ids) < 2) {
     return(NULL)
   }
   res <- tryCatch(
@@ -242,10 +284,10 @@ enrich_one_set <- function(ids) {
       universe = panel_uniprot_universe,
       TERM2GENE = go_ann,
       TERM2NAME = term2name,
-      pvalueCutoff = enrichment_pvalue_cutoff,
-      qvalueCutoff = enrichment_qvalue_cutoff,
-      minGSSize = enrichment_min_gs_size,
-      maxGSSize = enrichment_max_gs_size
+      pvalueCutoff = 0.05,
+      qvalueCutoff = 0.2,
+      minGSSize = 2,
+      maxGSSize = 500
     ),
     error = function(e) NULL
   )
@@ -257,7 +299,7 @@ enrich_one_set <- function(ids) {
 
 enrichment_results <-
   protein_sets |>
-  filter(n_uniprot >= enrichment_min_gs_size) |>
+  filter(n_uniprot >= 2) |>
   mutate(enrich = map(uniprot_ids, enrich_one_set)) |>
   filter(!map_lgl(enrich, is.null)) |>
   select(source, group, target, direction, enrich) |>
