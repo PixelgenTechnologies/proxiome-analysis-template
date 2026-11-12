@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.0] 2026-11-12
 
 ### Changed
 
 - Reordered the analysis modules so statistical testing runs before abundance and proximity: `01_quality_control` → `02_clustering_annotation` → `03a`/`03b_statistical_testing_*` → `04_abundance` → `05_proximity` (previously `03_abundance` → `04_proximity` → `05_statistical_testing`).
 - Separated decision parameters into dedicated labeled parameter chunks across modules `01`–`05` and `07`, keeping computation and plotting in subsequent labeled chunks.
+- `limma` is now required for pseudobulk testing in module `03b`. It is included in the Docker image and the documented `pak::pak()` install.
 
 ### Added
 
