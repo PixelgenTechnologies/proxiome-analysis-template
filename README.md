@@ -265,6 +265,7 @@ After module `02` finishes, you can open `03a`, `03b`, `04`, `05`, or `06` in a 
 | `selected_markers.rds` | module `01` | module `02` |
 | `annotated_seurat_object.rds` | module `02` | modules `03a`, `03b`, and `04`–`06` |
 | `markers_to_test.rds` | module `02` | modules `03a`, `03b`, and `05` |
+| `cell_palette.rds` | module `02` | module `04` |
 
 All checkpoints are saved under `results/checkpoint_data/`.
 
@@ -280,6 +281,7 @@ To regenerate one HTML report of the entire workflow, install [Quarto](https://q
 | **01 — QC thresholds** | Set `n_umi_min_threshold`, `n_umi_max_threshold`, `isotype_percent_threshold` after reviewing QC plots; re-run section 1.3.4 onward |
 | **01 — marker selection** | Set `isotype_markers` for your panel, then review `selected_markers` |
 | **02 — manual annotation** | **Critical step!** Edit `cluster_cell_annotation` to assign cell type names to clusters |
+| **02 — cell type colors** | Review `cell_palette` so every value in `cell_annotation` has a color. Keep the generated colors, or replace `cell_palette` with a named vector of your own labels and colors |
 | **03a / 03b — reference condition** (optional) | Set `reference_condition` to your control condition in the notebook you run (default example: `"donor1"`). Use 03b only when each condition has at least two samples |
 | **06 — cell type & markers** (optional) | Set `cell_type_of_interest` and `markers_to_viz` to a cell type and markers that cluster/colocalize in your data |
 
@@ -358,7 +360,7 @@ Run the Setup chunk in `modules/01_quality_control.qmd` first.
 Run the upstream module first to create the missing file in `results/checkpoint_data/`:
 
 - `pg_data_merged.rds`, `selected_markers.rds` → run module `01`
-- `annotated_seurat_object.rds`, `markers_to_test.rds` → run module `02` to completion
+- `annotated_seurat_object.rds`, `markers_to_test.rds`, `cell_palette.rds` → run module `02` to completion
 
 </details>
 
