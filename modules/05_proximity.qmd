@@ -1,14 +1,14 @@
-# 4. Proximity
+# 5. Proximity
 
-**Module 04 — Proximity.** Colocalization heatmaps and network plots. Run the first chunk below after module `02` has finished. You can open this module in a new R session once checkpoints exist.
+**Module 05 — Proximity.** Colocalization heatmaps and network plots. Run the first chunk below after module `02` has finished. You can open this module in a new R session once checkpoints exist.
 
-Abundance plots (module `03`) show *which markers are present* in each cell type. Proximity analysis shows *which markers co-localize* on the cell's protein graph — the main PNA-specific readout.
+Abundance plots (module `04`) show *which markers are present* in each cell type. Proximity analysis shows *which markers co-localize* on the cell's protein graph — the main PNA-specific readout.
 
 ```{r}
-#| label: module04_setup
+#| label: module05_setup
 
 library(here)
-here::i_am("modules/04_proximity.qmd")
+here::i_am("modules/05_proximity.qmd")
 
 source(here::here("modules", "common_setup.R"))
 
@@ -20,11 +20,11 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 }
 ```
 
-## 4.1. Heatmap of colocalization score
+## 5.1. Heatmap of colocalization score
 
 This section generates colocalization heatmaps that visualize the spatial proximity patterns between marker pairs expressed in the dataset. Colocalization scores quantify the extent to which two markers are found in close proximity to each other within cells, providing insights into protein co-localization and potential molecular interactions or co-expression patterns.
 
-### 4.1.1. Per Group (condition or sample)
+### 5.1.1. Per Group (condition or sample)
 
 > **Decision checkpoint** (colocalization heatmaps — grouping and size)  
 > In the next chunk, set `heatmap_grouping_column`, `max_heatmap_markers`, and optionally `reference_group` (defaults to the first level in metadata) so heatmaps match your comparison and panel size.
@@ -166,7 +166,7 @@ for (group in unique_groups) {
 
   # Save individual plot with dimensions scaled to number of markers
   export_plot(
-    filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/{group}_raw_colocalization_heatmap")),
+    filename = glue::glue(here::here("results/05_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/{group}_raw_colocalization_heatmap")),
     plot = tmp_plot,
     width = plot_width,
     height = plot_height
@@ -189,14 +189,14 @@ combined_height <- plot_height * n_rows
 
 # Save the combined plot
 export_plot(
-  filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
+  filename = glue::glue(here::here("results/05_proximity/raw_colocalization_heatmap_per_{heatmap_grouping_column}/all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
   plot = combined_plot,
   width = combined_width,
   height = combined_height
 )
 ```
 
-### 4.1.2. Per cluster
+### 5.1.2. Per cluster
 
 > **Same parameters as the per-group heatmaps above**  
 > This chunk uses `heatmap_grouping_column`, `max_heatmap_markers`, and `markers_to_test` from earlier sections—run those chunks first or define the same variables in your session.
@@ -345,7 +345,7 @@ for (cell_type in cell_types) {
 
       # Save individual plot with dimensions scaled to number of markers
       export_plot(
-        filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{group}_{cell_type}_raw_colocalization_heatmap")),
+        filename = glue::glue(here::here("results/05_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{group}_{cell_type}_raw_colocalization_heatmap")),
         plot = tmp_plot,
         width = plot_width,
         height = plot_height
@@ -376,7 +376,7 @@ for (cell_type in cell_types) {
 
   # Save the combined plot
   export_plot(
-    filename = glue::glue(here::here("results/04_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
+    filename = glue::glue(here::here("results/05_proximity/raw_colocalization_heatmap_per_cell_type/{cell_type}/{cell_type}_all_{heatmap_grouping_column}s_combined_raw_colocalization_heatmap")),
     plot = combined_plot,
     width = combined_width,
     height = combined_height
@@ -385,7 +385,7 @@ for (cell_type in cell_types) {
 ```
 
 
-## 4.2. Colocalization Score network
+## 5.2. Colocalization Score network
 
 Network visualizations provide an alternative representation of colocalization patterns that can reveal complex relationships and connectivity structures between markers. Unlike heatmaps, which display all pairwise interactions in a matrix format, network graphs focus on the most significant colocalization relationships by filtering based on statistical and biological criteria. This filtering approach helps reduce visual clutter and highlights the most biologically relevant interactions.
 
@@ -395,7 +395,7 @@ The network is constructed by filtering marker pairs based on two key criteria: 
 
 This section provides two complementary analyses: a whole-dataset network visualization that captures global colocalization patterns across all cell types, and cell type-specific network visualizations that reveal how colocalization patterns differ between cell types. Users should select a focused set of markers of interest (`network_markers`) for network visualization, as including too many markers can make the network difficult to interpret.
 
-### 4.2.1. All Cell Types
+### 5.2.1. All Cell Types
 
 > **Decision checkpoint** (network — global view)  
 > In the next chunk, choose `network_grouping_column`, a focused `network_markers` list, and thresholds `metric_threshold` / `pct_detected_threshold` / `only_positive_mean_log2_ratio`.
@@ -460,14 +460,14 @@ tidygraph::as_tbl_graph(df_net) |>
   guides(edge_width = "none")
 
 export_plot(
-  filename = glue::glue(here::here("results/04_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
+  filename = glue::glue(here::here("results/05_proximity/colocalization_score_network/colocalization_score_network_all_cell_types/all_cell_types_colocalization_score_network")),
   width = 12,
   height = 8
 )
 ```
 
 
-### 4.2.2. Per Cell Type
+### 5.2.2. Per Cell Type
 
 > **Decision checkpoint** (network — one cell type)  
 > Set `cell_type_of_interest` and the same network parameters as in the global network section above. Must match a value in `cell_annotation`.
@@ -538,7 +538,7 @@ tidygraph::as_tbl_graph(df_net) |>
   guides(edge_width = "none")
 
 export_plot(
-  filename = glue::glue(here::here("results/04_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
+  filename = glue::glue(here::here("results/05_proximity/colocalization_score_network/colocalization_score_network_per_cell_type/{cell_type_of_interest}/{cell_type_of_interest}_colocalization_score_network")),
   width = 12,
   height = 8
 )

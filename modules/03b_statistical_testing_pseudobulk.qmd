@@ -1,14 +1,14 @@
-# 5. Statistical testing (pseudobulk)
+# 3b. Statistical testing (pseudobulk)
 
-**Module 05b — Statistical testing, pseudobulk (optional).** Differential abundance, clustering, and colocalization tests at the sample level. Each cell type is aggregated to one mean per `sample_alias`, then limma tests those sample means. Skip this module if you do not need formal comparisons, or if you do not have biological replicates. Run the first chunk below after module `02` has finished.
+**Module 03b — Statistical testing, pseudobulk (optional).** Differential abundance, clustering, and colocalization tests at the sample level. Each cell type is aggregated to one mean per `sample_alias`, then limma tests those sample means. Skip this module if you do not need formal comparisons, or if you do not have biological replicates. Run the first chunk below after module `02` has finished.
 
-This notebook is the replicate-aware alternative to `modules/05a_statistical_testing_cell_level.qmd`. Cell-level Wilcoxon tests treat every cell as independent, which overstates significance when many cells come from the same sample. Limma here uses the sample as the unit of replication. It needs **≥2 `sample_alias` values per condition**. If that is not true, each test below warns and skips the fit so rendering still finishes. Outputs go under `{modality}/pseudobulk/`. Module 07 reads them when `stats_method` is `"pseudobulk"`.
+This notebook is the replicate-aware alternative to `modules/03a_statistical_testing_cell_level.qmd`. Cell-level Wilcoxon tests treat every cell as independent, which overstates significance when many cells come from the same sample. Limma here uses the sample as the unit of replication. It needs **≥2 `sample_alias` values per condition**. If that is not true, each test below warns and skips the fit so rendering still finishes. Outputs go under `{modality}/pseudobulk/`. Module 07 reads them when `stats_method` is `"pseudobulk"`.
 
 ```{r}
-#| label: module05b_setup
+#| label: module03b_setup
 
 library(here)
-here::i_am("modules/05b_statistical_testing_pseudobulk.qmd")
+here::i_am("modules/03b_statistical_testing_pseudobulk.qmd")
 
 source(here::here("modules", "common_setup.R"))
 
@@ -22,7 +22,7 @@ if (!exists("markers_to_test", inherits = TRUE)) {
 suppressPackageStartupMessages(library(limma))
 ```
 
-## 5.0. Set Up Statistical Testing
+## 3.0. Set Up Statistical Testing
 
 > **Decision checkpoint** (statistical contrasts and plot cutoffs)  
 > Set `contrast_column` and `reference_condition` (a value in that column). All `{target}_vs_{reference}` outputs in this notebook use this baseline. Adjust the significance and effect-size cutoffs used for summary plots. Result tables are saved in full regardless of plot cutoffs.  
@@ -31,7 +31,7 @@ suppressPackageStartupMessages(library(limma))
 By default, in this analysis we compare all conditions to a reference condition, which is typically the "resting" or "control" condition. Sample means in each other condition are compared with sample means in the reference.
 
 ```{r}
-#| label: module05b_set_reference
+#| label: module03b_set_reference
 
 # Column in the Seurat object defining the groups to compare.
 contrast_column <- "condition"
@@ -41,25 +41,25 @@ contrast_column <- "condition"
 # Output folders are named {target}_vs_{reference}.
 reference_condition <- "donor1"
 
-# Adjusted p-value cutoff for the abundance effect-size heatmap (§5.1.1). Does not filter the saved table.
+# Adjusted p-value cutoff for the abundance effect-size heatmap (§3.1.1). Does not filter the saved table.
 dabund_plot_p_adj_threshold <- 0.05
-# |difference| cutoff for the abundance effect-size heatmap (§5.1.1). Does not filter the saved table.
+# |difference| cutoff for the abundance effect-size heatmap (§3.1.1). Does not filter the saved table.
 dabund_heatmap_effect_threshold <- 0.5
-# Top n markers to label on the abundance volcano (§5.1.1). Does not filter the saved table.
+# Top n markers to label on the abundance volcano (§3.1.1). Does not filter the saved table.
 dabund_volcano_top_n <- 5
 
-# Adjusted p-value cutoff for the clustering effect-size heatmap (§5.2.1). Does not filter the saved table.
+# Adjusted p-value cutoff for the clustering effect-size heatmap (§3.2.1). Does not filter the saved table.
 dclust_plot_p_adj_threshold <- 0.05
-# |difference| cutoff for the clustering effect-size heatmap (§5.2.1). Does not filter the saved table.
+# |difference| cutoff for the clustering effect-size heatmap (§3.2.1). Does not filter the saved table.
 dclust_heatmap_effect_threshold <- 0.5
-# Top n markers to label on the clustering volcano (§5.2.1). Does not filter the saved table.
+# Top n markers to label on the clustering volcano (§3.2.1). Does not filter the saved table.
 dclust_volcano_top_n <- 5
 
-# Adjusted p-value cutoff for the colocalization effect-size heatmap (§5.3.1). Does not filter the saved table.
+# Adjusted p-value cutoff for the colocalization effect-size heatmap (§3.3.1). Does not filter the saved table.
 dcoloc_plot_p_adj_threshold <- 0.05
-# |difference| cutoff for the colocalization effect-size heatmap (§5.3.1). Does not filter the saved table.
+# |difference| cutoff for the colocalization effect-size heatmap (§3.3.1). Does not filter the saved table.
 dcoloc_heatmap_effect_threshold <- 0.5
-# Top n pairs to label on the colocalization volcano (§5.3.1). Does not filter the saved table.
+# Top n pairs to label on the colocalization volcano (§3.3.1). Does not filter the saved table.
 dcoloc_volcano_top_n <- 5
 
 if (!contrast_column %in% colnames(pg_data[[]])) {
@@ -103,7 +103,7 @@ message(
 pseudobulk_covariate_cols <- NULL
 ```
 
-Aggregation, plotting, and saving are done inline in each section below, mirroring `05a_statistical_testing_cell_level.qmd`. 
+Aggregation, plotting, and saving are done inline in each section below, mirroring `03a_statistical_testing_cell_level.qmd`. 
 
 ### Sample-level Aggregation
 
@@ -112,11 +112,11 @@ In this section we create the tables of pseudobulk data that will be used for th
 #### Abundance Summary
 
 ```{r}
-#| label: module05b_aggregate_abundance
+#| label: module03b_aggregate_abundance
 #| include: false
 
 # Mean CLR per sample × cell type × marker. This is the expression matrix
-# limma sees in §5.1, and the values drawn in the sample heatmaps.
+# limma sees in §3.1, and the values drawn in the sample heatmaps.
 summary_abundance_data <-
   names(markers_to_test) |>
   map(function(cell_type) {
@@ -138,17 +138,17 @@ summary_abundance_data <-
   }) |>
   bind_rows()
 
-abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "pseudobulk")
+abundance_dir <- here::here("results", "03_statistical_testing", "abundance", "pseudobulk")
 dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
 write_csv(summary_abundance_data, file.path(abundance_dir, "summary_abundance_data.csv"))
 ```
 
 #### Proximity Summary
 
-A similar process is used to create the tables of pseudobulked proximity data. `FilterProximityScores()` drops pairs below an isotype-derived background. A pair is then kept in a sample only when more than 3 cells in that sample still have it. `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type, padding cells in that sample where the pair was not detected with 0 (`include_missing_obs = TRUE`). Clustering (§5.2) uses the self-pairs (`marker_1 == marker_2`); colocalization (§5.3) uses the off-diagonal pairs. 
+A similar process is used to create the tables of pseudobulked proximity data. `FilterProximityScores()` drops pairs below an isotype-derived background. A pair is then kept in a sample only when more than 3 cells in that sample still have it. `SummarizeProximityScores()` takes the mean `log2_ratio` per `sample_alias` × cell type, padding cells in that sample where the pair was not detected with 0 (`include_missing_obs = TRUE`). Clustering (§3.2) uses the self-pairs (`marker_1 == marker_2`); colocalization (§3.3) uses the off-diagonal pairs. 
 
 ```{r}
-#| label: module05b_aggregate_proximity
+#| label: module03b_aggregate_proximity
 
 # The isotype cutoff is computed once on the full object: median isotype fraction + 2 MAD (minimum 0.001).
 bg <- if ("isotype_fraction" %in% colnames(pg_data[[]])) {
@@ -176,17 +176,17 @@ summary_proximity_data <- names(markers_to_test) |>
   }) |>
   bind_rows()
 
-proximity_dir <- here::here("results", "05_statistical_testing", "proximity", "pseudobulk")
+proximity_dir <- here::here("results", "03_statistical_testing", "proximity", "pseudobulk")
 dir.create(proximity_dir, recursive = TRUE, showWarnings = FALSE)
 write_csv(summary_proximity_data, file.path(proximity_dir, "summary_proximity_data.csv"))
 ```
 
-## 5.1. Differential abundance analysis
+## 3.1. Differential abundance analysis
 
-Limma is fit on `summary_abundance_data` (mean CLR per `sample_alias` × cell type × marker). The model formula uses `contrast_column`, plus any columns in `pseudobulk_covariate_cols`. The coefficient for each non-reference condition is the difference in mean CLR. Results are written as `differential_abundance_analysis.csv` under `abundance/pseudobulk/`. In module 07, set `stats_method` to `"pseudobulk"` to use these tables (the default `"cell_level"` reads module 05a).
+Limma is fit on `summary_abundance_data` (mean CLR per `sample_alias` × cell type × marker). The model formula uses `contrast_column`, plus any columns in `pseudobulk_covariate_cols`. The coefficient for each non-reference condition is the difference in mean CLR. Results are written as `differential_abundance_analysis.csv` under `abundance/pseudobulk/`. In module 07, set `stats_method` to `"pseudobulk"` to use these tables (the default `"cell_level"` reads module 03a).
 
 ```{r}
-#| label: module05b_abundance
+#| label: module03b_abundance
 
 # Limma cannot estimate a condition effect from a single sample, so skip the
 # fit (without aborting the render) when a condition has fewer than two samples.
@@ -279,13 +279,13 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
     }) |>
     bind_rows()
 
-  abundance_dir <- here::here("results", "05_statistical_testing", "abundance", "pseudobulk")
+  abundance_dir <- here::here("results", "03_statistical_testing", "abundance", "pseudobulk")
   dir.create(abundance_dir, recursive = TRUE, showWarnings = FALSE)
   write_csv(differential_abundance_analysis_pseudobulk, file.path(abundance_dir, "differential_abundance_analysis.csv"))
 }
 ```
 
-### 5.1.1. Summarizing plots
+### 3.1.1. Summarizing plots
 
 Here we create summarizing plots for the differential abundance analysis results, plotting only the first non-reference target (the saved tables above keep every target):
 
@@ -294,7 +294,7 @@ Here we create summarizing plots for the differential abundance analysis results
 2. **Effect-size heatmap**: Markers with `p_adj < dabund_plot_p_adj_threshold` and `|effect| > dabund_heatmap_effect_threshold` across cell types.
 
 ```{r}
-#| label: module05b_abundance_plots
+#| label: module03b_abundance_plots
 
 if (
   exists("differential_abundance_analysis_pseudobulk") &&
@@ -303,10 +303,10 @@ if (
   modality <- "abundance"
   target <- setdiff(unique(differential_abundance_analysis_pseudobulk$target), reference_condition)[1]
 
-  # results/05_statistical_testing/{modality}/pseudobulk/{target}_vs_{reference}/...
+  # results/03_statistical_testing/{modality}/pseudobulk/{target}_vs_{reference}/...
   plot_path <- function(...) {
     here::here(
-      "results/05_statistical_testing", modality, "pseudobulk",
+      "results/03_statistical_testing", modality, "pseudobulk",
       paste0(target, "_vs_", reference_condition),
       ...
     )
@@ -386,12 +386,12 @@ if (
 }
 ```
 
-## 5.2. Differential clustering analysis
+## 3.2. Differential clustering analysis
 
 Self-proximity (`marker_1 == marker_2`) from `summary_proximity_data`, then limma. Column `diff_median` stores the limma logFC (mean difference). Module 07 expects that column name, which is what the cell-level Wilcoxon clustering table uses for its median difference.
 
 ```{r}
-#| label: module05b_clustering
+#| label: module03b_clustering
 
 # Limma cannot estimate a condition effect from a single sample, so skip the
 # fit (without aborting the render) when a condition has fewer than two samples.
@@ -500,22 +500,22 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
       }
     )
 
-  clustering_dir <- here::here("results", "05_statistical_testing", "clustering", "pseudobulk")
+  clustering_dir <- here::here("results", "03_statistical_testing", "clustering", "pseudobulk")
   dir.create(clustering_dir, recursive = TRUE, showWarnings = FALSE)
   write_csv(differential_clustering_analysis_pseudobulk, file.path(clustering_dir, "differential_clustering_analysis.csv"))
 }
 ```
 
-### 5.2.1. Summarizing plots
+### 3.2.1. Summarizing plots
 
-Here we create summarizing plots for the differential clustering analysis results, with the same layout as §5.1.1:
+Here we create summarizing plots for the differential clustering analysis results, with the same layout as §3.1.1:
 
 1. **Per-cell-type volcano + sample heatmap**: Volcano of `diff_median` vs −log10 adjusted p-value, top `dclust_volcano_top_n` markers labeled by **adjusted significance**, beside a row-z-scored heatmap of sample-mean self-proximity (`log2_ratio`, `marker_1 == marker_2` in `summary_proximity_data`). Saved in the cell type's own folder.
 
 2. **Effect-size heatmap**: Markers with `p_adj < dclust_plot_p_adj_threshold` and `|diff_median| > dclust_heatmap_effect_threshold` across cell types.
 
 ```{r}
-#| label: module05b_clustering_plots
+#| label: module03b_clustering_plots
 
 if (
   exists("differential_clustering_analysis_pseudobulk") &&
@@ -524,10 +524,10 @@ if (
   modality <- "clustering"
   target <- setdiff(unique(differential_clustering_analysis_pseudobulk$target), reference_condition)[1]
 
-  # results/05_statistical_testing/{modality}/pseudobulk/{target}_vs_{reference}/...
+  # results/03_statistical_testing/{modality}/pseudobulk/{target}_vs_{reference}/...
   plot_path <- function(...) {
     here::here(
-      "results/05_statistical_testing", modality, "pseudobulk",
+      "results/03_statistical_testing", modality, "pseudobulk",
       paste0(target, "_vs_", reference_condition),
       ...
     )
@@ -611,12 +611,12 @@ if (
 }
 ```
 
-## 5.3. Differential colocalization analysis
+## 3.3. Differential colocalization analysis
 
-Off-diagonal pairs (`marker_1 != marker_2`) from the same sample-level table as §5.2, then limma. `diff_median` again stores the limma logFC so module 07 can read this table the same way it reads the cell-level colocalization results. Set `stats_method` to `"pseudobulk"` to use these results (and the matching abundance tables) for enrichment.
+Off-diagonal pairs (`marker_1 != marker_2`) from the same sample-level table as §3.2, then limma. `diff_median` again stores the limma logFC so module 07 can read this table the same way it reads the cell-level colocalization results. Set `stats_method` to `"pseudobulk"` to use these results (and the matching abundance tables) for enrichment.
 
 ```{r}
-#| label: module05b_colocalization
+#| label: module03b_colocalization
 
 # Limma cannot estimate a condition effect from a single sample, so skip the
 # fit (without aborting the render) when a condition has fewer than two samples.
@@ -726,22 +726,22 @@ if (length(n_per_condition) == 0 || any(n_per_condition < 2)) {
       }
     )
 
-  colocalization_dir <- here::here("results", "05_statistical_testing", "colocalization", "pseudobulk")
+  colocalization_dir <- here::here("results", "03_statistical_testing", "colocalization", "pseudobulk")
   dir.create(colocalization_dir, recursive = TRUE, showWarnings = FALSE)
   write_csv(differential_colocalization_analysis_pseudobulk, file.path(colocalization_dir, "differential_colocalization_analysis.csv"))
 }
 ```
 
-### 5.3.1. Summarizing plots
+### 3.3.1. Summarizing plots
 
-Here we create summarizing plots for the differential colocalization analysis results, with the same layout as §5.1.1. Each row is a marker pair (`marker_1_marker_2`):
+Here we create summarizing plots for the differential colocalization analysis results, with the same layout as §3.1.1. Each row is a marker pair (`marker_1_marker_2`):
 
 1. **Per-cell-type volcano + sample heatmap**: Volcano of `diff_median` vs −log10 adjusted p-value, top `dcoloc_volcano_top_n` pairs labeled by **adjusted significance**, beside a row-z-scored heatmap of sample-mean pair `log2_ratio` (`summary_proximity_data`). Saved in the cell type's own folder.
 
 2. **Effect-size heatmap**: Pairs with `p_adj < dcoloc_plot_p_adj_threshold` and `|diff_median| > dcoloc_heatmap_effect_threshold` across cell types.
 
 ```{r}
-#| label: module05b_colocalization_plots
+#| label: module03b_colocalization_plots
 
 if (
   exists("differential_colocalization_analysis_pseudobulk") &&
@@ -750,10 +750,10 @@ if (
   modality <- "colocalization"
   target <- setdiff(unique(differential_colocalization_analysis_pseudobulk$target), reference_condition)[1]
 
-  # results/05_statistical_testing/{modality}/pseudobulk/{target}_vs_{reference}/...
+  # results/03_statistical_testing/{modality}/pseudobulk/{target}_vs_{reference}/...
   plot_path <- function(...) {
     here::here(
-      "results/05_statistical_testing", modality, "pseudobulk",
+      "results/03_statistical_testing", modality, "pseudobulk",
       paste0(target, "_vs_", reference_condition),
       ...
     )
