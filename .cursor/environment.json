@@ -1,0 +1,7 @@
+{
+  "name": "Proxiome Analysis Template",
+  "user": "root",
+  "build": {
+    "dockerfile": "Dockerfile"
+  }
+}
