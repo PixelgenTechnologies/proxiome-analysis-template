@@ -21,7 +21,7 @@ if (!exists("pg_data", inherits = TRUE)) {
 ## 6.1. Parameters
 
 > **Decision checkpoint**
-> Set the cell type and markers to plot. In practice, cell visualization is an interactive process, where you select cells and markers of interest based on prior knowledge and/or analysis results and then plot them - often in multiple ways. Here we collected also some other parameters regarding the visualization itself and where to save the results.
+> Set the cell type and markers to plot. In practice, cell visualization is an interactive process, where you select cells and markers of interest based on prior knowledge and/or analysis results and then plot them - often in multiple ways. Set `min_expected_join_count` to drop marker pairs that are too sparse to interpret. Here we collected also some other parameters regarding the visualization itself and where to save the results.
 
 As an example in this module, we will visualize CD8 T cells and in particular the markers CD82 and CD81. This is a pair of proteins which are known to often colocalize on the cell surface. 
 
@@ -30,6 +30,9 @@ As an example in this module, we will visualize CD8 T cells and in particular th
 
 cell_type_of_interest <- "CD8 T"           # one value from `cell_annotation`
 markers_to_viz        <- c("CD82", "CD81") # pair inspected for colocalization
+# Keep pairs whose abundance implies more than this many joins by chance
+# (`join_count_expected_mean`). Raise it to drop sparse pairs.
+min_expected_join_count <- 0
 # Grey background nodes, one color per marker in `markers_to_viz`
 marker_colors <- c(Other = "grey85", CD82 = "#E53E3E", CD81 = "#3182BD")
 light_direction <- c(-1, 0.5, 1)           # shared lighting for the static renders
@@ -39,28 +42,41 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 ## 6.2. Select cells
 
-How you pick a cell to visualize depends mainly on what you want to highlight in the visualization. It could be the spatial pattern on a typical cell, a polarized marker, a colocalization pattern, or a cell–cell conjugate. Often, it is therefore useful to filter or order the cells based on the colocalization score or a certain number of join counts, so that only cells with a certain level of colocalization and abundance would be included in the visualization.
+How you pick a cell to visualize depends mainly on what you want to highlight in the visualization. It could be the spatial pattern on a typical cell, a polarized marker, a colocalization pattern, or a cell–cell conjugate. Often, it is therefore useful to keep pairs whose expected join count shows that both markers are abundant enough to interpret, then order those cells by colocalization score (`log2_ratio`).
 
 ```{r}
 #| label: cell_viz_select_cells
 
-# Here we select the cell with the highest colocalization score and a certain number of join counts.
+# Select the cell with the highest colocalization score among pairs
+# above min_expected_join_count.
+if (sum(pg_data$cell_annotation == cell_type_of_interest, na.rm = TRUE) == 0) {
+  stop(
+    "No cells are annotated as '", cell_type_of_interest,
+    "'. Check the values in `cell_annotation`."
+  )
+}
+
 sel_cells <- pg_data |>
   subset(cell_annotation == cell_type_of_interest) |>
   ProximityScores(lazy = TRUE) |>
   filter(
     marker_1 %in% markers_to_viz,
     marker_2 %in% markers_to_viz,
-    marker_1 != marker_2
+    marker_1 != marker_2,
+    join_count_expected_mean > min_expected_join_count
   ) |>
-  filter(join_count > 100) |>
   arrange(desc(log2_ratio)) |>
   collect() |>
   slice_head(n = 1)
 
 cell_of_interest <- sel_cells$component
 if (length(cell_of_interest) != 1) {
-  stop("No '", cell_type_of_interest, "' cells pass the selection filter.")
+  stop(
+    "No '", cell_type_of_interest, "' cells have a ",
+    paste(markers_to_viz, collapse = "/"),
+    " pair with expected join count above ",
+    min_expected_join_count, "."
+  )
 }
 ```
 
@@ -293,16 +309,16 @@ It can be very insightful to show the same scores across several cells. This can
 # Earlier figures drew one cell. Here we select the number of cells to visualize.
 n_cells <- 4
 
-# Select the cells to visualize based on the colocalization score and the number of join counts. This is just a filter to select the cells to visualize and can be customized to your needs or plot you want to create.
+# Select cells by colocalization score among pairs above min_expected_join_count.
 grid_cells <- pg_data |>
   subset(cell_annotation == cell_type_of_interest) |>
   ProximityScores(lazy = TRUE) |>
   filter(
     marker_1 %in% markers_to_viz,
     marker_2 %in% markers_to_viz,
-    marker_1 != marker_2
+    marker_1 != marker_2,
+    join_count_expected_mean > min_expected_join_count
   ) |>
-  filter(join_count > 100) |>
   collect() |>
   group_by(component) |>
   slice_max(log2_ratio, n = 1, with_ties = FALSE) |>
@@ -312,7 +328,12 @@ grid_cells <- pg_data |>
 
 cells_of_interest <- grid_cells$component
 if (length(cells_of_interest) == 0) {
-  stop("No '", cell_type_of_interest, "' cells pass the selection filter.")
+  stop(
+    "No '", cell_type_of_interest, "' cells have a ",
+    paste(markers_to_viz, collapse = "/"),
+    " pair with expected join count above ",
+    min_expected_join_count, "."
+  )
 }
 ```
 

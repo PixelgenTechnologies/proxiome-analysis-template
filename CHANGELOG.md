@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] 2026-11-13
+
+### Fixed
+
+- Module `06` selects cells by expected join count (`join_count_expected_mean`) instead of observed `join_count`. The example cutoff is `0`, so the public two-donor data returns a CD8 T cell. The previous `join_count > 100` filter matched no cell and stopped the HTML smoke test.
+
 ## [0.8.0] 2026-11-12
 
 ### Changed
