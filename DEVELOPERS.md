@@ -60,7 +60,7 @@ styler::style_file("proxiome_analysis_template.qmd", transformers = pixelatorR::
 
 ## Docker image and CI
 
-The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml) as three jobs: **build** → optional **HTML smoke test** → **push to Quay**. On a published Release (or a manual workflow run with smoke test enabled), smoke runs against a Quay `sha-…` staging tag; branch/semver tags are promoted only after smoke passes.
+The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml) as three jobs: **build** → optional **HTML smoke test** → **push to Quay**. On a push to `main`, a published Release, or a manual workflow run with smoke test enabled, smoke runs against a Quay `sha-…` staging tag; branch/semver tags are promoted only after smoke passes.
 
 ### Docker image
 
@@ -78,20 +78,21 @@ Build locally:
 docker build -t proxiome-analysis-template .
 ```
 
-On merges to `main` and version tags, the image is pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`.
+On merges to `main` (after the HTML smoke test passes) and on version tags, the image is pushed to `quay.io/pixelgen-technologies/proxiome-analysis-template`.
 
 ### CI workflow
 
 Jobs in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml):
 
-1. **Build Docker Image** (`ubuntu-latest`) — build the image. On ordinary `main`/tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
+1. **Build Docker Image** (`ubuntu-latest`) — build the image. On version-tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
 2. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render --embed-resources`, upload the self-contained HTML (and attach to the GitHub Release when applicable).
 3. **Push image to Quay** (`ubuntu-latest`, smoke path only) — after a successful smoke test, promote the staging image to the publish tag list computed in the build job (passed as a multiline job output) via `docker buildx imagetools create` (registry-side retag, no image tarball).
 
 Behavior by event:
 
 - **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
-- **`main` / version tags:** image is built and pushed to Quay in the build job; smoke test is skipped (use a Release or workflow_dispatch to smoke-test).
+- **`main`:** staging `sha-…` tag is pushed, smoke-tested, then promoted to publish tags (including `main`). This includes every pull request merge.
+- **Version tags:** image is built and pushed to Quay in the build job; smoke test is skipped. A published Release smoke-tests that tag and attaches the HTML.
 - **Release / workflow_dispatch (smoke on):** staging `sha-…` tag is pushed, smoke-tested, then promoted to publish tags.
 
 To smoke-test a branch: Actions → **Build** → Run workflow → leave “run smoke test” checked → choose the branch.
@@ -102,9 +103,10 @@ When the smoke test runs, CI downloads donors 1 and 3 from the public [16 health
 
 **When it runs**
 
+- **Push to `main`** — always, including pull request merges
 - **Published Release** — always (self-contained HTML attached to the Release)
 - **workflow_dispatch** — when “run smoke test” is enabled (default on)
-- **Not** on ordinary `main` pushes or pull requests (too expensive: ~7.1 GiB download + long render)
+- **Not** on pull requests or version-tag pushes
 
 **What it does**
 

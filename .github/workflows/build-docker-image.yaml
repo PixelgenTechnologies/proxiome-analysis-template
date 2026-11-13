@@ -22,9 +22,9 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Smoke test on releases and manual runs (optional via input).
-  # Skipped on ordinary main pushes/PRs to avoid multi-GB downloads on every CI run.
-  RUN_SMOKE_TEST: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) }}
+  # Smoke test on every push to main (including PR merges), published releases,
+  # and manual runs (optional via input). Skipped on pull requests and version-tag pushes.
+  RUN_SMOKE_TEST: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.run_smoke_test) }}
   PUSH_TO_QUAY: ${{ github.event_name != 'pull_request' }}
   IMAGE_NAME: quay.io/pixelgen-technologies/proxiome-analysis-template
 
