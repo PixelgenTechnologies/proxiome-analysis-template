@@ -318,7 +318,6 @@ significant_hits_barplot <- function(
       fill = list(n = 0L)
     ) |>
     mutate(
-      group = fct_reorder(.data$group, .data$n, .fun = sum, .desc = TRUE),
       direction = factor(.data$direction, levels = c(higher_target, higher_reference))
     )
 
@@ -328,7 +327,7 @@ significant_hits_barplot <- function(
   )
 
   plot <- ggplot(counts, aes(.data$group, .data$n, fill = .data$direction)) +
-    geom_col() +
+    geom_col(position = position_dodge()) +
     scale_fill_manual(values = direction_colors, drop = FALSE) +
     scale_y_continuous(breaks = scales::breaks_pretty(), labels = scales::label_number(accuracy = 1)) +
     theme_bw() +
