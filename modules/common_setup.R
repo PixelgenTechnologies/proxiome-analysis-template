@@ -269,3 +269,77 @@ format_thousands <- function(x) {
     as.character(round(x, 1))
   )
 }
+
+#' Bar plot of significant differences per cell type.
+#'
+#' Counts, for each cell type, the features (markers or marker pairs) that pass
+#' both an adjusted p-value cutoff and an absolute effect-size cutoff, split by
+#' the direction of the change. Cell types without any significant feature are
+#' kept with a count of zero, and cell types are ordered by their total count.
+#'
+#' @param data Data frame with one row per feature and cell type, containing a
+#'   `group` column (cell type), a `p_adj` column and the effect-size column
+#'   named in `effect_col`.
+#' @param effect_col Name of the effect-size column. Positive values mean higher
+#'   in `target`, negative values mean higher in `reference`.
+#' @param p_adj_threshold Features with `p_adj` below this value are significant.
+#' @param effect_threshold Features with an absolute effect size above this value
+#'   are significant.
+#' @param target Name of the target condition.
+#' @param reference Name of the reference condition.
+#' @param feature_label Plural noun for the tested features, used in the y axis
+#'   label (for example "markers" or "marker pairs").
+#' @return A ggplot object.
+#' @noRd
+significant_hits_barplot <- function(
+    data,
+    effect_col,
+    p_adj_threshold,
+    effect_threshold,
+    target,
+    reference,
+    feature_label = "markers") {
+  higher_target <- paste0("Higher in ", target)
+  higher_reference <- paste0("Higher in ", reference)
+
+  counts <- data |>
+    mutate(
+      direction = case_when(
+        .data$p_adj < p_adj_threshold & .data[[effect_col]] > effect_threshold ~ higher_target,
+        .data$p_adj < p_adj_threshold & .data[[effect_col]] < -effect_threshold ~ higher_reference,
+        TRUE ~ NA_character_
+      )
+    ) |>
+    filter(!is.na(.data$direction)) |>
+    count(group, direction) |>
+    complete(
+      group = unique(data$group),
+      direction = c(higher_target, higher_reference),
+      fill = list(n = 0L)
+    ) |>
+    mutate(
+      group = fct_reorder(.data$group, .data$n, .fun = sum, .desc = TRUE),
+      direction = factor(.data$direction, levels = c(higher_target, higher_reference))
+    )
+
+  direction_colors <- set_names(
+    c(gradient_palette[10], gradient_palette[2]),
+    c(higher_target, higher_reference)
+  )
+
+  plot <- ggplot(counts, aes(.data$group, .data$n, fill = .data$direction)) +
+    geom_col() +
+    scale_fill_manual(values = direction_colors, drop = FALSE) +
+    scale_y_continuous(breaks = scales::breaks_pretty(), labels = scales::label_number(accuracy = 1)) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(
+      title = paste0(target, " vs ", reference),
+      subtitle = paste0("p_adj < ", p_adj_threshold, " and |effect| > ", effect_threshold),
+      x = NULL,
+      y = paste("Number of significant", feature_label),
+      fill = NULL
+    )
+
+  return(plot)
+}

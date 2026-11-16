@@ -293,6 +293,8 @@ Here we create summarizing plots for the differential abundance analysis results
 
 2. **Effect-size heatmap**: Markers with `p_adj < dabund_plot_p_adj_threshold` and `|effect| > dabund_heatmap_effect_threshold` across cell types.
 
+3. **Significant hits barplot**: Number of markers per cell type passing the same two cutoffs as the effect-size heatmap, split by whether they are higher in the target or the reference condition. Cell types without hits are shown with a count of zero. Saved as `significant_hits_barplot` in the `{target}_vs_{reference}` folder.
+
 ```{r}
 #| label: module03b_abundance_plots
 
@@ -383,6 +385,23 @@ if (
       as.ggplot()
     export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
   }
+
+  # Number of significant markers per cell type, split by direction of change
+  hits_plot <- significant_hits_barplot(
+    plot_data,
+    effect_col = "difference",
+    p_adj_threshold = dabund_plot_p_adj_threshold,
+    effect_threshold = dabund_heatmap_effect_threshold,
+    target = target,
+    reference = reference_condition,
+    feature_label = "markers"
+  )
+  export_plot(
+    plot_path("significant_hits_barplot"),
+    hits_plot,
+    width = max(4, n_distinct(plot_data$group) * 0.5 + 2),
+    height = 4
+  )
 }
 ```
 
@@ -514,6 +533,8 @@ Here we create summarizing plots for the differential clustering analysis result
 
 2. **Effect-size heatmap**: Markers with `p_adj < dclust_plot_p_adj_threshold` and `|diff_median| > dclust_heatmap_effect_threshold` across cell types.
 
+3. **Significant hits barplot**: Number of markers per cell type passing the same two cutoffs as the effect-size heatmap, split by whether they are higher in the target or the reference condition. Cell types without hits are shown with a count of zero. Saved as `significant_hits_barplot` in the `{target}_vs_{reference}` folder.
+
 ```{r}
 #| label: module03b_clustering_plots
 
@@ -608,6 +629,23 @@ if (
       as.ggplot()
     export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
   }
+
+  # Number of significant markers per cell type, split by direction of change
+  hits_plot <- significant_hits_barplot(
+    plot_data,
+    effect_col = "diff_median",
+    p_adj_threshold = dclust_plot_p_adj_threshold,
+    effect_threshold = dclust_heatmap_effect_threshold,
+    target = target,
+    reference = reference_condition,
+    feature_label = "markers"
+  )
+  export_plot(
+    plot_path("significant_hits_barplot"),
+    hits_plot,
+    width = max(4, n_distinct(plot_data$group) * 0.5 + 2),
+    height = 4
+  )
 }
 ```
 
@@ -739,6 +777,8 @@ Here we create summarizing plots for the differential colocalization analysis re
 1. **Per-cell-type volcano + sample heatmap**: Volcano of `diff_median` vs −log10 adjusted p-value, top `dcoloc_volcano_top_n` pairs labeled by **adjusted significance**, beside a row-z-scored heatmap of sample-mean pair `log2_ratio` (`summary_proximity_data`). Saved in the cell type's own folder.
 
 2. **Effect-size heatmap**: Pairs with `p_adj < dcoloc_plot_p_adj_threshold` and `|diff_median| > dcoloc_heatmap_effect_threshold` across cell types.
+
+3. **Significant hits barplot**: Number of marker pairs per cell type passing the same two cutoffs as the effect-size heatmap, split by whether they are higher in the target or the reference condition. Cell types without hits are shown with a count of zero. Saved as `significant_hits_barplot` in the `{target}_vs_{reference}` folder.
 
 ```{r}
 #| label: module03b_colocalization_plots
@@ -881,5 +921,22 @@ if (
       as.ggplot()
     export_plot(plot_path("effect_size_heatmap_all_celltypes"), heatmap_plot, width = 6, height = 6)
   }
+
+  # Number of significant marker pairs per cell type, split by direction of change
+  hits_plot <- significant_hits_barplot(
+    plot_data,
+    effect_col = "diff_median",
+    p_adj_threshold = dcoloc_plot_p_adj_threshold,
+    effect_threshold = dcoloc_heatmap_effect_threshold,
+    target = target,
+    reference = reference_condition,
+    feature_label = "marker pairs"
+  )
+  export_plot(
+    plot_path("significant_hits_barplot"),
+    hits_plot,
+    width = max(4, n_distinct(plot_data$group) * 0.5 + 2),
+    height = 4
+  )
 }
 ```
