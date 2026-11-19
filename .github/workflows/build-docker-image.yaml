@@ -29,33 +29,19 @@ env:
   IMAGE_NAME: quay.io/pixelgen-technologies/proxiome-analysis-template
 
 jobs:
-  build:
-    name: Build Docker Image
+  meta:
+    name: Resolve image tags
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 10
     permissions:
       contents: read
-      actions: write # GHA build cache (cache-to: type=gha)
     outputs:
       staging_image: ${{ steps.staging_ref.outputs.image }}
       publish_tags: ${{ steps.export_tags.outputs.publish_tags }}
+      labels: ${{ steps.meta.outputs.labels }}
       run_smoke_test: ${{ env.RUN_SMOKE_TEST }}
       push_to_quay: ${{ env.PUSH_TO_QUAY }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up build environment
-        id: setup_build_env
-        uses: ./.github/actions/setup-image-build-env
-        with:
-          quay-username: ${{ secrets.QUAY_IO_USERNAME }}
-          quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
-          # Login whenever this job pushes (full tags, or smoke staging sha).
-          push: ${{ env.PUSH_TO_QUAY == 'true' || env.RUN_SMOKE_TEST == 'true' }}
-
       - name: Docker meta (publish tags)
         id: meta
         uses: docker/metadata-action@v5
@@ -103,24 +89,113 @@ jobs:
             echo "EOF_PUBLISH_TAGS"
           } >> "${GITHUB_OUTPUT}"
 
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: meta
+    # Native runner per architecture; R package installs are too slow under QEMU.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: write # GHA build cache (cache-to: type=gha)
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      PUSH: ${{ needs.meta.outputs.push_to_quay == 'true' || needs.meta.outputs.run_smoke_test == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up build environment
+        uses: ./.github/actions/setup-image-build-env
+        with:
+          quay-username: ${{ secrets.QUAY_IO_USERNAME }}
+          quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
+          push: ${{ env.PUSH }}
+
       - name: Build Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
-          # Smoke path: push only the sha staging tag (smoke pulls it; promote after).
-          # Non-smoke publish: push the full tag set from meta.
-          # PRs: build only (no push).
-          push: ${{ env.PUSH_TO_QUAY == 'true' || env.RUN_SMOKE_TEST == 'true' }}
-          tags: ${{ env.RUN_SMOKE_TEST == 'true' && steps.staging.outputs.tags || steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          # PRs: build only (no push). Otherwise push untagged by digest;
+          # the manifest job tags the multi-arch image.
+          outputs: ${{ env.PUSH == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE_NAME) || '' }}
+          labels: ${{ needs.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      - name: Export digest
+        if: env.PUSH == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: env.PUSH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  manifest:
+    name: Push multi-arch manifest
+    needs: [meta, build]
+    if: needs.meta.outputs.push_to_quay == 'true' || needs.meta.outputs.run_smoke_test == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up build environment
+        uses: ./.github/actions/setup-image-build-env
+        with:
+          quay-username: ${{ secrets.QUAY_IO_USERNAME }}
+          quay-password: ${{ secrets.QUAY_IO_PASSWORD }}
+          push: "true"
+
+      - name: Create and push manifest
+        working-directory: /tmp/digests
+        env:
+          # Smoke path: only the sha staging tag (smoke pulls it; promote after).
+          # Non-smoke publish: the full tag set from meta.
+          TAGS: ${{ env.RUN_SMOKE_TEST == 'true' && needs.meta.outputs.staging_image || needs.meta.outputs.publish_tags }}
+        run: |
+          set -euo pipefail
+          tag_args=()
+          while IFS= read -r tag; do
+            [[ -n "${tag}" ]] && tag_args+=(--tag "${tag}")
+          done <<< "${TAGS}"
+          docker buildx imagetools create "${tag_args[@]}" \
+            $(printf "${IMAGE_NAME}@sha256:%s " *)
+          docker buildx imagetools inspect "$(head -n1 <<< "${TAGS}")"
 
   smoke-test:
     name: HTML smoke test
-    needs: build
-    if: needs.build.outputs.run_smoke_test == 'true'
+    needs: [meta, manifest]
+    if: needs.meta.outputs.run_smoke_test == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -141,7 +216,7 @@ jobs:
 
       - name: Pull staging image
         run: |
-          IMAGE="${{ needs.build.outputs.staging_image }}"
+          IMAGE="${{ needs.meta.outputs.staging_image }}"
           echo "Pulling ${IMAGE}"
           docker pull "${IMAGE}"
           docker image inspect "${IMAGE}" >/dev/null
@@ -172,7 +247,7 @@ jobs:
 
       - name: Render Quarto HTML with image from this build
         run: |
-          IMAGE="${{ needs.build.outputs.staging_image }}"
+          IMAGE="${{ needs.meta.outputs.staging_image }}"
           echo "Using image from this build: ${IMAGE}"
           docker run --rm \
             -v "${PWD}:/workspace" \
@@ -209,14 +284,14 @@ jobs:
 
   push-to-quay:
     name: Push image to Quay
-    needs: [build, smoke-test]
+    needs: [meta, manifest, smoke-test]
     # Promote staging → publish tags only after smoke succeeds.
-    # Non-smoke publishes happen in the build job.
+    # Non-smoke publishes happen in the manifest job.
     if: |
       always() &&
-      needs.build.outputs.push_to_quay == 'true' &&
-      needs.build.outputs.run_smoke_test == 'true' &&
-      needs.build.result == 'success' &&
+      needs.meta.outputs.push_to_quay == 'true' &&
+      needs.meta.outputs.run_smoke_test == 'true' &&
+      needs.manifest.result == 'success' &&
       needs.smoke-test.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -235,8 +310,8 @@ jobs:
 
       - name: Promote staging image to publish tags
         env:
-          STAGING: ${{ needs.build.outputs.staging_image }}
-          PUBLISH_TAGS: ${{ needs.build.outputs.publish_tags }}
+          STAGING: ${{ needs.meta.outputs.staging_image }}
+          PUBLISH_TAGS: ${{ needs.meta.outputs.publish_tags }}
         run: |
           set -euo pipefail
           if [[ -z "${STAGING}" ]]; then
@@ -244,10 +319,10 @@ jobs:
             exit 1
           fi
           if [[ -z "${PUBLISH_TAGS}" ]]; then
-            echo "Missing publish tag list from build job" >&2
+            echo "Missing publish tag list from meta job" >&2
             exit 1
           fi
-          # Use the tag list computed in build (same event context). Do not re-run
+          # Use the tag list computed in meta (same event context). Do not re-run
           # docker/metadata-action here — release vs tag-push SemVer handling can diverge.
           # Registry-side retag (no local image transfer). Works for single- and multi-arch manifests.
           while IFS= read -r tag; do
