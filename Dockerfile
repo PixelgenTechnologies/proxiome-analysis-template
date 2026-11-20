@@ -1,4 +1,4 @@
-FROM ghcr.io/pixelgentechnologies/pixelatorr:0.23.0
+FROM ghcr.io/pixelgentechnologies/pixelatorr:0.26.1
 
 ARG QUARTO_VERSION="1.5.54"
 # Set by BuildKit (amd64 or arm64); matches Quarto's release asset names.
