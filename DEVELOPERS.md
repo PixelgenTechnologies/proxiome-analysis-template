@@ -66,7 +66,7 @@ The PAT is distributed as a Docker image on Quay. GitHub Actions builds it in [`
 
 The Docker image provides a pre-configured environment for users who prefer not to install R packages locally. It is built from [`Dockerfile`](Dockerfile).
 
-**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.23.0`
+**Base image:** `ghcr.io/pixelgentechnologies/pixelatorr:0.26.1`
 
 **Additional installs at build time:** Quarto and the remaining PAT R packages via `pak::pak()`.
 
@@ -84,15 +84,17 @@ On merges to `main` (after the HTML smoke test passes) and on version tags, the 
 
 Jobs in [`build-docker-image.yaml`](.github/workflows/build-docker-image.yaml):
 
-1. **Build Docker Image** (`ubuntu-latest`) — build the image. On version-tag pushes it publishes all tags to Quay. When smoke will run, it pushes only a `sha-…` staging tag.
-2. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag, download public PXLs, `quarto render --embed-resources`, upload the self-contained HTML (and attach to the GitHub Release when applicable).
-3. **Push image to Quay** (`ubuntu-latest`, smoke path only) — after a successful smoke test, promote the staging image to the publish tag list computed in the build job (passed as a multiline job output) via `docker buildx imagetools create` (registry-side retag, no image tarball).
+1. **Resolve image tags** (`ubuntu-latest`) — compute the publish tag list, the `sha-…` staging tag and the OCI labels.
+2. **Build** (matrix: `linux/amd64` on `ubuntu-latest`, `linux/arm64` on `ubuntu-24.04-arm`) — build each architecture on a native runner. When the workflow pushes, each image is pushed untagged by digest.
+3. **Push multi-arch manifest** (`ubuntu-latest`, skipped on pull requests) — combine both digests into one multi-arch image with `docker buildx imagetools create`. When smoke will run, it gets only the `sha-…` staging tag. On version-tag pushes it gets all publish tags.
+4. **HTML smoke test** (`ubuntu-latest`, conditional) — `docker pull` the staging tag (amd64), download public PXLs, `quarto render --embed-resources`, upload the self-contained HTML (and attach to the GitHub Release when applicable).
+5. **Push image to Quay** (`ubuntu-latest`, smoke path only) — after a successful smoke test, promote the staging image to the publish tag list computed in the tag job (passed as a multiline job output) via `docker buildx imagetools create` (registry-side retag, no image tarball).
 
 Behavior by event:
 
-- **Pull requests:** image is built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
+- **Pull requests:** both architectures are built to verify the Dockerfile; nothing is pushed; smoke test is skipped.
 - **`main`:** staging `sha-…` tag is pushed, smoke-tested, then promoted to publish tags (including `main`). This includes every pull request merge.
-- **Version tags:** image is built and pushed to Quay in the build job; smoke test is skipped. A published Release smoke-tests that tag and attaches the HTML.
+- **Version tags:** image is built and pushed to Quay with all publish tags in the manifest job; smoke test is skipped. A published Release smoke-tests that tag and attaches the HTML.
 - **Release / workflow_dispatch (smoke on):** staging `sha-…` tag is pushed, smoke-tested, then promoted to publish tags.
 
 To smoke-test a branch: Actions → **Build** → Run workflow → leave “run smoke test” checked → choose the branch.

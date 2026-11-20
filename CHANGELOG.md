@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - HTML smoke test runs on every push to `main`, including merged pull requests. Pull requests and version-tag pushes still skip it. Published Releases and manual workflow runs are unchanged.
+- Docker images are published for `linux/amd64` and `linux/arm64`.
+- Docker base image bumped from `pixelatorr:0.23.0` to `pixelatorr:0.26.1`.
 
 ## [0.8.1] 2026-11-13
 
