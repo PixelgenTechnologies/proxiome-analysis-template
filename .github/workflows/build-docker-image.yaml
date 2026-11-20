@@ -99,6 +99,8 @@ jobs:
       contents: read
       actions: write # GHA build cache (cache-to: type=gha)
     strategy:
+      # Let the other architecture finish so its result is visible on failure.
+      fail-fast: false
       matrix:
         include:
           - platform: linux/amd64
