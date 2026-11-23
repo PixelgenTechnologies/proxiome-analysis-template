@@ -318,7 +318,18 @@ significant_hits_barplot <- function(
       fill = list(n = 0L)
     ) |>
     mutate(
-      direction = factor(.data$direction, levels = c(higher_target, higher_reference))
+      direction = factor(
+        .data$direction,
+        levels = c(higher_target, higher_reference)
+      ),
+      # complete() sorts character cell types alphabetically. Rank them by the
+      # sum of both directions instead, highest first.
+      group = fct_reorder(
+        factor(.data$group),
+        .data$n,
+        .fun = sum,
+        .desc = TRUE
+      )
     )
 
   direction_colors <- set_names(
@@ -326,10 +337,30 @@ significant_hits_barplot <- function(
     c(higher_target, higher_reference)
   )
 
+  # Counts are integers. breaks_pretty() returns fractional ticks, and
+  # label_number(accuracy = 1) then prints the same integer more than once
+  # when the tallest bar is below about 5 (0, 0, 1, 2, 2, 2, 3).
+  integer_count_breaks <- function(limits) {
+    lower <- max(0, ceiling(limits[1]))
+    upper <- floor(limits[2])
+    if (!is.finite(lower) || !is.finite(upper)) {
+      return(0)
+    }
+    upper <- max(lower, upper)
+    if (upper - lower <= 6) {
+      return(seq(lower, upper))
+    }
+    breaks <- unique(round(scales::breaks_pretty(n = 5)(c(lower, upper))))
+    breaks[is.finite(breaks) & breaks >= lower & breaks <= upper]
+  }
+
   plot <- ggplot(counts, aes(.data$group, .data$n, fill = .data$direction)) +
     geom_col(position = position_dodge()) +
     scale_fill_manual(values = direction_colors, drop = FALSE) +
-    scale_y_continuous(breaks = scales::breaks_pretty(), labels = scales::label_number(accuracy = 1)) +
+    scale_y_continuous(
+      breaks = integer_count_breaks,
+      labels = scales::label_number(accuracy = 1)
+    ) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(
