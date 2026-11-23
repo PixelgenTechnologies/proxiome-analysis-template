@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && 
     mkdir -p /opt/quarto/${QUARTO_VERSION} && \
     curl -o quarto.tar.gz -L "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-${TARGETARCH}.tar.gz" && \
     tar -zxvf quarto.tar.gz -C "/opt/quarto/${QUARTO_VERSION}" --strip-components=1 && \
-    rm quarto.tar.gz
+    rm quarto.tar.gz && \
+    /opt/quarto/${QUARTO_VERSION}/bin/quarto --version
 
 ENV PATH=/opt/quarto/${QUARTO_VERSION}/bin:$PATH
 
