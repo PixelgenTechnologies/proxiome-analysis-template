@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.2] 2026-11-23
 
+### Added
+
+- Modules `03a` and `03b` now save a `significant_hits_barplot` per modality (abundance, clustering, colocalization), showing the number of significant markers or marker pairs per cell type, split by direction of change.
+
 ### Changed
 
 - HTML smoke test runs on every push to `main`, including merged pull requests. Pull requests and version-tag pushes still skip it. Published Releases and manual workflow runs are unchanged.
