@@ -275,7 +275,8 @@ format_thousands <- function(x) {
 #' Counts, for each cell type, the features (markers or marker pairs) that pass
 #' both an adjusted p-value cutoff and an absolute effect-size cutoff, split by
 #' the direction of the change. Cell types without any significant feature are
-#' kept with a count of zero, and cell types are ordered by their total count.
+#' kept with a count of zero. The x axis uses the factor levels of `group` when
+#' that column is a factor, and alphabetical order otherwise.
 #'
 #' @param data Data frame with one row per feature and cell type, containing a
 #'   `group` column (cell type), a `p_adj` column and the effect-size column
@@ -302,6 +303,15 @@ significant_hits_barplot <- function(
   higher_target <- paste0("Higher in ", target)
   higher_reference <- paste0("Higher in ", reference)
 
+  # Factor levels when group is a factor; otherwise alphabetical. Either way
+  # this is a fixed order, not the number of hits.
+  observed_groups <- unique(as.character(data$group))
+  cell_types <- if (is.factor(data$group)) {
+    intersect(levels(data$group), observed_groups)
+  } else {
+    sort(observed_groups)
+  }
+
   counts <- data |>
     mutate(
       direction = case_when(
@@ -313,7 +323,7 @@ significant_hits_barplot <- function(
     filter(!is.na(.data$direction)) |>
     count(group, direction) |>
     complete(
-      group = unique(data$group),
+      group = cell_types,
       direction = c(higher_target, higher_reference),
       fill = list(n = 0L)
     ) |>
@@ -322,14 +332,7 @@ significant_hits_barplot <- function(
         .data$direction,
         levels = c(higher_target, higher_reference)
       ),
-      # complete() sorts character cell types alphabetically. Rank them by the
-      # sum of both directions instead, highest first.
-      group = fct_reorder(
-        factor(.data$group),
-        .data$n,
-        .fun = sum,
-        .desc = TRUE
-      )
+      group = factor(.data$group, levels = cell_types)
     )
 
   direction_colors <- set_names(
@@ -337,30 +340,9 @@ significant_hits_barplot <- function(
     c(higher_target, higher_reference)
   )
 
-  # Counts are integers. breaks_pretty() returns fractional ticks, and
-  # label_number(accuracy = 1) then prints the same integer more than once
-  # when the tallest bar is below about 5 (0, 0, 1, 2, 2, 2, 3).
-  integer_count_breaks <- function(limits) {
-    lower <- max(0, ceiling(limits[1]))
-    upper <- floor(limits[2])
-    if (!is.finite(lower) || !is.finite(upper)) {
-      return(0)
-    }
-    upper <- max(lower, upper)
-    if (upper - lower <= 6) {
-      return(seq(lower, upper))
-    }
-    breaks <- unique(round(scales::breaks_pretty(n = 5)(c(lower, upper))))
-    breaks[is.finite(breaks) & breaks >= lower & breaks <= upper]
-  }
-
   plot <- ggplot(counts, aes(.data$group, .data$n, fill = .data$direction)) +
     geom_col(position = position_dodge()) +
     scale_fill_manual(values = direction_colors, drop = FALSE) +
-    scale_y_continuous(
-      breaks = integer_count_breaks,
-      labels = scales::label_number(accuracy = 1)
-    ) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(
